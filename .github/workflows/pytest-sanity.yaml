@@ -1,19 +1,23 @@
 name: Run sanity tests with PyTest
 
 on:
+  pull_request:
+    types: [opened, synchronize]
   push:
     branches:
       - "main"
-  pull_request:
-    types: [opened, synchronize, reopened, assigned]
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   pytest_sanity:
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       max-parallel: 4
       matrix:
@@ -21,46 +25,69 @@ jobs:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: No-op on pull_request
+        if: github.event_name == 'pull_request'
+        run: echo "Skipping installation and tests on PR; marking job success."
+      - name: Detect non-workflow changes
+        id: changes
+        shell: bash
+        run: |
+          set -eo pipefail
+          git fetch origin main --depth=1
+          BASE=$(git merge-base HEAD origin/main)
+          CHANGED=$(git diff --name-only "$BASE" HEAD || true)
+          NON_WORKFLOW=$(echo "$CHANGED" | grep -vE '^(\.github/workflows/|$)' || true)
+          if [[ -n "$NON_WORKFLOW" ]]; then
+            echo "non_workflow=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "non_workflow=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Set up Python
+        if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
       - name: Install dependencies on Linux and macOS
-        if: runner.os != 'Windows'
+        if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: |
           python -m pip install --upgrade pip
           python -m venv .venv
           source .venv/bin/activate
           pip install -r requirements/dev.txt -r requirements/polars.txt
       - name: Run commands on Windows
-        if: runner.os == 'Windows'
+        if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: |
           python -m pip install --upgrade 'pip>=24.1.2'
           python -m venv .venv
           .venv\Scripts\activate
           python -m pip install -r requirements\dev.txt -r requirements\polars.txt
       - name: Run PyTest on Linux and macOS
-        if: runner.os != 'Windows'
+        if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: .venv/bin/pytest
         env:
-          API_HOST: ${{ contains(github.event.pull_request.labels.*.name, 'test2') && secrets.API_HOST2 || secrets.API_HOST }}
-          API_KEY: ${{ contains(github.event.pull_request.labels.*.name, 'test2') && secrets.API_KEY2 || secrets.API_KEY }}
+          API_HOST: ${{ secrets.API_HOST }}
+          API_KEY: ${{ secrets.API_KEY }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
-          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}
+          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
           FULL_TEST: ${{ (matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9') && 'true' || 'false' }}
       - name: Run PyTest on Windows
-        if: runner.os == 'Windows'
+        if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: .venv/Scripts/pytest
         env:
-          API_HOST: ${{ contains(github.event.pull_request.labels.*.name, 'test2') && secrets.API_HOST2 || secrets.API_HOST }}
-          API_KEY: ${{ contains(github.event.pull_request.labels.*.name, 'test2') && secrets.API_KEY2 || secrets.API_KEY }}
+          API_HOST: ${{ secrets.API_HOST }}
+          API_KEY: ${{ secrets.API_KEY }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
-          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}
+          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
           FULL_TEST: false
+      - name: Skip tests (only workflow files changed)
+        if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow != 'true'
+        run: echo "Only .github/workflows files changed; skipping installation and tests."

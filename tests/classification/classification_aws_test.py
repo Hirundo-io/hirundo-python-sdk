@@ -5,14 +5,14 @@ import pytest
 from hirundo import (
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageConfig,
     StorageS3,
     StorageTypes,
 )
-from tests.dataset_optimization_shared import (
+from tests.dataset_qa_shared import (
     cleanup,
-    dataset_optimization_sync_test,
+    dataset_qa_sync_test,
     get_unique_id,
 )
 
@@ -25,7 +25,7 @@ s3_bucket = StorageS3(
     access_key_id=os.environ["AWS_ACCESS_KEY"],
     secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name=f"TEST-AWS cifar10 classification dataset{unique_id}",
     labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
     storage_config=StorageConfig(
@@ -59,13 +59,11 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
-def test_dataset_optimization():
-    full_run = dataset_optimization_sync_test(
-        test_dataset, "RUN_CLASSIFICATION_AWS_OPTIMIZATION"
-    )
+def test_dataset_qa():
+    full_run = dataset_qa_sync_test(test_dataset, "RUN_CLASSIFICATION_AWS_DATA_QA")
     if full_run is not None:
         assert full_run.warnings_and_errors is not None
         assert full_run.warnings_and_errors.shape[0] == 0
         # TODO: Add more assertions for results
     else:
-        logger.info("Full dataset optimization was not run!")
+        logger.info("Full dataset QA was not run!")

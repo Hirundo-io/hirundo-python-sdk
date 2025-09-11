@@ -6,11 +6,11 @@ from contextlib import contextmanager
 import requests
 from hirundo import (
     GitRepo,
-    OptimizationDataset,
+    QADataset,
     RunArgs,
     StorageConfig,
 )
-from hirundo.dataset_optimization import RunStatus
+from hirundo.dataset_qa import RunStatus
 from hirundo.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,9 +25,9 @@ def get_unique_id():
 def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
     if not unique_id:
         return
-    runs = OptimizationDataset.list_runs()
+    runs = QADataset.list_runs()
     conflicting_run_ids = [run.run_id for run in runs if unique_id in run.name]
-    datasets = OptimizationDataset.list_datasets()
+    datasets = QADataset.list_datasets()
     conflicting_dataset_ids = [
         dataset.id for dataset in datasets if unique_id in dataset.name
     ]
@@ -41,7 +41,7 @@ def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
     ]
     for conflicting_run_id in conflicting_run_ids:
         try:
-            OptimizationDataset.archive_run_by_id(conflicting_run_id)
+            QADataset.archive_run_by_id(conflicting_run_id)
         except Exception as e:
             logger.warning(
                 "Failed to archive run with ID %s and exception %s",
@@ -50,7 +50,7 @@ def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
             )
     for conflicting_dataset_id in conflicting_dataset_ids:
         try:
-            OptimizationDataset.delete_by_id(conflicting_dataset_id)
+            QADataset.delete_by_id(conflicting_dataset_id)
         except Exception as e:
             logger.warning(
                 "Failed to delete dataset with ID %s and exception %s",
@@ -78,13 +78,13 @@ def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
 
 
 @contextmanager
-def _handle_not_found_error(dataset: OptimizationDataset):
+def _handle_not_found_error(dataset: QADataset):
     try:
         yield
     except requests.HTTPError as e:
         if e.response.status_code == 404:
             logger.info(
-                "Optimization dataset with name %s not found, skipping cleanup",
+                "QA dataset with name %s not found, skipping cleanup",
                 dataset.name,
             )
             return
@@ -93,7 +93,7 @@ def _handle_not_found_error(dataset: OptimizationDataset):
 
 
 def _get_runs_by_dataset():
-    runs = OptimizationDataset.list_runs()
+    runs = QADataset.list_runs()
     runs_by_dataset = defaultdict(list)
     for run in runs:
         if run.dataset_id is not None and run.run_id is not None:
@@ -101,17 +101,17 @@ def _get_runs_by_dataset():
     return runs_by_dataset
 
 
-def cleanup(test_dataset: OptimizationDataset):
+def cleanup(test_dataset: QADataset):
     logger.info("Started cleanup")
     with _handle_not_found_error(test_dataset):
-        dataset = OptimizationDataset.get_by_name(test_dataset.name)
+        dataset = QADataset.get_by_name(test_dataset.name)
         storage_config_id = (
             dataset.storage_config.id if dataset.storage_config is not None else None
         )
         runs_by_dataset = _get_runs_by_dataset()
         if dataset.id is not None:
             logger.debug(
-                "Found optimization dataset with the same name, deleting it",
+                "Found QA dataset with the same name, deleting it",
             )
             logger.debug(
                 "Note: If I am not the owner, I will not be able to delete them"
@@ -119,14 +119,12 @@ def cleanup(test_dataset: OptimizationDataset):
             try:
                 if dataset.id in runs_by_dataset:
                     for run_id in runs_by_dataset[dataset.id]:
-                        logger.debug(
-                            "Archiving optimization dataset with run ID %s", run_id
-                        )
-                        OptimizationDataset.archive_run_by_id(run_id)
-                OptimizationDataset.delete_by_id(dataset.id)
+                        logger.debug("Archiving QA dataset with run ID %s", run_id)
+                        QADataset.archive_run_by_id(run_id)
+                QADataset.delete_by_id(dataset.id)
             except Exception as e:
                 logger.warning(
-                    "Unable to delete optimization dataset with ID %s and exception %s",
+                    "Unable to delete QA dataset with ID %s and exception %s",
                     dataset.id,
                     e,
                 )
@@ -170,8 +168,8 @@ def cleanup(test_dataset: OptimizationDataset):
         logger.info("Finished cleanup")
 
 
-def dataset_optimization_sync_test(
-    test_dataset: OptimizationDataset,
+def dataset_qa_sync_test(
+    test_dataset: QADataset,
     alternative_env: typing.Optional[str] = None,
     sanity=False,
     run_args: typing.Optional[RunArgs] = None,
@@ -180,10 +178,8 @@ def dataset_optimization_sync_test(
     if (os.getenv("FULL_TEST", "false") == "true" and sanity) or (
         alternative_env and os.getenv(alternative_env, "false") == "true"
     ):
-        run_id = test_dataset.run_optimization(
-            replace_dataset_if_exists=True, run_args=run_args
-        )
-        logger.info("Sync: Started dataset optimization run with run ID %s", run_id)
+        run_id = test_dataset.run_qa(replace_dataset_if_exists=True, run_args=run_args)
+        logger.info("Sync: Started dataset QA run with run ID %s", run_id)
         logger.info("Sync: Checking run progress")
         result = test_dataset.check_run(stop_on_manual_approval=True)
         logger.info("Sync: Results %s", result)
@@ -194,17 +190,15 @@ def dataset_optimization_sync_test(
         return None
 
 
-async def dataset_optimization_async_test(
-    test_dataset: OptimizationDataset,
+async def dataset_qa_async_test(
+    test_dataset: QADataset,
     env: str,
     run_args: typing.Optional[RunArgs] = None,
 ):
     logger.info("Async: Finished cleanup")
     if os.getenv(env, "false") == "true":
-        run_id = test_dataset.run_optimization(
-            replace_dataset_if_exists=True, run_args=run_args
-        )
-        logger.info("Async: Started dataset optimization run with run ID %s", run_id)
+        run_id = test_dataset.run_qa(replace_dataset_if_exists=True, run_args=run_args)
+        logger.info("Async: Started dataset QA run with run ID %s", run_id)
         events_generator = test_dataset.acheck_run()
         logger.info("Async: Checking run progress")
         last_event = {}

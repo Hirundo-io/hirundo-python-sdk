@@ -2,13 +2,12 @@ import typing
 from pathlib import Path
 
 import pydantic
-import requests
 from pydantic import BaseModel, model_validator
 from pydantic_core import Url
 
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
-from hirundo._http import raise_for_status_with_reason
+from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import S3BucketUrl, StorageConfigName
 from hirundo.dataset_enum import StorageTypes

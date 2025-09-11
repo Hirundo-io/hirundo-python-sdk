@@ -1,6 +1,6 @@
 from hirundo._env import API_KEY, check_api_key
 
-HIRUNDO_API_VERSION = "0.2"
+HIRUNDO_API_VERSION = "0.3"
 
 _json_headers = {
     "Content-Type": "application/json",

@@ -8,22 +8,24 @@ on:
 jobs:
   pytest_full:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       max-parallel: 2
       matrix:
-        optimization-test:
+        data-qa-test:
           - test: classification/classification_aws_test.py
-            env: RUN_CLASSIFICATION_AWS_OPTIMIZATION
+            env: RUN_CLASSIFICATION_AWS_DATA_QA
           - test: classification/classification_gcp_test.py
-            env: RUN_CLASSIFICATION_GCP_OPTIMIZATION
+            env: RUN_CLASSIFICATION_GCP_DATA_QA
           - test: classification/sanity_gcp_test.py
-            env: RUN_CLASSIFICATION_GCP_SANITY_OPTIMIZATION
+            env: RUN_CLASSIFICATION_GCP_SANITY_DATA_QA
           - test: object-detection/od_aws_test.py
-            env: RUN_AWS_OD_OPTIMIZATION
+            env: RUN_AWS_OD_DATA_QA
           - test: object-detection/od_git_test.py
-            env: RUN_OD_GIT_OPTIMIZATION
+            env: RUN_OD_GIT_DATA_QA
           - test: tests/object-detection/sama_coco_test.py
-            env: RUN_COCO_OD_GCP_SANITY_OPTIMIZATION
+            env: RUN_COCO_OD_GCP_SANITY_DATA_QA
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -38,7 +40,7 @@ jobs:
           source .venv/bin/activate
           pip install -r requirements/dev.txt -r requirements/polars.txt
       - name: Run PyTest
-        run: .venv/bin/pytest tests/${{ matrix.optimization-test['test'] }}
+        run: .venv/bin/pytest tests/${{ matrix.data-qa-test['test'] }}
         env:
           API_HOST: ${{ secrets.API_HOST }}
           API_KEY: ${{ secrets.API_KEY }}
@@ -47,4 +49,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
           UNIQUE_ID: ${{ github.ref }}-${{ github.run_number }}
-          ${{ matrix.optimization-test['env'] }}: true
+          ${{ matrix.data-qa-test['env'] }}: true

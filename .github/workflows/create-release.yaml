@@ -7,10 +7,6 @@ on:
         description: 'Version to release. Must be a valid version number; x is forbidden'
         required: true
         default: '0.1.x'
-      message:
-        description: 'Message to attach to the release'
-        required: false
-        default: "Release notes \n"
       test:
         description: 'Release beta release to test PyPI'
         required: true
@@ -49,6 +45,5 @@ jobs:
           git checkout -b release-${{ github.event.inputs.version }}
           bumpver update --set-version ${{ github.event.inputs.version }} --commit --push
           git push -u origin release-${{ github.event.inputs.version }}
-          gh pr create -a ${{ github.event.sender }} --title "v${{ github.event.inputs.version }}" \
-            --body "${{ github.event.inputs.message }}" \
-            --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"
+          gh pr create -a ${{ github.event.sender.login || github.actor }} --title "v${{ github.event.inputs.version }}" \
+            --body "" --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"

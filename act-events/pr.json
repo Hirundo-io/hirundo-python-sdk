@@ -1,0 +1,17 @@
+{
+    "pull_request": {
+        "head": { "ref": "release-v0.1.18" },
+        "base": { "ref": "main" },
+        "title": "v0.1.18",
+        "body": "This is a test PR that is created by act",
+        "changed_files": [
+            "hirundo/__init__.py"
+        ],
+        "merged": true,
+        "labels": [
+            { "name": "test" }
+
+        ]
+    },
+    "action": "closed"
+}

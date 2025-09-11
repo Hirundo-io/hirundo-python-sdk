@@ -34,7 +34,14 @@ jobs:
           git config user.name "GitHub Actions [release-bot]"
           git config user.email "github-actions@hirundo.io"
           git pull origin ${{ github.event.pull_request.base.ref }}
-          git tag -a ${{ github.event.pull_request.title }} -m "${{ github.event.pull_request.body }}"
+
+          # Write PR body literally (no interpolation or command substitution)
+          cat > .tagmsg.txt <<-'EOF'
+          ${{ github.event.pull_request.body }}
+          EOF
+
+          # Use PR title as the tag name; quote to handle spaces
+          git tag -a "${{ github.event.pull_request.title }}" -F .tagmsg.txt
           git push origin ${{ github.event.pull_request.title }}
       - name: Install dependencies & build package
         run: |
@@ -44,7 +51,15 @@ jobs:
           pip install -r requirements/dev.txt
           pip install build twine
           python -m build
-      - name: Publish package distributions to TestPyPI
+      - name: Publish package distributions to TestPyPI (with act)
+        env:
+          GITHUB_WORKFLOW_REF: .github/workflows/deploy-to-pypi.yaml
+        uses: pypa/gh-action-pypi-publish@release/v1
+        if: ${{ vars.ACT == 'true' }}
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TESTPYPI_APIKEY }}
+      - name: Publish package distributions to TestPyPI (GitHub Actions)
         uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ contains(github.event.pull_request.labels.*.name, 'test') }}
         with:

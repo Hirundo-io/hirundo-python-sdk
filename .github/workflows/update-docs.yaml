@@ -4,7 +4,10 @@ on:
   pull_request:
     types: [closed]
     paths:
-      - 'hirundo/__init__.py'
+      - "hirundo/__init__.py"
+  push:
+    branches:
+      - clnt-50-fix-docs
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -25,40 +28,59 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Fetch all history for all tags and branches
-    - uses: actions/setup-python@v3
-      with:
-        python-version: "3.9"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m venv .venv
-        source .venv/bin/activate
-        pip install -r requirements/docs.txt
-        export VERSION_TAG=${{ github.event.pull_request.title }}
-        export VERSION=$(sed -e 's/^v//' <<< $VERSION_TAG)
-        pip install "hirundo==${VERSION}"
-    - name: Sphinx multi-version build
-      run: |
-        source .venv/bin/activate
-        git branch -a
-        git tag
-        git rev-parse --abbrev-ref HEAD
-        git rev-parse HEAD
-        sphinx-multiversion docs docs/_build/html
-        cp docs/_templates/github-pages-redirect.html docs/_build/html/index.html
-      env:
-        API_HOST: something
-        API_KEY: something
-    - name: Setup Pages
-      uses: actions/configure-pages@v5
-    - name: Upload artifact
-      uses: actions/upload-pages-artifact@v3
-      with:
-        path: "docs/_build/html"
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all tags and branches
+      - uses: actions/setup-python@v3
+        with:
+          python-version: "3.9"
+      - name: Install dependencies
+        timeout-minutes: 5
+        env:
+          SLEEP: 15
+        run: |
+          python -m pip install --upgrade pip
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements/docs.txt
+          # Extract version from hirundo/__init__.py with error handling
+          if [ -f "hirundo/__init__.py" ]; then
+            export VERSION=$(python -c "import re; content=open('hirundo/__init__.py').read(); match=re.search(r'__version__ = [\"\'](.*?)[\"\']', content); print(match.group(1) if match else 'unknown')" 2>/dev/null || echo 'unknown')
+          else
+            export VERSION='unknown'
+          fi
+          echo "Using version: $VERSION"
+          if [ "$VERSION" = "unknown" ] || [ -z "$VERSION" ]; then
+            echo "Error: Could not extract version from hirundo/__init__.py (file may be missing, unreadable, or version format is invalid)"
+            exit 1
+          fi
+
+          until pip install --no-cache-dir "hirundo==${VERSION}"; do
+            echo "Can't find the version you mentioned, waiting $SLEEP seconds and retrying"
+            sleep $SLEEP
+            echo "finish waiting. retrying..."
+          done
+
+      - name: Sphinx multi-version build
+        run: |
+          source .venv/bin/activate
+          git branch -a
+          git tag
+          git rev-parse --abbrev-ref HEAD
+          git rev-parse HEAD
+          sphinx-multiversion docs docs/_build/html
+          cp docs/_templates/github-pages-redirect.html docs/_build/html/index.html
+        env:
+          TZ: "UTC" # for running ACT
+          API_HOST: something
+          API_KEY: something
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "docs/_build/html"
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

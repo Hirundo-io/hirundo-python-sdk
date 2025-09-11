@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, cast
 
-import requests
 from pydantic_core import Url
 
 from hirundo._dataframe import (
@@ -18,10 +17,11 @@ from hirundo._dataframe import (
 )
 from hirundo._env import API_HOST
 from hirundo._headers import _get_auth_headers
+from hirundo._http import requests
 from hirundo._timeouts import DOWNLOAD_READ_TIMEOUT
-from hirundo.dataset_optimization_results import (
+from hirundo.dataset_qa_results import (
     DataFrameType,
-    DatasetOptimizationResults,
+    DatasetQAResults,
 )
 from hirundo.logger import get_logger
 
@@ -117,7 +117,7 @@ def get_mislabel_suspect_filename(filenames: list[str]):
 
 def download_and_extract_zip(
     run_id: str, zip_url: str
-) -> DatasetOptimizationResults[DataFrameType]:
+) -> DatasetQAResults[DataFrameType]:
     """
     Download and extract the zip file from the given URL.
 
@@ -127,11 +127,11 @@ def download_and_extract_zip(
     and `warnings_and_errors.csv` files from the zip file.
 
     Args:
-        run_id: The ID of the optimization run.
+        run_id: The ID of the dataset QA run.
         zip_url: The URL of the zip file to download.
 
     Returns:
-        The dataset optimization results object.
+        The dataset QA results object.
     """
     # Define the local file path
     cache_dir = Path.home() / ".hirundo" / "cache"
@@ -140,9 +140,8 @@ def download_and_extract_zip(
 
     headers = None
     if Url(zip_url).scheme == "file":
-        zip_url = (
-            f"{API_HOST}/dataset-optimization/run/local-download"
-            + zip_url.replace("file://", "")
+        zip_url = f"{API_HOST}/dataset-qa/run/local-download" + zip_url.replace(
+            "file://", ""
         )
         headers = _get_auth_headers()
     # Stream the zip file download
@@ -217,7 +216,7 @@ def download_and_extract_zip(
                     "Failed to load warnings and errors into DataFrame", exc_info=e
                 )
 
-            return DatasetOptimizationResults[DataFrameType](
+            return DatasetQAResults[DataFrameType](
                 cached_zip_path=zip_file_path,
                 suspects=suspects_df,
                 object_suspects=object_suspects_df,

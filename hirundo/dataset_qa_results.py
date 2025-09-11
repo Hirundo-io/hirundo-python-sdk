@@ -21,7 +21,7 @@ if has_polars:
 T = typing.TypeVar("T")
 
 
-class DatasetOptimizationResults(BaseModel, typing.Generic[T]):
+class DatasetQAResults(BaseModel, typing.Generic[T]):
     model_config = {"arbitrary_types_allowed": True}
 
     cached_zip_path: Path
@@ -30,13 +30,13 @@ class DatasetOptimizationResults(BaseModel, typing.Generic[T]):
     """
     suspects: T
     """
-    A polars/pandas DataFrame containing the results of the optimization run
+    A polars/pandas DataFrame containing the results of the data QA run
     """
     object_suspects: typing.Optional[T]
     """
-    A polars/pandas DataFrame containing the object-level results of the optimization run
+    A polars/pandas DataFrame containing the object-level results of the data QA run
     """
     warnings_and_errors: T
     """
-    A polars/pandas DataFrame containing the warnings and errors of the optimization run
+    A polars/pandas DataFrame containing the warnings and errors of the data QA run
     """

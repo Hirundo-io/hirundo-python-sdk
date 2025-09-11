@@ -75,7 +75,7 @@ Errors and warnings DataFrame (filename: `invalid_data.csv`) columns:
 Google Colab notebooks with more examples
 -----------------------------------------
 You can find more examples of how to use ``hirundo`` in
-`Google Colab notebooks <https://github.com/Hirundo-io/hirundo-client/tree/main/notebooks>`_.
+`Google Colab notebooks <https://github.com/Hirundo-io/hirundo-python-sdk/tree/main/notebooks>`_.
 
 Package contents
 ----------------

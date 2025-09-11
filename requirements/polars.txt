@@ -34,11 +34,12 @@ exceptiongroup==1.2.2
     # via
     #   -c requirements/requirements.txt
     #   anyio
-h11==0.14.0
+h11==0.16.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   httpcore
-httpcore==1.0.5
+httpcore==1.0.9
     # via
     #   -c requirements/requirements.txt
     #   httpx
@@ -125,9 +126,10 @@ readme-renderer==44.0
     # via
     #   -c requirements/requirements.txt
     #   twine
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests-toolbelt
     #   twine
 requests-toolbelt==1.0.0
@@ -143,6 +145,10 @@ rich==13.7.1
     #   -c requirements/requirements.txt
     #   twine
     #   typer
+setuptools==80.9.0
+    # via
+    #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
 shellingham==1.5.4
     # via
     #   -c requirements/requirements.txt
@@ -188,9 +194,10 @@ typing-extensions==4.12.2
     #   pydantic-core
     #   stamina
     #   typer
-urllib3==2.2.2
+urllib3==2.5.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests
     #   twine
     #   types-requests

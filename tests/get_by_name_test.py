@@ -7,20 +7,20 @@ from hirundo import (
     GitRepo,
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageConfig,
     StorageGCP,
     StorageGit,
     StorageTypes,
 )
-from tests.dataset_optimization_shared import get_unique_id
+from tests.dataset_qa_shared import get_unique_id
 
 unique_id = get_unique_id()
 gcp_storage_config_name = f"T-cifar1bucket_get_by_name{unique_id}"
-gcp_optimization_dataset_name = f"T-cifar1_get_by_name{unique_id}"
+gcp_qa_dataset_name = f"T-cifar1_get_by_name{unique_id}"
 git_storage_config_name = f"T-BDD-100k-validation-git_get_by_name{unique_id}"
 git_repository_name = f"T-BDD-100k-validation-git-repo_get_by_name{unique_id}"
-git_optimization_dataset_name = f"T-BDD-100k-validation-dataset_get_by_name{unique_id}"
+git_qa_dataset_name = f"T-BDD-100k-validation-dataset_get_by_name{unique_id}"
 
 new_storage_config: typing.Optional[StorageConfig] = None
 new_dataset = None
@@ -56,8 +56,8 @@ def test_get_by_name_gcp():
     assert new_storage_config.gcp is not None
     storage_gcp = new_storage_config.gcp
 
-    OptimizationDataset(
-        name=gcp_optimization_dataset_name,
+    QADataset(
+        name=gcp_qa_dataset_name,
         labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
         storage_config=new_storage_config,
         labeling_info=HirundoCSV(
@@ -66,7 +66,7 @@ def test_get_by_name_gcp():
         data_root_url=storage_gcp.get_url("/pytorch-cifar/data"),
     ).create(replace_if_exists=True)
 
-    dataset = OptimizationDataset.get_by_name(gcp_optimization_dataset_name)
+    dataset = QADataset.get_by_name(gcp_qa_dataset_name)
     assert dataset is not None
 
 
@@ -90,8 +90,8 @@ def test_get_by_name_git():
     assert new_storage_config.git is not None
     storage_git = new_storage_config.git
 
-    OptimizationDataset(
-        name=git_optimization_dataset_name,
+    QADataset(
+        name=git_qa_dataset_name,
         labeling_type=LabelingType.OBJECT_DETECTION,
         storage_config=new_storage_config,
         labeling_info=HirundoCSV(
@@ -102,5 +102,5 @@ def test_get_by_name_git():
         data_root_url=storage_git.get_url(path="/BDD100K Val from Hirundo.zip/bdd100k"),
     ).create(replace_if_exists=True)
 
-    new_dataset = OptimizationDataset.get_by_name(git_optimization_dataset_name)
+    new_dataset = QADataset.get_by_name(git_qa_dataset_name)
     assert new_dataset is not None

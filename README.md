@@ -2,9 +2,9 @@
 
 [![Deploy docs](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml) [![Ruff & Pyright](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml) [![Unit tests](https://github.com/Hirundo-io/hirundo-client/actions/workflows/pytest-full.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/pytest-full.yaml) [![Vulnerability scan](https://github.com/Hirundo-io/hirundo-client/actions/workflows/safety-scan.yml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/safety-scan.yml)
 
-This package exposes access to Hirundo APIs for dataset optimization for Machine Learning.
+This package exposes access to Hirundo APIs for dataset QA for Machine Learning.
 
-Dataset optimization is currently available for datasets labelled for classification and object detection.
+Dataset QA is currently available for datasets labelled for classification and object detection.
 
 Support dataset storage configs include:
 
@@ -75,7 +75,7 @@ Classification example:
 from hirundo import (
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageGCP,
     StorageConfig,
     StorageTypes,
@@ -86,7 +86,7 @@ gcp_bucket = StorageGCP(
     project="Hirundo-global",
     credentials_json=json.loads(os.environ["GCP_CREDENTIALS"]),
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name="TEST-GCP cifar 100 classification dataset",
     labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
     storage_config=StorageConfig(
@@ -101,7 +101,7 @@ test_dataset = OptimizationDataset(
     classes=cifar100_classes,
 )
 
-test_dataset.run_optimization()
+test_dataset.run_qa()
 results = test_dataset.check_run()
 print(results)
 ```
@@ -113,7 +113,7 @@ from hirundo import (
     GitRepo,
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageGit,
     StorageConfig,
     StorageTypes,
@@ -126,7 +126,7 @@ git_storage = StorageGit(
     ),
     branch="main",
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name="TEST-HuggingFace-BDD-100k-validation-OD-validation-dataset",
     labeling_type=LabelingType.OBJECT_DETECTION,
     storage_config=StorageConfig(
@@ -142,7 +142,7 @@ test_dataset = OptimizationDataset(
     ),
 )
 
-test_dataset.run_optimization()
+test_dataset.run_qa()
 results = test_dataset.check_run()
 print(results)
 ```
@@ -151,4 +151,4 @@ Note: Currently we only support the main CPython release 3.9, 3.10, 3.11, 3.12 &
 
 ## Further documentation
 
-To learn more about how to use this library, please visit the [http://docs.hirundo.io/](documentation) or see the [Google Colab examples](https://github.com/Hirundo-io/hirundo-client/tree/main/notebooks).
+To learn more about how to use this library, please visit the [http://docs.hirundo.io/](documentation) or see the [Google Colab examples](https://github.com/Hirundo-io/hirundo-python-sdk/tree/main/notebooks).

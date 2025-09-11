@@ -2,6 +2,8 @@ name: "Lint: Ruff and Pyright"
 on:
   pull_request:
     types: [opened, synchronize, reopened, assigned]
+  merge_group:
+    types: [checks_requested]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -10,6 +12,8 @@ concurrency:
 jobs:
   ruff:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
@@ -31,6 +35,8 @@ jobs:
 
   pyright:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]

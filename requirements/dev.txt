@@ -38,8 +38,10 @@ click==8.1.7
     #   typer
 colorama==0.4.6
     # via bumpver
-cryptography==44.0.0
-    # via authlib
+cryptography==45.0.5
+    # via
+    #   hirundo (pyproject.toml)
+    #   authlib
 distlib==0.3.8
     # via virtualenv
 docutils==0.21.2
@@ -59,11 +61,12 @@ filelock==3.12.4
     # via
     #   safety
     #   virtualenv
-h11==0.14.0
+h11==0.16.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   httpcore
-httpcore==1.0.5
+httpcore==1.0.9
     # via
     #   -c requirements/requirements.txt
     #   httpx
@@ -102,8 +105,10 @@ jaraco-functools==4.0.1
     # via
     #   -c requirements/requirements.txt
     #   keyring
-jinja2==3.1.4
-    # via safety
+jinja2==3.1.6
+    # via
+    #   hirundo (pyproject.toml)
+    #   safety
 keyring==25.2.1
     # via
     #   -c requirements/requirements.txt
@@ -192,9 +197,10 @@ readme-renderer==44.0
     # via
     #   -c requirements/requirements.txt
     #   twine
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests-toolbelt
     #   safety
     #   twine
@@ -218,14 +224,17 @@ ruamel-yaml==0.18.6
     #   safety-schemas
 ruamel-yaml-clib==0.2.12
     # via ruamel-yaml
-ruff==0.11.6
+ruff==0.12.1
     # via hirundo (pyproject.toml)
 safety==3.2.13
     # via hirundo (pyproject.toml)
 safety-schemas==0.0.10
     # via safety
-setuptools==75.6.0
-    # via safety
+setuptools==80.9.0
+    # via
+    #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
+    #   safety
 shellingham==1.5.4
     # via
     #   -c requirements/requirements.txt
@@ -282,16 +291,17 @@ typing-extensions==4.12.2
     #   safety-schemas
     #   stamina
     #   typer
-urllib3==2.2.2
+urllib3==2.5.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests
     #   safety
     #   twine
     #   types-requests
-uv==0.5.8
+uv==0.8.8
     # via hirundo (pyproject.toml)
-virtualenv==20.26.3
+virtualenv==20.26.6
     # via
     #   hirundo (pyproject.toml)
     #   pre-commit

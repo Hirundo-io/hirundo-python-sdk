@@ -11,7 +11,7 @@ from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs
 
 if TYPE_CHECKING:
     from hirundo._urls import HirundoUrl
-    from hirundo.dataset_optimization import LabelingInfo
+    from hirundo.dataset_qa import LabelingInfo
     from hirundo.storage import (
         ResponseStorageConfig,
         StorageConfig,

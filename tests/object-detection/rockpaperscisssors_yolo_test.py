@@ -6,15 +6,15 @@ import pytest
 from hirundo import (
     YOLO,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageConfig,
     StorageGCP,
     StorageTypes,
 )
-from tests.dataset_optimization_shared import (
+from tests.dataset_qa_shared import (
     cleanup,
-    dataset_optimization_async_test,
-    dataset_optimization_sync_test,
+    dataset_qa_async_test,
+    dataset_qa_sync_test,
     get_unique_id,
 )
 
@@ -26,7 +26,7 @@ gcp_bucket = StorageGCP(
     project="Hirundo-global",
     credentials_json=json.loads(os.environ["GCP_CREDENTIALS"]),
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name=f"TEST-GCP sanity YOLO dataset{unique_id}",
     labeling_type=LabelingType.OBJECT_DETECTION,
     storage_config=StorageConfig(
@@ -55,10 +55,10 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
-def test_dataset_optimization():
-    full_run = dataset_optimization_sync_test(
+def test_dataset_qa():
+    full_run = dataset_qa_sync_test(
         test_dataset,
-        alternative_env="RUN_YOLO_OD_GCP_SANITY_OPTIMIZATION",
+        alternative_env="RUN_YOLO_OD_GCP_SANITY_DATA_QA",
     )
     if full_run is not None:
         assert full_run.warnings_and_errors is not None
@@ -67,11 +67,9 @@ def test_dataset_optimization():
         assert full_run.suspects.shape[0] >= 30_000
         # TODO: Add more assertions for results
     else:
-        logger.info("Full dataset optimization was not run!")
+        logger.info("Full dataset QA was not run!")
 
 
 @pytest.mark.asyncio
-async def test_async_dataset_optimization():
-    await dataset_optimization_async_test(
-        test_dataset, "RUN_YOLO_OD_GCP_SANITY_OPTIMIZATION"
-    )
+async def test_async_dataset_qa():
+    await dataset_qa_async_test(test_dataset, "RUN_YOLO_OD_GCP_SANITY_DATA_QA")

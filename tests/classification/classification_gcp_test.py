@@ -6,15 +6,15 @@ import pytest
 from hirundo import (
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    QADataset,
     StorageConfig,
     StorageGCP,
     StorageTypes,
 )
 from tests.classification.cifar100_classes import cifar100_classes
-from tests.dataset_optimization_shared import (
+from tests.dataset_qa_shared import (
     cleanup,
-    dataset_optimization_sync_test,
+    dataset_qa_sync_test,
     get_unique_id,
 )
 
@@ -26,7 +26,7 @@ gcp_bucket = StorageGCP(
     project="Hirundo-global",
     credentials_json=json.loads(os.environ["GCP_CREDENTIALS"]),
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name=f"TEST-GCP cifar 100 classification dataset{unique_id}",
     labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
     storage_config=StorageConfig(
@@ -49,13 +49,11 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
-def test_dataset_optimization():
-    full_run = dataset_optimization_sync_test(
-        test_dataset, "RUN_CLASSIFICATION_GCP_OPTIMIZATION"
-    )
+def test_dataset_qa():
+    full_run = dataset_qa_sync_test(test_dataset, "RUN_CLASSIFICATION_GCP_DATA_QA")
     if full_run is not None:
         assert full_run.warnings_and_errors is not None
         assert full_run.warnings_and_errors.shape[0] == 0
         # TODO: Add more assertions for results
     else:
-        logger.info("Full dataset optimization was not run!")
+        logger.info("Full dataset QA was not run!")

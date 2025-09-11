@@ -63,12 +63,13 @@ exceptiongroup==1.2.2
     #   cattrs
 furo==2024.7.18
     # via hirundo (pyproject.toml)
-h11==0.14.0
+h11==0.16.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   httpcore
     #   uvicorn
-httpcore==1.0.5
+httpcore==1.0.9
     # via
     #   -c requirements/requirements.txt
     #   httpx
@@ -106,8 +107,10 @@ jaraco-functools==4.0.1
     # via
     #   -c requirements/requirements.txt
     #   keyring
-jinja2==3.1.4
-    # via sphinx
+jinja2==3.1.6
+    # via
+    #   hirundo (pyproject.toml)
+    #   sphinx
 keyring==25.2.1
     # via
     #   -c requirements/requirements.txt
@@ -179,9 +182,10 @@ readme-renderer==44.0
     # via
     #   -c requirements/requirements.txt
     #   twine
-requests==2.32.3
+requests==2.32.4
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests-toolbelt
     #   sphinx
     #   twine
@@ -198,6 +202,10 @@ rich==13.7.1
     #   -c requirements/requirements.txt
     #   twine
     #   typer
+setuptools==80.9.0
+    # via
+    #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
 shellingham==1.5.4
     # via
     #   -c requirements/requirements.txt
@@ -245,7 +253,7 @@ stamina==24.2.0
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-starlette==0.41.2
+starlette==0.47.2
     # via
     #   hirundo (pyproject.toml)
     #   sphinx-autobuild
@@ -286,9 +294,10 @@ typing-extensions==4.12.2
     #   starlette
     #   typer
     #   uvicorn
-urllib3==2.2.2
+urllib3==2.5.0
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   requests
     #   twine
     #   types-requests

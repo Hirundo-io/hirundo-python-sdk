@@ -5,11 +5,11 @@ import uuid
 from collections.abc import AsyncGenerator, Generator
 
 import httpx
-import requests
 import urllib3
 from httpx_sse import ServerSentEvent, SSEError, aconnect_sse, connect_sse
 from stamina import retry
 
+from hirundo._http import requests
 from hirundo._timeouts import READ_TIMEOUT
 from hirundo.logger import get_logger
 

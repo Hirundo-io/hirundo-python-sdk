@@ -57,12 +57,12 @@ jobs:
         # Credit to: https://docs.docker.com/build/ci/github-actions/cache/#cache-mounts &
         #            https://github.com/reproducible-containers/buildkit-cache-dance
 
-      - name: Docker meta configuration for `hirundo-client` image
-        id: client-meta
+      - name: Docker meta configuration for `hirundo-python-sdk` image
+        id: python-sdk-meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            name=ghcr.io/hirundo-io/hirundo-client,enable=true
+            name=ghcr.io/hirundo-io/hirundo-python-sdk,enable=true
           tags: |
             type=match,pattern=v(.*)+on-prem,group=1,suffix=on-prem,enable=${{ github.event_name != 'pull_request' && startsWith(github.ref, 'refs/tags/') && endsWith(github.ref, '+on-prem') }}
             type=raw,value=${{ github.head_ref }},enable=${{ github.event_name == 'pull_request' }}
@@ -76,9 +76,9 @@ jobs:
           pull: true
           outputs: |
             type=image,compression=zstd,push=true
-            type=docker,dest=hirundo-client.tar
-          tags: ${{ steps.client-meta.outputs.tags }}
-          labels: ${{ steps.client-meta.outputs.labels }}
+            type=docker,dest=hirundo-python-sdk.tar
+          tags: ${{ steps.python-sdk-meta.outputs.tags }}
+          labels: ${{ steps.python-sdk-meta.outputs.labels }}
           platforms: linux/amd64
       - uses: actions/cache@v4
         with:
@@ -91,7 +91,7 @@ jobs:
         env:
           TRIVY_DB_REPOSITORY: ghcr.io/aquasecurity/trivy-db,public.ecr.aws/aquasecurity/trivy-db
         with:
-          input: hirundo-client.tar
+          input: hirundo-python-sdk.tar
           trivy-config: trivy.yaml
           severity: HIGH,CRITICAL  # https://github.com/aquasecurity/trivy-action/issues/342
           cache-dir: .trivy

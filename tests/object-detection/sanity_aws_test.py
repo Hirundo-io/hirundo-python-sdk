@@ -5,16 +5,16 @@ import pytest
 from hirundo import (
     HirundoCSV,
     LabelingType,
-    OptimizationDataset,
+    ObjectDetectionRunArgs,
+    QADataset,
     StorageConfig,
     StorageS3,
     StorageTypes,
-    VisionRunArgs,
 )
-from tests.dataset_optimization_shared import (
+from tests.dataset_qa_shared import (
     cleanup,
-    dataset_optimization_async_test,
-    dataset_optimization_sync_test,
+    dataset_qa_async_test,
+    dataset_qa_sync_test,
     get_unique_id,
 )
 
@@ -27,7 +27,7 @@ s3_bucket = StorageS3(
     access_key_id=os.environ["AWS_ACCESS_KEY"],
     secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
 )
-test_dataset = OptimizationDataset(
+test_dataset = QADataset(
     name=f"TEST-AWS-BDD-100k-subset-1000-OD-dataset{unique_id}",
     labeling_type=LabelingType.OBJECT_DETECTION,
     storage_config=StorageConfig(
@@ -66,12 +66,12 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
-def test_dataset_optimization():
-    full_run = dataset_optimization_sync_test(
+def test_dataset_qa():
+    full_run = dataset_qa_sync_test(
         test_dataset,
         sanity=True,
-        alternative_env="RUN_OD_AWS_SANITY_OPTIMIZATION",
-        run_args=VisionRunArgs(
+        alternative_env="RUN_OD_AWS_SANITY_DATA_QA",
+        run_args=ObjectDetectionRunArgs(
             upsample=True,
             min_abs_bbox_size=11,
             min_abs_bbox_area=121,
@@ -87,11 +87,9 @@ def test_dataset_optimization():
         assert full_run.suspects.shape[0] == 1_107
         # TODO: Add more assertions for results
     else:
-        logger.info("Full dataset optimization was not run!")
+        logger.info("Full dataset QA was not run!")
 
 
 @pytest.mark.asyncio
-async def test_async_dataset_optimization():
-    await dataset_optimization_async_test(
-        test_dataset, "RUN_AWS_OD_SANITY_OPTIMIZATION"
-    )
+async def test_async_dataset_qa():
+    await dataset_qa_async_test(test_dataset, "RUN_AWS_OD_SANITY_DATA_QA")

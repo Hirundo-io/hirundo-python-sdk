@@ -11,7 +11,7 @@ Submodules
    :maxdepth: 4
 
    hirundo.cli
-   hirundo.dataset_optimization
+   hirundo.dataset_qa
    hirundo.enum
    hirundo.git
    hirundo.storage

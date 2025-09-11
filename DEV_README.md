@@ -1,10 +1,10 @@
-# Hirundo client
+# Hirundo Python SDK
 
-This repo contains the source code for the Hirundo client library.
+This repo contains the source code for the Hirundo Python SDK.
 
 ## Usage
 
-To learn about how to use this library, please visit the [http://docs.hirundo.io/](documentation) or see the Google Colab examples.
+To learn about how to use this SDK, please visit the [http://docs.hirundo.io/](documentation) or see the Google Colab examples.
 
 Note: Currently we only support the main CPython release 3.9, 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
 
