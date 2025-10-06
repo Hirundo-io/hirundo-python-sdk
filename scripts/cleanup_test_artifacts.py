@@ -94,6 +94,39 @@ def _collect_runs_by_dataset(
     return runs_by_dataset
 
 
+def _cleanup_storage_configs(one_week_ago: datetime.datetime) -> None:
+    trying_to_delete_storage_configs = set[int]()
+    deleted_storage_configs = set[int]()
+    storage_configs = StorageConfig.list()
+    for storage_config in storage_configs:
+        if (
+            "ubuntu-latest" in storage_config.name
+            or "windows-latest" in storage_config.name
+            or "macos-latest" in storage_config.name
+        ) and storage_config.created_at < one_week_ago:
+            trying_to_delete_storage_configs.add(storage_config.id)
+            try:
+                StorageConfig.delete_by_id(storage_config.id)
+                deleted_storage_configs.add(storage_config.id)
+            except (HirundoError, requests.HTTPError) as exc:
+                logger.warning(
+                    "Failed to delete storage config with ID %s: %s",
+                    storage_config.id,
+                    exc,
+                )
+    logger.info(
+        "Deleted %s (%s) storage configs",
+        deleted_storage_configs,
+        len(deleted_storage_configs),
+    )
+    if trying_to_delete_storage_configs != deleted_storage_configs:
+        logger.warning(
+            "Tried to delete %s storage configs, but only deleted %s storage configs",
+            trying_to_delete_storage_configs,
+            deleted_storage_configs,
+        )
+
+
 def main() -> None:
     all_live_runs = QADataset.list_runs()
     all_archived_runs = QADataset.list_runs(archived=True)
@@ -157,14 +190,7 @@ def main() -> None:
             deleted_datasets,
         )
 
-    storage_configs = StorageConfig.list()
-    for storage_config in storage_configs:
-        if (
-            "ubuntu-latest" in storage_config.name
-            or "windows-latest" in storage_config.name
-            or "macos-latest" in storage_config.name
-        ) and storage_config.created_at < one_week_ago:
-            StorageConfig.delete_by_id(storage_config.id)
+    _cleanup_storage_configs(one_week_ago)
 
 
 if __name__ == "__main__":
