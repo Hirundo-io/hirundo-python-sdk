@@ -44,3 +44,4 @@ class StorageTypes(str, Enum):
     """
     Local storage config is only supported for on-premises installations.
     """
+    HUGGINGFACE = "HuggingFace"
