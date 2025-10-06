@@ -200,10 +200,13 @@ def main() -> None:
     )
 
     logger.info(
-        "Deleted %s datasets, %s storage configs, %s git repos and archived %s runs",
+        "Deleted %s (%s) datasets, %s (%s) storage configs, %s (%s) git repos and archived %s (%s) runs",
         deleted_datasets,
+        len(deleted_datasets),
         deleted_storage_configs,
+        len(deleted_storage_configs),
         deleted_git_repos,
+        len(deleted_git_repos),
         archived_runs,
     )
     if trying_to_delete_datasets != deleted_datasets:
