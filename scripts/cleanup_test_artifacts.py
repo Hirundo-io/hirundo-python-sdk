@@ -90,6 +90,12 @@ def _collect_runs_by_dataset(
     for run in all_archived_runs:
         if run.dataset_id is None or run.run_id is None:
             continue
+        if run.dataset_id not in runs_by_dataset:
+            logger.warning(
+                "Run with ID %s has a dataset ID that is not in the datasets list",
+                run.run_id,
+            )
+            continue
         runs_by_dataset[run.dataset_id].append(run)
     return runs_by_dataset
 
