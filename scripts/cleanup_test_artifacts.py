@@ -55,7 +55,7 @@ def _should_delete_dataset(
 ) -> bool:
     """Return ``True`` if the dataset should be deleted."""
 
-    if not dataset_name.startswith("TEST-"):
+    if not (dataset_name.startswith("TEST-") or dataset_name.startswith("T-")):
         return False
 
     if not dataset_runs:
