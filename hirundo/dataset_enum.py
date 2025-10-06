@@ -24,6 +24,7 @@ class DatasetMetadataType(str, Enum):
     HIRUNDO_CSV = "HirundoCSV"
     COCO = "COCO"
     YOLO = "YOLO"
+    HuggingFaceAudio = "HuggingFaceAudio"
     KeylabsObjDetImages = "KeylabsObjDetImages"
     KeylabsObjDetVideo = "KeylabsObjDetVideo"
     KeylabsObjSegImages = "KeylabsObjSegImages"

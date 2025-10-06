@@ -51,6 +51,16 @@ class YOLO(Metadata, frozen=True):
     labels_dir_url: "HirundoUrl"
 
 
+class HuggingFaceAudio(Metadata, frozen=True):
+    type: typing.Literal[DatasetMetadataType.HuggingFaceAudio] = (
+        DatasetMetadataType.HuggingFaceAudio
+    )
+    audio_column: str
+    text_column: str
+    subset: typing.Optional[str] = None
+    split: typing.Optional[str] = None
+
+
 class KeylabsAuth(BaseModel):
     username: str
     password: str
@@ -123,6 +133,7 @@ LabelingInfo = typing.Annotated[
         COCO,
         YOLO,
         KeylabsInfo,
+        HuggingFaceAudio,
     ],
     Field(discriminator="type"),
 ]
