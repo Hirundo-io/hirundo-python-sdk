@@ -212,6 +212,7 @@ def main() -> None:
         deleted_git_repos,
         len(deleted_git_repos),
         archived_runs,
+        len(archived_runs),
     )
     if trying_to_delete_datasets != deleted_datasets:
         logger.warning(
