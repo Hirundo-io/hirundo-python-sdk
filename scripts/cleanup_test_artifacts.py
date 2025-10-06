@@ -53,7 +53,14 @@ def _delete_dataset(
 def _should_delete_dataset(
     dataset_name: str, dataset_runs: list, expiry_date: datetime.datetime
 ) -> bool:
-    """Return ``True`` if the dataset should be deleted."""
+    """
+    Return ``True`` if the dataset should be deleted.
+
+    Args:
+        dataset_name: The name of the dataset.
+        dataset_runs: The runs of the dataset.
+        expiry_date: The expiry date of the dataset.
+    """
 
     if not (dataset_name.startswith("TEST-") or dataset_name.startswith("T-")):
         return False
@@ -61,8 +68,11 @@ def _should_delete_dataset(
     if not dataset_runs:
         return False
 
-    all_runs_successful = all(run.status == RunStatus.SUCCESS for run in dataset_runs)
-    if all_runs_successful:
+    all_runs_successful_or_archived = all(
+        run.status == RunStatus.SUCCESS or run.deleted_at is not None
+        for run in dataset_runs
+    )
+    if all_runs_successful_or_archived:
         return True
 
     most_recent_run_time = max(run.created_at for run in dataset_runs)
@@ -71,6 +81,7 @@ def _should_delete_dataset(
 
 def _handle_live_runs(
     live_runs_by_dataset: defaultdict[int, list],
+    archived_runs_by_dataset: defaultdict[int, list],
     datasets: dict[int, QADatasetOut],
     one_week_ago: datetime.datetime,
     trying_to_delete_datasets: set[int],
@@ -79,12 +90,14 @@ def _handle_live_runs(
     deleted_storage_configs: set[int],
     deleted_git_repos: set[int],
 ) -> tuple[set[int], set[str], set[int], set[int], set[int]]:
-    for dataset_id, dataset_runs in live_runs_by_dataset.items():
+    for dataset_id, live_dataset_runs in live_runs_by_dataset.items():
         dataset = datasets.get(dataset_id)
+        archived_dataset_runs = archived_runs_by_dataset.get(dataset_id, [])
+        dataset_runs = live_dataset_runs + archived_dataset_runs
 
         if dataset and _should_delete_dataset(dataset.name, dataset_runs, one_week_ago):
             trying_to_delete_datasets.add(dataset_id)
-            for run in dataset_runs:
+            for run in live_dataset_runs:
                 try:
                     QADataset.archive_run_by_id(run.run_id)
                     archived_runs.add(run.run_id)
@@ -112,6 +125,7 @@ def _handle_live_runs(
 
 
 def _handle_archived_runs(
+    live_runs_by_dataset: defaultdict[int, list],
     archived_runs_by_dataset: defaultdict[int, list],
     datasets: dict[int, QADatasetOut],
     one_week_ago: datetime.datetime,
@@ -120,8 +134,10 @@ def _handle_archived_runs(
     deleted_storage_configs: set[int],
     deleted_git_repos: set[int],
 ) -> tuple[set[int], set[int], set[int], set[int]]:
-    for dataset_id, dataset_runs in archived_runs_by_dataset.items():
+    for dataset_id, archived_dataset_runs in archived_runs_by_dataset.items():
         dataset = datasets.get(dataset_id)
+        live_dataset_runs = live_runs_by_dataset.get(dataset_id, [])
+        dataset_runs = archived_dataset_runs + live_dataset_runs
         if (
             dataset
             and _should_delete_dataset(dataset.name, dataset_runs, one_week_ago)
@@ -180,6 +196,7 @@ def main() -> None:
         deleted_git_repos,
     ) = _handle_live_runs(
         live_runs_by_dataset,
+        archived_runs_by_dataset,
         datasets,
         one_week_ago,
         trying_to_delete_datasets,
@@ -194,6 +211,7 @@ def main() -> None:
         deleted_storage_configs,
         deleted_git_repos,
     ) = _handle_archived_runs(
+        live_runs_by_dataset,
         archived_runs_by_dataset,
         datasets,
         one_week_ago,
