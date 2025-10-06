@@ -122,7 +122,11 @@ def _handle_archived_runs(
 ) -> tuple[set[int], set[int], set[int], set[int]]:
     for dataset_id, dataset_runs in archived_runs_by_dataset.items():
         dataset = datasets.get(dataset_id)
-        if dataset and _should_delete_dataset(dataset.name, dataset_runs, one_week_ago):
+        if (
+            dataset
+            and _should_delete_dataset(dataset.name, dataset_runs, one_week_ago)
+            and dataset_id not in deleted_datasets
+        ):
             trying_to_delete_datasets.add(dataset_id)
             deleted_datasets, deleted_storage_configs, deleted_git_repos = (
                 _delete_dataset(
