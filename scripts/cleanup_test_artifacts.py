@@ -157,6 +157,15 @@ def main() -> None:
             deleted_datasets,
         )
 
+    storage_configs = StorageConfig.list()
+    for storage_config in storage_configs:
+        if (
+            "ubuntu-latest" in storage_config.name
+            or "windows-latest" in storage_config.name
+            or "macos-latest" in storage_config.name
+        ) and storage_config.created_at < one_week_ago:
+            StorageConfig.delete_by_id(storage_config.id)
+
 
 if __name__ == "__main__":
     main()
