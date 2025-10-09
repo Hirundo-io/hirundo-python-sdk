@@ -81,10 +81,16 @@ def _collect_runs_by_dataset(
     all_archived_runs: list[DataQARunOut],
 ) -> dict[int, list]:
     runs_by_dataset: dict[int, list] = dict()
-    for dataset_id in datasets.keys():
+    for dataset_id in datasets:
         runs_by_dataset[dataset_id] = []
     for run in all_live_runs:
         if run.dataset_id is None or run.run_id is None:
+            continue
+        if run.dataset_id not in runs_by_dataset:
+            logger.warning(
+                "Run with ID %s has a dataset ID that is not in the datasets list",
+                run.run_id,
+            )
             continue
         runs_by_dataset[run.dataset_id].append(run)
     for run in all_archived_runs:
