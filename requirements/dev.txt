@@ -8,7 +8,7 @@ anyio==4.4.0
     # via
     #   -c requirements/requirements.txt
     #   httpx
-authlib==1.3.2
+authlib==1.6.5
     # via safety
 backports-tarfile==1.2.0
     # via
