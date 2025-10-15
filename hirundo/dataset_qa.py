@@ -128,27 +128,27 @@ class AugmentationName(str, Enum):
     GAUSSIAN_BLUR = "GaussianBlur"
 
 
-class Domain(str, Enum):
+class ModalityType(str, Enum):
     RADAR = "RADAR"
     VISION = "VISION"
     SPEECH = "SPEECH"
     TABULAR = "TABULAR"
 
 
-DOMAIN_TO_SUPPORTED_LABELING_TYPES = {
-    Domain.RADAR: [
+MODALITY_TO_SUPPORTED_LABELING_TYPES = {
+    ModalityType.RADAR: [
         LabelingType.SINGLE_LABEL_CLASSIFICATION,
         LabelingType.OBJECT_DETECTION,
     ],
-    Domain.VISION: [
+    ModalityType.VISION: [
         LabelingType.SINGLE_LABEL_CLASSIFICATION,
         LabelingType.OBJECT_DETECTION,
         LabelingType.OBJECT_SEGMENTATION,
         LabelingType.SEMANTIC_SEGMENTATION,
         LabelingType.PANOPTIC_SEGMENTATION,
     ],
-    Domain.SPEECH: [LabelingType.SPEECH_TO_TEXT],
-    Domain.TABULAR: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
+    ModalityType.SPEECH: [LabelingType.SPEECH_TO_TEXT],
+    ModalityType.TABULAR: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
 }
 
 
@@ -206,9 +206,9 @@ class QADataset(BaseModel):
     For audio datasets, this field is ignored.
     If no value is provided, all augmentations are applied to vision datasets.
     """
-    domain: Domain = Domain.VISION
+    modality: ModalityType = ModalityType.VISION
     """
-    Used to define the domain of the dataset.
+    Used to define the modality of the dataset.
     Defaults to Image.
     """
 
@@ -221,13 +221,16 @@ class QADataset(BaseModel):
 
     @model_validator(mode="after")
     def validate_dataset(self):
-        if self.domain not in DOMAIN_TO_SUPPORTED_LABELING_TYPES:
+        if self.modality not in MODALITY_TO_SUPPORTED_LABELING_TYPES:
             raise ValueError(
-                f"Domain {self.domain} is not supported. Supported domains are: {list(DOMAIN_TO_SUPPORTED_LABELING_TYPES.keys())}"
+                f"Modality {self.modality} is not supported. Supported modalities are: {list(MODALITY_TO_SUPPORTED_LABELING_TYPES.keys())}"
             )
-        if self.labeling_type not in DOMAIN_TO_SUPPORTED_LABELING_TYPES[self.domain]:
+        if (
+            self.labeling_type
+            not in MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]
+        ):
             raise ValueError(
-                f"Labeling type {self.labeling_type} is not supported for domain {self.domain}. Supported labeling types are: {DOMAIN_TO_SUPPORTED_LABELING_TYPES[self.domain]}"
+                f"Labeling type {self.labeling_type} is not supported for modality {self.modality}. Supported labeling types are: {MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]}"
             )
         if self.storage_config is None and self.storage_config_id is None:
             raise ValueError(
