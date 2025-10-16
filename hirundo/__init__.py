@@ -5,8 +5,8 @@ from .dataset_enum import (
 )
 from .dataset_qa import (
     ClassificationRunArgs,
-    Domain,
     HirundoError,
+    ModalityType,
     ObjectDetectionRunArgs,
     QADataset,
     RunArgs,
@@ -43,7 +43,7 @@ __all__ = [
     "KeylabsObjSegImages",
     "KeylabsObjSegVideo",
     "QADataset",
-    "Domain",
+    "ModalityType",
     "RunArgs",
     "ClassificationRunArgs",
     "ObjectDetectionRunArgs",
