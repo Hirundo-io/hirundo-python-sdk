@@ -25,7 +25,9 @@ jobs:
           uv venv
           uv sync --extra polars
       - name: Run cleanup script
-        run: .venv/bin/python scripts/cleanup_test_artifacts.py
+        run: |
+          set -e
+          .venv/bin/python scripts/cleanup_test_artifacts.py
         env:
           API_HOST: ${{ secrets.API_HOST }}
           API_KEY: ${{ secrets.API_KEY }}

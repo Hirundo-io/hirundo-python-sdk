@@ -337,6 +337,7 @@ class QADataset(BaseModel):
     @staticmethod
     def list_runs(
         organization_id: typing.Optional[int] = None,
+        archived: typing.Optional[bool] = False,
     ) -> list["DataQARunOut"]:
         """
         Lists all the `QADataset` instances created by user's default organization
@@ -345,10 +346,11 @@ class QADataset(BaseModel):
 
         Args:
             organization_id: The ID of the organization to list the datasets for.
+            archived: Whether to list archived runs.
         """
         response = requests.get(
             f"{API_HOST}/dataset-qa/run/list",
-            params={"dataset_organization_id": organization_id},
+            params={"dataset_organization_id": organization_id, "archived": archived},
             headers=get_headers(),
             timeout=READ_TIMEOUT,
         )

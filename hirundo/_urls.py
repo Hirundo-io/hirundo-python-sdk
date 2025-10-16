@@ -54,6 +54,7 @@ HirundoUrl = Annotated[
             "s3",
             "gs",
             "ssh",
+            "hf",
         ]
     ),
 ]

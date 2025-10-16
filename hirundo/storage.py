@@ -1,3 +1,4 @@
+import datetime
 import typing
 from pathlib import Path
 
@@ -444,3 +445,6 @@ class ResponseStorageConfig(BaseModel):
     gcp: typing.Optional[StorageGCPOut]
     # azure: typing.Optional[StorageAzureOut]
     git: typing.Optional[StorageGitOut]
+
+    created_at: datetime.datetime
+    updated_at: datetime.datetime
