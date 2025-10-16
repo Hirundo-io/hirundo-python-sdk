@@ -67,6 +67,7 @@ dev = [
     "virtualenv>=20.6.6",
     #  ⬆️ Needed for `pre-commit` and locking version for `safety-cli`
     #  version fixes vulnerability GHSA-rqc4-2hc7-8c8v
+    "authlib>=1.6.5",
     "ruff>=0.12.0",
     "bumpver",
     "platformdirs>=4.3.6",
