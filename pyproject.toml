@@ -85,7 +85,7 @@ docs = [
     "furo",
     "sphinx-multiversion",
     "esbonio",
-    "starlette>=0.47.2",
+    "starlette>=0.49.1",
     #  ⬆️ Required to fix vulnerability GHSA-2c2j-9gv5-cj73
     "markupsafe>=3.0.2",
     #  Force `starlette` and `markupsafe` to versions compatible with `dev` dependencies.
