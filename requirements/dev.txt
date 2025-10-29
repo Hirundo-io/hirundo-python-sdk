@@ -299,7 +299,7 @@ urllib3==2.5.0
     #   safety
     #   twine
     #   types-requests
-uv==0.9.5
+uv==0.9.6
     # via hirundo (pyproject.toml)
 virtualenv==20.26.6
     # via
