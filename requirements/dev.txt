@@ -291,7 +291,7 @@ typing-extensions==4.12.2
     #   safety-schemas
     #   stamina
     #   typer
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
