@@ -9,7 +9,9 @@ anyio==4.4.0
     #   -c requirements/requirements.txt
     #   httpx
 authlib==1.6.5
-    # via safety
+    # via
+    #   hirundo (pyproject.toml)
+    #   safety
 backports-tarfile==1.2.0
     # via
     #   -c requirements/requirements.txt
@@ -291,7 +293,7 @@ typing-extensions==4.12.2
     #   safety-schemas
     #   stamina
     #   typer
-urllib3==2.5.0
+urllib3==2.6.0
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)

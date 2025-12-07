@@ -35,8 +35,8 @@ dependencies = [
     #  ⬆️ Required to fix vulnerability GHSA-vqfr-h8mv-ghfj
     "requests>=2.32.4",
     #  ⬆️ Required to fix vulnerability GHSA-9hjg-9r4m-mvj7
-    "urllib3>=2.5.0",
-    #  ⬆️ Required to fix vulnerabilities GHSA-pq67-6m6q-mj2v and GHSA-48p4-8xcf-vxj5
+    "urllib3>=2.6.0",
+    #  ⬆️ Required to fix vulnerabilities CVE-2025-66471 and CVE-2025-66418
     "setuptools>=78.1.1",
     #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
 ]
