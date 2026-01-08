@@ -123,7 +123,7 @@ markdown-it-py==3.0.0
     #   rich
 markupsafe==3.0.2
     # via jinja2
-marshmallow==3.23.1
+marshmallow==3.26.2
     # via safety
 mdurl==0.1.2
     # via
@@ -291,7 +291,7 @@ typing-extensions==4.12.2
     #   safety-schemas
     #   stamina
     #   typer
-urllib3==2.5.0
+urllib3==2.6.3
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
