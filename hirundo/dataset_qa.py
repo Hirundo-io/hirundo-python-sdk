@@ -72,50 +72,50 @@ STATUS_TO_PROGRESS_MAP = {
 
 
 class ClassificationRunArgs(BaseModel):
-    image_size: typing.Optional[tuple[int, int]] = (224, 224)
+    image_size: tuple[int, int] | None = (224, 224)
     """
     Size (width, height) to which to resize classification images.
     It is recommended to keep this value at (224, 224) unless your classes are differentiated by very small differences.
     """
-    upsample: typing.Optional[bool] = False
+    upsample: bool | None = False
     """
     Whether to upsample the dataset to attempt to balance the classes.
     """
 
 
 class ObjectDetectionRunArgs(ClassificationRunArgs):
-    min_abs_bbox_size: typing.Optional[int] = None
+    min_abs_bbox_size: int | None = None
     """
     Minimum valid size (in pixels) of a bounding box to keep it in the dataset for QA.
     """
-    min_abs_bbox_area: typing.Optional[int] = None
+    min_abs_bbox_area: int | None = None
     """
     Minimum valid absolute area (in pixels²) of a bounding box to keep it in the dataset for QA.
     """
-    min_rel_bbox_size: typing.Optional[float] = None
+    min_rel_bbox_size: float | None = None
     """
     Minimum valid size (as a fraction of both image height and width) for a bounding box
     to keep it in the dataset for QA, relative to the corresponding dimension size,
     i.e. if the bounding box is 10% of the image width and 5% of the image height, it will be kept if this value is 0.05, but not if the
     value is 0.06 (since both width and height are checked).
     """
-    min_rel_bbox_area: typing.Optional[float] = None
+    min_rel_bbox_area: float | None = None
     """
     Minimum valid relative area (as a fraction of the image area) of a bounding box to keep it in the dataset for QA.
     """
-    crop_ratio: typing.Optional[float] = None
+    crop_ratio: float | None = None
     """
     Ratio of the bounding box to crop.
     Change this value at your own risk. It is recommended to keep it at 1.0 unless you know what you are doing.
     """
-    add_mask_channel: typing.Optional[bool] = None
+    add_mask_channel: bool | None = None
     """
     Whether to add a mask channel to the image.
     Change at your own risk. It is recommended to keep it at False unless you know what you are doing.
     """
 
 
-RunArgs = typing.Union[ClassificationRunArgs, ObjectDetectionRunArgs]
+RunArgs = ClassificationRunArgs | ObjectDetectionRunArgs
 
 
 class AugmentationName(str, Enum):
@@ -153,7 +153,7 @@ MODALITY_TO_SUPPORTED_LABELING_TYPES = {
 
 
 class QADataset(BaseModel):
-    id: typing.Optional[int] = Field(default=None)
+    id: int | None = Field(default=None)
     """
     The ID of the dataset created on the server.
     """
@@ -169,17 +169,15 @@ class QADataset(BaseModel):
     - `LabelingType.OBJECT_DETECTION`: Indicates that the dataset is for object detection tasks
     - `LabelingType.SPEECH_TO_TEXT`: Indicates that the dataset is for speech-to-text tasks
     """
-    language: typing.Optional[str] = None
+    language: str | None = None
     """
     Language of the Speech-to-Text audio dataset. This is required for Speech-to-Text datasets.
     """
-    storage_config_id: typing.Optional[int] = None
+    storage_config_id: int | None = None
     """
     The ID of the storage config used to store the dataset and metadata.
     """
-    storage_config: typing.Optional[
-        typing.Union[StorageConfig, ResponseStorageConfig]
-    ] = None
+    storage_config: StorageConfig | ResponseStorageConfig | None = None
     """
     The `StorageConfig` instance to link to.
     """
@@ -193,14 +191,14 @@ class QADataset(BaseModel):
     Note: All CSV `image_path` entries in the metadata file should be relative to this folder.
     """
 
-    classes: typing.Optional[list[str]] = None
+    classes: list[str] | None = None
     """
     A full list of possible classes used in classification / object detection.
     It is currently required for clarity and performance.
     """
-    labeling_info: typing.Union[LabelingInfo, list[LabelingInfo]]
+    labeling_info: LabelingInfo | list[LabelingInfo]
 
-    augmentations: typing.Optional[list[AugmentationName]] = None
+    augmentations: list[AugmentationName] | None = None
     """
     Used to define which augmentations are apply to a vision dataset.
     For audio datasets, this field is ignored.
@@ -212,12 +210,12 @@ class QADataset(BaseModel):
     Defaults to Image.
     """
 
-    run_id: typing.Optional[str] = Field(default=None, init=False)
+    run_id: str | None = Field(default=None, init=False)
     """
     The ID of the Dataset QA run created on the server.
     """
 
-    status: typing.Optional[RunStatus] = None
+    status: RunStatus | None = None
 
     @model_validator(mode="after")
     def validate_dataset(self):
@@ -310,7 +308,7 @@ class QADataset(BaseModel):
 
     @staticmethod
     def list_datasets(
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
     ) -> list["QADatasetOut"]:
         """
         Lists all the datasets created by user's default organization
@@ -336,8 +334,8 @@ class QADataset(BaseModel):
 
     @staticmethod
     def list_runs(
-        organization_id: typing.Optional[int] = None,
-        archived: typing.Optional[bool] = False,
+        organization_id: int | None = None,
+        archived: bool | None = False,
     ) -> list["DataQARunOut"]:
         """
         Lists all the `QADataset` instances created by user's default organization
@@ -401,7 +399,7 @@ class QADataset(BaseModel):
 
     def create(
         self,
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
         replace_if_exists: bool = False,
     ) -> int:
         """
@@ -458,8 +456,8 @@ class QADataset(BaseModel):
     @staticmethod
     def launch_qa_run(
         dataset_id: int,
-        organization_id: typing.Optional[int] = None,
-        run_args: typing.Optional[RunArgs] = None,
+        organization_id: int | None = None,
+        run_args: RunArgs | None = None,
     ) -> str:
         """
         Run the dataset QA process on the server using the dataset with the given ID
@@ -508,9 +506,9 @@ class QADataset(BaseModel):
 
     def run_qa(
         self,
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
         replace_dataset_if_exists: bool = False,
-        run_args: typing.Optional[RunArgs] = None,
+        run_args: RunArgs | None = None,
     ) -> str:
         """
         If the dataset was not created on the server yet, it is created.
@@ -607,7 +605,7 @@ class QADataset(BaseModel):
     @overload
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: typing.Literal[True]
-    ) -> typing.Optional[DatasetQAResults]: ...
+    ) -> DatasetQAResults | None: ...
 
     @staticmethod
     @overload
@@ -619,12 +617,12 @@ class QADataset(BaseModel):
     @overload
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: bool
-    ) -> typing.Optional[DatasetQAResults]: ...
+    ) -> DatasetQAResults | None: ...
 
     @staticmethod
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: bool = False
-    ) -> typing.Optional[DatasetQAResults]:
+    ) -> DatasetQAResults | None:
         """
         Check the status of a run given its ID
 
@@ -705,7 +703,7 @@ class QADataset(BaseModel):
     @overload
     def check_run(
         self, stop_on_manual_approval: typing.Literal[True]
-    ) -> typing.Optional[DatasetQAResults]: ...
+    ) -> DatasetQAResults | None: ...
 
     @overload
     def check_run(
@@ -714,7 +712,7 @@ class QADataset(BaseModel):
 
     def check_run(
         self, stop_on_manual_approval: bool = False
-    ) -> typing.Optional[DatasetQAResults]:
+    ) -> DatasetQAResults | None:
         """
         Check the status of the current active instance's run.
 
@@ -851,11 +849,11 @@ class QADatasetOut(BaseModel):
 
     data_root_url: HirundoUrl
 
-    classes: typing.Optional[list[str]] = None
-    labeling_info: typing.Union[LabelingInfo, list[LabelingInfo]]
+    classes: list[str] | None = None
+    labeling_info: LabelingInfo | list[LabelingInfo]
 
-    organization_id: typing.Optional[int]
-    creator_id: typing.Optional[int]
+    organization_id: int | None
+    creator_id: int | None
     created_at: datetime.datetime
     updated_at: datetime.datetime
 
@@ -868,4 +866,4 @@ class DataQARunOut(BaseModel):
     status: RunStatus
     approved: bool
     created_at: datetime.datetime
-    run_args: typing.Optional[RunArgs]
+    run_args: RunArgs | None
