@@ -16,9 +16,9 @@ unique_id = get_unique_id()
 
 def test_unlearn_llm_behavior():
     llm_id = LlmModel(
-        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-SmolLM2-{unique_id}",
+        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-Nemotron-Flash-1B-{unique_id}",
         model_source=HuggingFaceTransformersModel(
-            model_name="HuggingFaceTB/SmolLM2-135M",
+            model_name="nvidia/Nemotron-Flash-1B",
         ),
     ).create()
     run_info = BiasRunInfo(
