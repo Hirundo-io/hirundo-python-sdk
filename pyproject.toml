@@ -66,7 +66,8 @@ dev = [
     "pre-commit>=3.7.1",
     "virtualenv>=20.6.6",
     #  ⬆️ Needed for `pre-commit` version fix for vulnerability GHSA-rqc4-2hc7-8c8v
-    "authlib>=1.6.5",
+    "authlib>=1.6.6",
+    #  ⬆️ Required to fix vulnerability CVE-2025-68158
     "ruff>=0.12.0",
     "bumpver",
     "platformdirs>=4.3.6",
