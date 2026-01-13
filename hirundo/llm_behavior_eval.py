@@ -381,9 +381,7 @@ class LlmBehaviorEval:
                 try:
                     yield json.loads(sse_event.data)
                 except json.JSONDecodeError:
-                    logger.debug(
-                        "Non-JSON SSE payload received: %s", sse_event.data
-                    )
+                    logger.debug("Non-JSON SSE payload received: %s", sse_event.data)
                     yield {"data": sse_event.data}
 
     async def astream_results(self) -> AsyncGenerator[dict, None]:
