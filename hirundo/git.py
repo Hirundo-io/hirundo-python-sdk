@@ -1,6 +1,5 @@
 import datetime
 import re
-import typing
 
 import pydantic
 from pydantic import BaseModel, field_validator
@@ -32,14 +31,14 @@ class GitSSHAuth(BaseModel):
     """
     The SSH key for the Git repository
     """
-    ssh_password: typing.Optional[str]
+    ssh_password: str | None
     """
     The password for the SSH key for the Git repository.
     """
 
 
 class GitRepo(BaseModel):
-    id: typing.Optional[int] = None
+    id: int | None = None
     """
     The ID of the Git repository.
     """
@@ -48,25 +47,25 @@ class GitRepo(BaseModel):
     """
     A name to identify the Git repository in the Hirundo system.
     """
-    repository_url: typing.Union[str, RepoUrl]
+    repository_url: str | RepoUrl
     """
     The URL of the Git repository, it should start with `ssh://` or `https://` or be in the form `user@host:path`.
     If it is in the form `user@host:path`, it will be rewritten to `ssh://user@host/path`.
     """
-    organization_id: typing.Optional[int] = None
+    organization_id: int | None = None
     """
     The ID of the organization that the Git repository belongs to.
     If not provided, it will be assigned to your default organization.
     """
 
-    plain_auth: typing.Optional[GitPlainAuth] = pydantic.Field(
+    plain_auth: GitPlainAuth | None = pydantic.Field(
         default=None, examples=[None, {"username": "ben", "password": "password"}]
     )
     """
     The plain authentication details for the Git repository.
     Use this if using a special user with a username and password for authentication.
     """
-    ssh_auth: typing.Optional[GitSSHAuth] = pydantic.Field(
+    ssh_auth: GitSSHAuth | None = pydantic.Field(
         default=None,
         examples=[
             {
@@ -84,7 +83,7 @@ class GitRepo(BaseModel):
 
     @field_validator("repository_url", mode="before", check_fields=True)
     @classmethod
-    def check_valid_repository_url(cls, repository_url: typing.Union[str, RepoUrl]):
+    def check_valid_repository_url(cls, repository_url: str | RepoUrl):
         # Check if the URL has the `@` and `:` pattern with a non-numeric section before the next slash
         match = re.match("([^@]+@[^:]+):([^0-9/][^/]*)/(.+)", str(repository_url))
         if match:

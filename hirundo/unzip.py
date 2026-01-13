@@ -27,7 +27,7 @@ from hirundo.logger import get_logger
 
 ZIP_FILE_CHUNK_SIZE = 50 * 1024 * 1024  # 50 MB
 
-Dtype = typing.Union[type[int32], type[float32], type[string]]
+Dtype = type[int32] | type[float32] | type[string]
 
 
 CUSTOMER_INTERCHANGE_DTYPES: Mapping[str, Dtype] = {
@@ -75,7 +75,7 @@ def _clean_df_index(df: "pd.DataFrame") -> "pd.DataFrame":
 
 
 def load_df(
-    file: "typing.Union[str, IO[bytes]]",
+    file: "str | IO[bytes]",
 ) -> "DataFrameType":
     """
     Load a DataFrame from a CSV file.
@@ -226,7 +226,7 @@ def download_and_extract_zip(
 
 def load_from_zip(
     zip_path: Path, file_name: str
-) -> "typing.Union[pd.DataFrame, pl.DataFrame, None]":
+) -> "pd.DataFrame | pl.DataFrame | None":
     """
     Load a given file from a given zip file.
 

@@ -145,7 +145,7 @@ results = test_dataset.check_run()
 print(results)
 ```
 
-Note: Currently we only support the main CPython release 3.9, 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
+Note: Currently we only support the main CPython release 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
 
 ## Further documentation
 

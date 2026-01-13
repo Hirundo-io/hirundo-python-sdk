@@ -1,5 +1,4 @@
 import re
-import typing
 from typing import TYPE_CHECKING
 
 from hirundo._urls import (
@@ -135,8 +134,8 @@ def validate_labeling_type(
 
 def validate_labeling_info(
     labeling_type: "LabelingType",
-    labeling_info: "typing.Union[LabelingInfo, list[LabelingInfo]]",
-    storage_config: "typing.Union[StorageConfig, ResponseStorageConfig]",
+    labeling_info: "LabelingInfo | list[LabelingInfo]",
+    storage_config: "StorageConfig | ResponseStorageConfig",
 ) -> None:
     """
     Validate the labeling info for a dataset

@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 keywords = ["dataset", "machine learning", "data science", "data engineering"]
-requires-python = ">= 3.9"
+requires-python = ">= 3.10"
 dependencies = [
     "pyyaml>=6.0.1",
     "types-PyYAML>=6.0.12",
@@ -35,8 +35,8 @@ dependencies = [
     #  ⬆️ Required to fix vulnerability GHSA-vqfr-h8mv-ghfj
     "requests>=2.32.4",
     #  ⬆️ Required to fix vulnerability GHSA-9hjg-9r4m-mvj7
-    "urllib3>=2.5.0",
-    #  ⬆️ Required to fix vulnerabilities GHSA-pq67-6m6q-mj2v and GHSA-48p4-8xcf-vxj5
+    "urllib3>=2.6.3",
+    #  ⬆️ Required to fix vulnerability CVE-2026-21441
     "setuptools>=78.1.1",
     #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
 ]
@@ -66,17 +66,20 @@ dev = [
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
     "virtualenv>=20.6.6",
-    #  ⬆️ Needed for `pre-commit` and locking version for `safety-cli`
-    #  version fixes vulnerability GHSA-rqc4-2hc7-8c8v
-    "authlib>=1.6.5",
+    #  ⬆️ Needed for `pre-commit` version fix for vulnerability GHSA-rqc4-2hc7-8c8v
+    "authlib>=1.6.6",
+    #  ⬆️ Required to fix vulnerability CVE-2025-68158
     "ruff>=0.12.0",
     "bumpver",
     "platformdirs>=4.3.6",
-    "safety>=3.2.13",
     "cryptography>=44.0.1",
     #  ⬆️ Required to fix vulnerability GHSA-79v4-65xg-pq4g
     "jinja2>=3.1.6",
     #  ⬆️ Required to fix vulnerabilities GHSA-cpwx-vrp4-4pq7 , GHSA-gmj6-6f8f-6699 & GHSA-q2x7-8rv6-6q7h
+    "filelock>=3.20.1",
+    #  ⬆️ Required to fix vulnerability CVE-2025-68146
+    "marshmallow>=3.26.2",
+    #  ⬆️ Required to fix vulnerability CVE-2025-68480
 ]
 docs = [
     "sphinx>=7.4.7",
