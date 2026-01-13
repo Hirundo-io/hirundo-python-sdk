@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import typing
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
@@ -28,9 +27,7 @@ app = typer.Typer(
 )
 
 
-def _upsert_env(
-    dotenv_filepath: typing.Union[str, Path], var_name: str, var_value: str
-):
+def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
     """
     Change an environment variable in the .env file.
     If the variable does not exist, it will be added.
