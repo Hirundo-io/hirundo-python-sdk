@@ -194,7 +194,7 @@ typing-extensions==4.12.2
     #   pydantic
     #   pydantic-core
     #   typer
-urllib3==2.6.0
+urllib3==2.6.3
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)

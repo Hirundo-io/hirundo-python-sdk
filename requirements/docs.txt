@@ -293,7 +293,7 @@ typing-extensions==4.12.2
     #   starlette
     #   typer
     #   uvicorn
-urllib3==2.6.0
+urllib3==2.6.3
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
