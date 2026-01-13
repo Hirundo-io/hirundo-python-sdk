@@ -1,6 +1,5 @@
 import json
 import os
-import typing
 
 import pytest
 from hirundo import (
@@ -22,7 +21,7 @@ git_storage_config_name = f"T-BDD-100k-validation-git_get_by_name{unique_id}"
 git_repository_name = f"T-BDD-100k-validation-git-repo_get_by_name{unique_id}"
 git_qa_dataset_name = f"T-BDD-100k-validation-dataset_get_by_name{unique_id}"
 
-new_storage_config: typing.Optional[StorageConfig] = None
+new_storage_config: StorageConfig | None = None
 new_dataset = None
 
 

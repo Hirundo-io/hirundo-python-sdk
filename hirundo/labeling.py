@@ -47,7 +47,7 @@ class COCO(Metadata, frozen=True):
 
 class YOLO(Metadata, frozen=True):
     type: typing.Literal[DatasetMetadataType.YOLO] = DatasetMetadataType.YOLO
-    data_yaml_url: "typing.Optional[HirundoUrl]" = None
+    data_yaml_url: "HirundoUrl | None" = None
     labels_dir_url: "HirundoUrl"
 
 
@@ -57,8 +57,8 @@ class HuggingFaceAudio(Metadata, frozen=True):
     )
     audio_column: str
     text_column: str
-    subset: typing.Optional[str] = None
-    split: typing.Optional[str] = None
+    subset: str | None = None
+    split: str | None = None
 
 
 class KeylabsAuth(BaseModel):
@@ -83,11 +83,11 @@ class Keylabs(Metadata, frozen=True):
     Whether to include attributes in the class name.
     """
 
-    project_name: typing.Optional[str] = None
+    project_name: str | None = None
     """
     Keylabs project name (optional; added to output CSV if provided).
     """
-    keylabs_auth: typing.Optional[KeylabsAuth] = None
+    keylabs_auth: KeylabsAuth | None = None
     """
     Keylabs authentication credentials (optional; if provided, used to provide links to each sample).
     """
@@ -117,9 +117,9 @@ class KeylabsObjSegVideo(Keylabs, frozen=True):
     )
 
 
-KeylabsInfo = typing.Union[
-    KeylabsObjDetImages, KeylabsObjDetVideo, KeylabsObjSegImages, KeylabsObjSegVideo
-]
+KeylabsInfo = (
+    KeylabsObjDetImages | KeylabsObjDetVideo | KeylabsObjSegImages | KeylabsObjSegVideo
+)
 """
 The dataset labeling info for Keylabs. The dataset labeling info can be one of the following:
 - `DatasetMetadataType.KeylabsObjDetImages`: Indicates that the dataset metadata file is in the Keylabs object detection image format
@@ -128,13 +128,7 @@ The dataset labeling info for Keylabs. The dataset labeling info can be one of t
 - `DatasetMetadataType.KeylabsObjSegVideo`: Indicates that the dataset metadata file is in the Keylabs object segmentation video format
 """
 LabelingInfo = typing.Annotated[
-    typing.Union[
-        HirundoCSV,
-        COCO,
-        YOLO,
-        KeylabsInfo,
-        HuggingFaceAudio,
-    ],
+    HirundoCSV | COCO | YOLO | KeylabsInfo | HuggingFaceAudio,
     Field(discriminator="type"),
 ]
 """

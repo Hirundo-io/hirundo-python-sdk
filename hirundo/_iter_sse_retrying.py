@@ -1,6 +1,5 @@
 import asyncio
 import time
-import typing
 import uuid
 from collections.abc import AsyncGenerator, Generator
 
@@ -23,7 +22,7 @@ def iter_sse_retrying(
     client: httpx.Client,
     method: str,
     url: str,
-    headers: typing.Optional[dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
 ) -> Generator[ServerSentEvent, None, None]:
     if headers is None:
         headers = {}
