@@ -364,8 +364,8 @@ class LlmUnlearningRun:
     def list(
         organization_id: typing.Optional[int] = None,
         archived: bool = False,
-    ) -> list[dict[str, typing.Any]]:
-        params: dict[str, typing.Any] = {"archived": archived}
+    ) -> list[dict[str, object]]:
+        params: dict[str, bool | int] = {"archived": archived}
         if organization_id is not None:
             params["unlearning_organization_id"] = organization_id
         run_response = requests.get(
