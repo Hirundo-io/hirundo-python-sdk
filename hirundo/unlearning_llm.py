@@ -284,7 +284,11 @@ class BiasRunInfo(BaseModel):
     advanced_options: typing.Optional[UnlearningLlmAdvancedOptions] = None
 
     def to_run_info(self) -> LlmRunInfo:
-        default_utilities = self.target_utilities or [DefaultUtility()]
+        default_utilities = (
+            self.target_utilities
+            if self.target_utilities is not None
+            else [DefaultUtility()]
+        )
         return LlmRunInfo(
             organization_id=self.organization_id,
             name=self.name,
@@ -292,6 +296,31 @@ class BiasRunInfo(BaseModel):
             target_utilities=default_utilities,
             advanced_options=self.advanced_options,
         )
+
+
+OutputLlm = dict[str, object]
+BehaviorOptions = TargetBehavior
+UtilityOptions = TargetUtility
+CeleryTaskState = str
+
+
+class OutputUnlearningLlmRun(BaseModel):
+    id: int
+    name: str
+    model_id: int
+    model: OutputLlm
+    target_behaviors: list[BehaviorOptions]
+    target_utilities: list[UtilityOptions]
+    advanced_options: UnlearningLlmAdvancedOptions | None
+    run_id: str
+    mlflow_run_id: str | None
+    status: CeleryTaskState
+    approved: bool
+    created_at: datetime.datetime
+    completed_at: datetime.datetime | None
+    pre_process_progress: float
+    optimization_progress: float
+    post_process_progress: float
 
 
 class LlmUnlearningRun:
@@ -308,13 +337,13 @@ class LlmUnlearningRun:
         )
         raise_for_status_with_reason(run_response)
         run_response_json = run_response.json() if run_response.content else {}
+        if isinstance(run_response_json, str):
+            return run_response_json
         run_id = (
             run_response_json.get("run_id")
             or run_response_json.get("hir_run_id")
             or run_response_json.get("id")
         )
-        if isinstance(run_response_json, str):
-            return run_response_json
         if not run_id:
             raise ValueError("No run ID returned from launch request")
         return run_id
@@ -360,8 +389,8 @@ class LlmUnlearningRun:
     def list(
         organization_id: typing.Optional[int] = None,
         archived: bool = False,
-    ) -> list[dict[str, typing.Any]]:
-        params = {"archived": archived}
+    ) -> list[OutputUnlearningLlmRun]:
+        params: dict[str, bool | int] = {"archived": archived}
         if organization_id is not None:
             params["unlearning_organization_id"] = organization_id
         run_response = requests.get(
@@ -373,5 +402,8 @@ class LlmUnlearningRun:
         raise_for_status_with_reason(run_response)
         response_json = run_response.json()
         if isinstance(response_json, list):
-            return response_json
-        return [response_json]
+            return [
+                OutputUnlearningLlmRun.model_validate(run_payload)
+                for run_payload in response_json
+            ]
+        return [OutputUnlearningLlmRun.model_validate(response_json)]
