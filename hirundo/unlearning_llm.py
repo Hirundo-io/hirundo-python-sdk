@@ -284,7 +284,11 @@ class BiasRunInfo(BaseModel):
     advanced_options: typing.Optional[UnlearningLlmAdvancedOptions] = None
 
     def to_run_info(self) -> LlmRunInfo:
-        default_utilities = self.target_utilities or [DefaultUtility()]
+        default_utilities = (
+            self.target_utilities
+            if self.target_utilities is not None
+            else [DefaultUtility()]
+        )
         return LlmRunInfo(
             organization_id=self.organization_id,
             name=self.name,
@@ -308,13 +312,13 @@ class LlmUnlearningRun:
         )
         raise_for_status_with_reason(run_response)
         run_response_json = run_response.json() if run_response.content else {}
+        if isinstance(run_response_json, str):
+            return run_response_json
         run_id = (
             run_response_json.get("run_id")
             or run_response_json.get("hir_run_id")
             or run_response_json.get("id")
         )
-        if isinstance(run_response_json, str):
-            return run_response_json
         if not run_id:
             raise ValueError("No run ID returned from launch request")
         return run_id
@@ -361,7 +365,7 @@ class LlmUnlearningRun:
         organization_id: typing.Optional[int] = None,
         archived: bool = False,
     ) -> list[dict[str, typing.Any]]:
-        params = {"archived": archived}
+        params: dict[str, typing.Any] = {"archived": archived}
         if organization_id is not None:
             params["unlearning_organization_id"] = organization_id
         run_response = requests.get(
