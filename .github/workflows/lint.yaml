@@ -1,4 +1,4 @@
-name: "Lint: Ruff and Pyright"
+name: "Lint: Ruff and Basedpyright"
 on:
   pull_request:
     types: [opened, synchronize, reopened, assigned]
@@ -33,7 +33,7 @@ jobs:
       - run: ruff check
       - run: ruff format --check
 
-  pyright:
+  basedpyright:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,6 +52,4 @@ jobs:
           source .venv/bin/activate
           pip install -r requirements/dev.txt -r requirements/pandas.txt -r requirements/polars.txt
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - uses: jakebailey/pyright-action@v2
-        with:
-          pylance-version: latest-release
+      - run: basedpyright

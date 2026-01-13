@@ -16,6 +16,13 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
+    - id: basedpyright
+      name: basedpyright
+      entry: basedpyright
+      language: python
+      types: [python]
+      pass_filenames: false
+      additional_dependencies: [basedpyright==1.37.1]
     - id: pip-compile
       name: compile requirements/requirements.txt
       entry: uv
