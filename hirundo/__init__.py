@@ -23,6 +23,16 @@ from .labeling import (
     KeylabsObjSegImages,
     KeylabsObjSegVideo,
 )
+from .llm_behavior_eval import (
+    BiasType,
+    EvalRunInfo,
+    EvalRunRecord,
+    JudgeModel,
+    LlmBehaviorEval,
+    LlmBehaviorEvalError,
+    ModelOrRun,
+    PresetType,
+)
 from .storage import (
     StorageConfig,
     StorageGCP,
@@ -42,8 +52,16 @@ __all__ = [
     "KeylabsObjDetVideo",
     "KeylabsObjSegImages",
     "KeylabsObjSegVideo",
+    "BiasType",
     "QADataset",
+    "EvalRunInfo",
+    "EvalRunRecord",
+    "JudgeModel",
+    "LlmBehaviorEval",
+    "LlmBehaviorEvalError",
     "ModalityType",
+    "ModelOrRun",
+    "PresetType",
     "RunArgs",
     "ClassificationRunArgs",
     "ObjectDetectionRunArgs",
