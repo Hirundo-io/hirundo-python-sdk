@@ -1,9 +1,9 @@
 import datetime
 import typing
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel
-from typing_extensions import Literal
 
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
@@ -23,10 +23,10 @@ class HuggingFaceTransformersModel(BaseModel):
     type: Literal[ModelSourceType.HUGGINGFACE_TRANSFORMERS] = (
         ModelSourceType.HUGGINGFACE_TRANSFORMERS
     )
-    revision: typing.Optional[str] = None
-    code_revision: typing.Optional[str] = None
+    revision: str | None = None
+    code_revision: str | None = None
     model_name: str
-    token: typing.Optional[str] = None
+    token: str | None = None
 
 
 class HuggingFaceTransformersModelOutput(BaseModel):
@@ -45,15 +45,13 @@ class LocalTransformersModel(BaseModel):
     local_path: str
 
 
-LlmSources = typing.Union[HuggingFaceTransformersModel, LocalTransformersModel]
-LlmSourcesOutput = typing.Union[
-    HuggingFaceTransformersModelOutput, LocalTransformersModel
-]
+LlmSources = HuggingFaceTransformersModel | LocalTransformersModel
+LlmSourcesOutput = HuggingFaceTransformersModelOutput | LocalTransformersModel
 
 
 class LlmModel(BaseModel):
-    id: typing.Optional[int] = None
-    organization_id: typing.Optional[int] = None
+    id: int | None = None
+    organization_id: int | None = None
     model_name: str
     model_source: LlmSources
     archive_existing_runs: bool = True
@@ -97,7 +95,7 @@ class LlmModel(BaseModel):
         return LlmModelOut.from_response(llm_model_response.json())
 
     @staticmethod
-    def list(organization_id: typing.Optional[int] = None) -> list["LlmModelOut"]:
+    def list(organization_id: int | None = None) -> list["LlmModelOut"]:
         params = {}
         if organization_id is not None:
             params["model_organization_id"] = organization_id
@@ -128,9 +126,9 @@ class LlmModel(BaseModel):
 
     def update(
         self,
-        model_name: typing.Optional[str] = None,
-        model_source: typing.Optional[LlmSources] = None,
-        archive_existing_runs: typing.Optional[bool] = None,
+        model_name: str | None = None,
+        model_source: LlmSources | None = None,
+        archive_existing_runs: bool | None = None,
     ) -> None:
         if not self.id:
             raise ValueError("No LLM model has been created")
@@ -188,9 +186,7 @@ class DatasetType(str, Enum):
 
 
 class UnlearningLlmAdvancedOptions(BaseModel):
-    max_tokens_for_model: typing.Optional[typing.Union[dict[DatasetType, int], int]] = (
-        None
-    )
+    max_tokens_for_model: dict[DatasetType, int] | int | None = None
 
 
 class BiasType(str, Enum):
@@ -222,7 +218,7 @@ class HuggingFaceDataset(BaseModel):
     hugging_face_dataset_name: str
 
 
-CustomDataset = typing.Union[HirundoCSVDataset, HuggingFaceDataset]
+CustomDataset = HirundoCSVDataset | HuggingFaceDataset
 
 
 class CustomUtility(BaseModel):
@@ -257,34 +253,31 @@ class CustomBehavior(BaseModel):
     unbiased_dataset: CustomDataset
 
 
-TargetBehavior = typing.Union[
-    BiasBehavior,
-    HallucinationBehavior,
-    SecurityBehavior,
-    CustomBehavior,
-]
+TargetBehavior = (
+    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
+)
 
-TargetUtility = typing.Union[DefaultUtility, CustomUtility]
+TargetUtility = DefaultUtility | CustomUtility
 
 
 class LlmRunInfo(BaseModel):
-    organization_id: typing.Optional[int] = None
-    name: typing.Optional[str] = None
-    model_id: typing.Optional[int] = None
+    organization_id: int | None = None
+    name: str | None = None
+    model_id: int | None = None
     target_behaviors: list[TargetBehavior]
     target_utilities: list[TargetUtility]
-    advanced_options: typing.Optional[UnlearningLlmAdvancedOptions] = None
+    advanced_options: UnlearningLlmAdvancedOptions | None = None
 
 
 class BiasRunInfo(BaseModel):
     bias_type: BiasType
-    organization_id: typing.Optional[int] = None
-    name: typing.Optional[str] = None
-    target_utilities: typing.Optional[list[TargetUtility]] = None
-    advanced_options: typing.Optional[UnlearningLlmAdvancedOptions] = None
+    organization_id: int | None = None
+    name: str | None = None
+    target_utilities: list[TargetUtility] | None = None
+    advanced_options: UnlearningLlmAdvancedOptions | None = None
 
     def to_run_info(self) -> LlmRunInfo:
-        default_utilities = (
+        default_utilities: list[TargetUtility] = (
             [DefaultUtility()]
             if self.target_utilities is None
             else list(self.target_utilities)
@@ -325,7 +318,7 @@ class OutputUnlearningLlmRun(BaseModel):
 
 class LlmUnlearningRun:
     @staticmethod
-    def launch(model_id: int, run_info: typing.Union[LlmRunInfo, BiasRunInfo]) -> str:
+    def launch(model_id: int, run_info: LlmRunInfo | BiasRunInfo) -> str:
         resolved_run_info = (
             run_info.to_run_info() if isinstance(run_info, BiasRunInfo) else run_info
         )
@@ -387,7 +380,7 @@ class LlmUnlearningRun:
 
     @staticmethod
     def list(
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
         archived: bool = False,
     ) -> list[OutputUnlearningLlmRun]:
         params: dict[str, bool | int] = {"archived": archived}
