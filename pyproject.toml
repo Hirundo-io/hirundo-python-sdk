@@ -64,6 +64,7 @@ dev = [
     "pytest-asyncio>=0.23.6",
     "uv>=0.9.6",
     "pre-commit>=3.7.1",
+    "basedpyright==1.37.1",
     "virtualenv>=20.6.6",
     #  ⬆️ Needed for `pre-commit` and locking version for `safety-cli`
     #  version fixes vulnerability GHSA-rqc4-2hc7-8c8v
