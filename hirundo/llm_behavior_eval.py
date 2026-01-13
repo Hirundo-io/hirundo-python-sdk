@@ -1,6 +1,5 @@
 import datetime
 import json
-import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 
@@ -51,21 +50,21 @@ class BiasType(str, Enum):
 
 class JudgeModel(BaseModel):
     path_or_repo_id: str
-    token: typing.Optional[str] = None
-    batch_size: typing.Optional[int] = None
-    output_tokens: typing.Optional[int] = None
-    use_4bit: typing.Optional[bool] = None
+    token: str | None = None
+    batch_size: int | None = None
+    output_tokens: int | None = None
+    use_4bit: bool | None = None
 
 
 class EvalRunInfo(BaseModel):
-    organization_id: typing.Optional[int] = None
-    name: typing.Optional[str] = None
-    model_id: typing.Optional[int] = None
-    source_run_id: typing.Optional[str] = None
-    file_path: typing.Optional[str] = None
-    preset_type: typing.Optional[PresetType] = None
-    bias_type: typing.Optional[BiasType] = None
-    judge_model: typing.Optional[JudgeModel] = None
+    organization_id: int | None = None
+    name: str | None = None
+    model_id: int | None = None
+    source_run_id: str | None = None
+    file_path: str | None = None
+    preset_type: PresetType | None = None
+    bias_type: BiasType | None = None
+    judge_model: JudgeModel | None = None
 
 
 class OutputLlm(BaseModel):
@@ -96,10 +95,10 @@ class LlmEvalMetricRow(BaseModel):
 
     benchmark: str
     metric: str
-    original: typing.Optional[typing.Union[float, str]] = None
-    post_unlearning: typing.Optional[typing.Union[float, str]] = None
-    reduction_percent: typing.Optional[float] = None
-    subset: typing.Optional[str] = None
+    original: float | str | None = None
+    post_unlearning: float | str | None = None
+    reduction_percent: float | None = None
+    subset: str | None = None
 
 
 class LlmEvalMetrics(BaseModel):
@@ -111,27 +110,27 @@ class LlmEvalMetrics(BaseModel):
 class EvalRunRecord(BaseModel):
     id: int
     name: str
-    model_id: typing.Optional[int]
-    model: typing.Optional[OutputLlm]
-    source_run_id: typing.Optional[str]
-    source_run: typing.Optional[OutputUnlearningLlmRun]
-    file_path: typing.Optional[str]
-    preset_type: typing.Optional[PresetType]
-    bias_type: typing.Optional[BiasType]
-    judge_model: typing.Optional[JudgeModel]
+    model_id: int | None
+    model: OutputLlm | None
+    source_run_id: str | None
+    source_run: OutputUnlearningLlmRun | None
+    file_path: str | None
+    preset_type: PresetType | None
+    bias_type: BiasType | None
+    judge_model: JudgeModel | None
     run_id: str
-    mlflow_run_id: typing.Optional[str]
+    mlflow_run_id: str | None
     status: str
     created_at: datetime.datetime
     pre_process_progress: float
     optimization_progress: float
     post_process_progress: float
-    metrics: typing.Optional[LlmEvalMetrics] = None
-    responses_zip_url: typing.Optional[str] = None
+    metrics: LlmEvalMetrics | None = None
+    responses_zip_url: str | None = None
 
 
 class LlmBehaviorEval:
-    def __init__(self, run_id: typing.Optional[str] = None):
+    def __init__(self, run_id: str | None = None):
         self.run_id = run_id
 
     @staticmethod
@@ -192,7 +191,7 @@ class LlmBehaviorEval:
 
     @staticmethod
     def launch_eval_run(
-        model_or_run: typing.Union[ModelOrRun, str],
+        model_or_run: ModelOrRun | str,
         run_info: EvalRunInfo,
     ) -> str:
         """
@@ -314,7 +313,7 @@ class LlmBehaviorEval:
 
     @staticmethod
     def list_runs(
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
         archived: bool = False,
     ) -> list[EvalRunRecord]:
         """
