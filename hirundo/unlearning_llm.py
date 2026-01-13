@@ -285,9 +285,9 @@ class BiasRunInfo(BaseModel):
 
     def to_run_info(self) -> LlmRunInfo:
         default_utilities = (
-            self.target_utilities
-            if self.target_utilities is not None
-            else [DefaultUtility()]
+            [DefaultUtility()]
+            if self.target_utilities is None
+            else list(self.target_utilities)
         )
         return LlmRunInfo(
             organization_id=self.organization_id,
