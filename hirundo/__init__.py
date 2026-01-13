@@ -23,6 +23,15 @@ from .labeling import (
     KeylabsObjSegImages,
     KeylabsObjSegVideo,
 )
+from .llm import (
+    BiasRunInfo,
+    BiasType,
+    HuggingFaceTransformersModel,
+    LlmModel,
+    LlmUnlearningData,
+    LlmUnlearningRun,
+    UnlearningExample,
+)
 from .storage import (
     StorageConfig,
     StorageGCP,
@@ -61,6 +70,13 @@ __all__ = [
     "DatasetQAResults",
     "load_df",
     "load_from_zip",
+    "HuggingFaceTransformersModel",
+    "LlmModel",
+    "LlmUnlearningRun",
+    "BiasRunInfo",
+    "BiasType",
+    "LlmUnlearningData",
+    "UnlearningExample",
 ]
 
 __version__ = "0.1.21"
