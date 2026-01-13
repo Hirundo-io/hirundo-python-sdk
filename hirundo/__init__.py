@@ -35,6 +35,7 @@ from .unlearning_llm import (
     BiasType,
     HuggingFaceTransformersModel,
     LlmModel,
+    LlmSources,
     LlmUnlearningRun,
     LocalTransformersModel,
 )
@@ -71,6 +72,7 @@ __all__ = [
     "BiasType",
     "HuggingFaceTransformersModel",
     "LlmModel",
+    "LlmSources",
     "LlmUnlearningRun",
     "LocalTransformersModel",
     "load_df",

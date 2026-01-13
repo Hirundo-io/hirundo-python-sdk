@@ -16,12 +16,6 @@ from hirundo.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_unique_id():
-    return (
-        os.getenv("UNIQUE_ID", "").replace(".", "-").replace("/", "-").replace("+", "-")
-    )
-
-
 def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
     if not unique_id:
         return

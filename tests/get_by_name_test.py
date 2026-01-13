@@ -13,7 +13,7 @@ from hirundo import (
     StorageGit,
     StorageTypes,
 )
-from tests.dataset_qa_shared import get_unique_id
+from tests.testing_utils import get_unique_id
 
 unique_id = get_unique_id()
 gcp_storage_config_name = f"T-cifar1bucket_get_by_name{unique_id}"
