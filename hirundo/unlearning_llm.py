@@ -298,6 +298,31 @@ class BiasRunInfo(BaseModel):
         )
 
 
+OutputLlm = dict[str, object]
+BehaviorOptions = TargetBehavior
+UtilityOptions = TargetUtility
+CeleryTaskState = str
+
+
+class OutputUnlearningLlmRun(BaseModel):
+    id: int
+    name: str
+    model_id: int
+    model: OutputLlm
+    target_behaviors: list[BehaviorOptions]
+    target_utilities: list[UtilityOptions]
+    advanced_options: UnlearningLlmAdvancedOptions | None
+    run_id: str
+    mlflow_run_id: str | None
+    status: CeleryTaskState
+    approved: bool
+    created_at: datetime.datetime
+    completed_at: datetime.datetime | None
+    pre_process_progress: float
+    optimization_progress: float
+    post_process_progress: float
+
+
 class LlmUnlearningRun:
     @staticmethod
     def launch(model_id: int, run_info: typing.Union[LlmRunInfo, BiasRunInfo]) -> str:
@@ -364,7 +389,7 @@ class LlmUnlearningRun:
     def list(
         organization_id: typing.Optional[int] = None,
         archived: bool = False,
-    ) -> list[dict[str, object]]:
+    ) -> list[OutputUnlearningLlmRun]:
         params: dict[str, bool | int] = {"archived": archived}
         if organization_id is not None:
             params["unlearning_organization_id"] = organization_id
@@ -377,5 +402,8 @@ class LlmUnlearningRun:
         raise_for_status_with_reason(run_response)
         response_json = run_response.json()
         if isinstance(response_json, list):
-            return response_json
-        return [response_json]
+            return [
+                OutputUnlearningLlmRun.model_validate(run_payload)
+                for run_payload in response_json
+            ]
+        return [OutputUnlearningLlmRun.model_validate(response_json)]
