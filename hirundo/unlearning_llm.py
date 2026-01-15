@@ -1,11 +1,9 @@
 import datetime
-import json
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import Literal, overload
 
-import httpx
 from pydantic import BaseModel
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -13,14 +11,21 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
-from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
+from hirundo._run_checking import (
+    STATUS_TO_PROGRESS_MAP,
+    RunStatus,
+    aiter_run_events,
+    build_status_text_map,
+    get_state,
+    handle_run_failure,
+    iter_run_events,
+    update_progress_from_result,
+)
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.dataset_qa import HirundoError
 from hirundo.logger import get_logger
 
 logger = get_logger(__name__)
-
-MAX_RETRIES = 200  # Max 200 retries for HTTP SSE connection
 
 
 class ModelSourceType(str, Enum):
@@ -325,37 +330,7 @@ class OutputUnlearningLlmRun(BaseModel):
     post_process_progress: float
 
 
-class RunStatus(Enum):
-    PENDING = "PENDING"
-    STARTED = "STARTED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
-    AWAITING_MANUAL_APPROVAL = "AWAITING MANUAL APPROVAL"
-    REVOKED = "REVOKED"
-    REJECTED = "REJECTED"
-    RETRY = "RETRY"
-
-
-STATUS_TO_TEXT_MAP = {
-    RunStatus.STARTED.value: "LLM unlearning run in progress",
-    RunStatus.PENDING.value: "LLM unlearning run queued and not yet started",
-    RunStatus.SUCCESS.value: "LLM unlearning run completed successfully",
-    RunStatus.FAILURE.value: "LLM unlearning run failed",
-    RunStatus.AWAITING_MANUAL_APPROVAL.value: "Awaiting manual approval",
-    RunStatus.RETRY.value: "LLM unlearning run failed. Retrying",
-    RunStatus.REVOKED.value: "LLM unlearning run was cancelled",
-    RunStatus.REJECTED.value: "LLM unlearning run was rejected",
-}
-STATUS_TO_PROGRESS_MAP = {
-    RunStatus.STARTED.value: 0.0,
-    RunStatus.PENDING.value: 0.0,
-    RunStatus.SUCCESS.value: 100.0,
-    RunStatus.FAILURE.value: 100.0,
-    RunStatus.AWAITING_MANUAL_APPROVAL.value: 100.0,
-    RunStatus.RETRY.value: 0.0,
-    RunStatus.REVOKED.value: 100.0,
-    RunStatus.REJECTED.value: 0.0,
-}
+STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
 
 
 class LlmUnlearningRun:
@@ -445,53 +420,14 @@ class LlmUnlearningRun:
 
     @staticmethod
     def _check_run_by_id(run_id: str, retry=0) -> Generator[dict, None, None]:
-        if retry > MAX_RETRIES:
-            raise HirundoError("Max retries reached")
-        last_event = None
-        with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
-            for sse in iter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/unlearning-llm/run/{run_id}",
-                headers=get_headers(),
-            ):
-                if sse.event == "ping":
-                    continue
-                logger.debug(
-                    "[SYNC] received event: %s with data: %s and ID: %s and retry: %s",
-                    sse.event,
-                    sse.data,
-                    sse.id,
-                    sse.retry,
-                )
-                last_event = json.loads(sse.data)
-                if not last_event:
-                    continue
-                if "data" in last_event:
-                    data = last_event["data"]
-                else:
-                    if "detail" in last_event:
-                        raise HirundoError(last_event["detail"])
-                    elif "reason" in last_event:
-                        raise HirundoError(last_event["reason"])
-                    else:
-                        raise HirundoError("Unknown error")
-                yield data
-        last_state = None
-        if last_event and "data" in last_event:
-            last_state = last_event["data"].get("state") or last_event["data"].get(
-                "status"
-            )
-        if not last_event or last_state == RunStatus.PENDING.value:
-            LlmUnlearningRun._check_run_by_id(run_id, retry + 1)
-
-    @staticmethod
-    def _handle_failure(iteration: dict) -> None:
-        if iteration.get("result"):
-            raise HirundoError(
-                f"LLM unlearning run failed with error: {iteration['result']}"
-            )
-        raise HirundoError("LLM unlearning run failed with an unknown error")
+        yield from iter_run_events(
+            f"{API_HOST}/unlearning-llm/run/{run_id}",
+            headers=get_headers(),
+            retry=retry,
+            status_keys=("state", "status"),
+            error_cls=HirundoError,
+            log=logger,
+        )
 
     @staticmethod
     @overload
@@ -530,7 +466,7 @@ class LlmUnlearningRun:
         with logging_redirect_tqdm():
             t = tqdm(total=100.0)
             for iteration in LlmUnlearningRun._check_run_by_id(run_id):
-                state = iteration.get("state") or iteration.get("status")
+                state = get_state(iteration, ("state", "status"))
                 if state in STATUS_TO_PROGRESS_MAP:
                     t.set_description(STATUS_TO_TEXT_MAP[state])
                     t.n = STATUS_TO_PROGRESS_MAP[state]
@@ -545,7 +481,11 @@ class LlmUnlearningRun:
                             "State is failure, rejected, or revoked: %s",
                             state,
                         )
-                        LlmUnlearningRun._handle_failure(iteration)
+                        handle_run_failure(
+                            iteration,
+                            error_cls=HirundoError,
+                            run_label="LLM unlearning",
+                        )
                     elif state == RunStatus.SUCCESS.value:
                         t.close()
                         return iteration.get("result") or iteration
@@ -556,33 +496,12 @@ class LlmUnlearningRun:
                         t.close()
                         return None
                 elif state is None:
-                    if (
-                        iteration.get("result")
-                        and isinstance(iteration["result"], dict)
-                        and iteration["result"].get("result")
-                        and isinstance(iteration["result"]["result"], str)
-                    ):
-                        result_info = iteration["result"]["result"].split(":")
-                        if len(result_info) > 1:
-                            stage = result_info[0]
-                            current_progress_percentage = float(
-                                result_info[1].removeprefix(" ").removesuffix("% done")
-                            )
-                        elif len(result_info) == 1:
-                            stage = result_info[0]
-                            current_progress_percentage = t.n
-                        else:
-                            stage = "Unknown progress state"
-                            current_progress_percentage = t.n
-                        desc = (
-                            "LLM unlearning run completed. Uploading results"
-                            if current_progress_percentage == 100.0
-                            else stage
-                        )
-                        t.set_description(desc)
-                        t.n = current_progress_percentage
-                        logger.debug("Setting progress to %s", t.n)
-                        t.refresh()
+                    update_progress_from_result(
+                        iteration,
+                        t,
+                        uploading_text="LLM unlearning run completed. Uploading results",
+                        log=logger,
+                    )
         raise HirundoError("LLM unlearning run failed with an unknown error")
 
     @staticmethod
@@ -615,37 +534,15 @@ class LlmUnlearningRun:
 
         """
         logger.debug("Checking run with ID: %s", run_id)
-        if retry > MAX_RETRIES:
-            raise HirundoError("Max retries reached")
-        last_event = None
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
-            async_iterator = await aiter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/unlearning-llm/run/{run_id}",
-                headers=get_headers(),
-            )
-            async for sse in async_iterator:
-                if sse.event == "ping":
-                    continue
-                logger.debug(
-                    "[ASYNC] Received event: %s with data: %s and ID: %s and retry: %s",
-                    sse.event,
-                    sse.data,
-                    sse.id,
-                    sse.retry,
-                )
-                last_event = json.loads(sse.data)
-                yield last_event["data"]
-        last_state = None
-        if last_event and "data" in last_event:
-            last_state = last_event["data"].get("state") or last_event["data"].get(
-                "status"
-            )
-        if not last_event or last_state == RunStatus.PENDING.value:
-            LlmUnlearningRun.acheck_run_by_id(run_id, retry + 1)
+        async for iteration in aiter_run_events(
+            f"{API_HOST}/unlearning-llm/run/{run_id}",
+            headers=get_headers(),
+            retry=retry,
+            status_keys=("state", "status"),
+            error_cls=HirundoError,
+            log=logger,
+        ):
+            yield iteration
 
     @staticmethod
     async def acheck_run(run_id: str) -> AsyncGenerator[dict, None]:

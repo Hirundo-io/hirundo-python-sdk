@@ -1,11 +1,9 @@
 import datetime
-import json
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import overload
 
-import httpx
 from pydantic import BaseModel, Field, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
@@ -14,7 +12,16 @@ from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
-from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
+from hirundo._run_checking import (
+    STATUS_TO_PROGRESS_MAP,
+    RunStatus,
+    aiter_run_events,
+    build_status_text_map,
+    get_state,
+    handle_run_failure,
+    iter_run_events,
+    update_progress_from_result,
+)
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType
@@ -35,40 +42,10 @@ class HirundoError(Exception):
     pass
 
 
-MAX_RETRIES = 200  # Max 200 retries for HTTP SSE connection
-
-
-class RunStatus(Enum):
-    PENDING = "PENDING"
-    STARTED = "STARTED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
-    AWAITING_MANUAL_APPROVAL = "AWAITING MANUAL APPROVAL"
-    REVOKED = "REVOKED"
-    REJECTED = "REJECTED"
-    RETRY = "RETRY"
-
-
-STATUS_TO_TEXT_MAP = {
-    RunStatus.STARTED.value: "Dataset QA run in progress. Downloading dataset",
-    RunStatus.PENDING.value: "Dataset QA run queued and not yet started",
-    RunStatus.SUCCESS.value: "Dataset QA run completed successfully",
-    RunStatus.FAILURE.value: "Dataset QA run failed",
-    RunStatus.AWAITING_MANUAL_APPROVAL.value: "Awaiting manual approval",
-    RunStatus.RETRY.value: "Dataset QA run failed. Retrying",
-    RunStatus.REVOKED.value: "Dataset QA run was cancelled",
-    RunStatus.REJECTED.value: "Dataset QA run was rejected",
-}
-STATUS_TO_PROGRESS_MAP = {
-    RunStatus.STARTED.value: 0.0,
-    RunStatus.PENDING.value: 0.0,
-    RunStatus.SUCCESS.value: 100.0,
-    RunStatus.FAILURE.value: 100.0,
-    RunStatus.AWAITING_MANUAL_APPROVAL.value: 100.0,
-    RunStatus.RETRY.value: 0.0,
-    RunStatus.REVOKED.value: 100.0,
-    RunStatus.REJECTED.value: 0.0,
-}
+STATUS_TO_TEXT_MAP = build_status_text_map(
+    "Dataset QA",
+    started_detail="Dataset QA run in progress. Downloading dataset",
+)
 
 
 class ClassificationRunArgs(BaseModel):
@@ -559,47 +536,14 @@ class QADataset(BaseModel):
 
     @staticmethod
     def _check_run_by_id(run_id: str, retry=0) -> Generator[dict, None, None]:
-        if retry > MAX_RETRIES:
-            raise HirundoError("Max retries reached")
-        last_event = None
-        with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
-            for sse in iter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/dataset-qa/run/{run_id}",
-                headers=get_headers(),
-            ):
-                if sse.event == "ping":
-                    continue
-                logger.debug(
-                    "[SYNC] received event: %s with data: %s and ID: %s and retry: %s",
-                    sse.event,
-                    sse.data,
-                    sse.id,
-                    sse.retry,
-                )
-                last_event = json.loads(sse.data)
-                if not last_event:
-                    continue
-                if "data" in last_event:
-                    data = last_event["data"]
-                else:
-                    if "detail" in last_event:
-                        raise HirundoError(last_event["detail"])
-                    elif "reason" in last_event:
-                        raise HirundoError(last_event["reason"])
-                    else:
-                        raise HirundoError("Unknown error")
-                yield data
-        if not last_event or last_event["data"]["state"] == RunStatus.PENDING.value:
-            QADataset._check_run_by_id(run_id, retry + 1)
-
-    @staticmethod
-    def _handle_failure(iteration: dict):
-        if iteration["result"]:
-            raise HirundoError(f"QA run failed with error: {iteration['result']}")
-        else:
-            raise HirundoError("QA run failed with an unknown error in _handle_failure")
+        yield from iter_run_events(
+            f"{API_HOST}/dataset-qa/run/{run_id}",
+            headers=get_headers(),
+            retry=retry,
+            status_keys=("state",),
+            error_cls=HirundoError,
+            log=logger,
+        )
 
     @staticmethod
     @overload
@@ -640,22 +584,25 @@ class QADataset(BaseModel):
         with logging_redirect_tqdm():
             t = tqdm(total=100.0)
             for iteration in QADataset._check_run_by_id(run_id):
-                if iteration["state"] in STATUS_TO_PROGRESS_MAP:
-                    t.set_description(STATUS_TO_TEXT_MAP[iteration["state"]])
-                    t.n = STATUS_TO_PROGRESS_MAP[iteration["state"]]
+                state = get_state(iteration, ("state",))
+                if state in STATUS_TO_PROGRESS_MAP:
+                    t.set_description(STATUS_TO_TEXT_MAP[state])
+                    t.n = STATUS_TO_PROGRESS_MAP[state]
                     logger.debug("Setting progress to %s", t.n)
                     t.refresh()
-                    if iteration["state"] in [
+                    if state in [
                         RunStatus.FAILURE.value,
                         RunStatus.REJECTED.value,
                         RunStatus.REVOKED.value,
                     ]:
                         logger.error(
                             "State is failure, rejected, or revoked: %s",
-                            iteration["state"],
+                            state,
                         )
-                        QADataset._handle_failure(iteration)
-                    elif iteration["state"] == RunStatus.SUCCESS.value:
+                        handle_run_failure(
+                            iteration, error_cls=HirundoError, run_label="QA"
+                        )
+                    elif state == RunStatus.SUCCESS.value:
                         t.close()
                         zip_temporary_url = iteration["result"]
                         logger.debug("QA run completed. Downloading results")
@@ -665,39 +612,18 @@ class QADataset(BaseModel):
                             zip_temporary_url,
                         )
                     elif (
-                        iteration["state"] == RunStatus.AWAITING_MANUAL_APPROVAL.value
+                        state == RunStatus.AWAITING_MANUAL_APPROVAL.value
                         and stop_on_manual_approval
                     ):
                         t.close()
                         return None
-                elif iteration["state"] is None:
-                    if (
-                        iteration["result"]
-                        and isinstance(iteration["result"], dict)
-                        and iteration["result"]["result"]
-                        and isinstance(iteration["result"]["result"], str)
-                    ):
-                        result_info = iteration["result"]["result"].split(":")
-                        if len(result_info) > 1:
-                            stage = result_info[0]
-                            current_progress_percentage = float(
-                                result_info[1].removeprefix(" ").removesuffix("% done")
-                            )
-                        elif len(result_info) == 1:
-                            stage = result_info[0]
-                            current_progress_percentage = t.n  # Keep the same progress
-                        else:
-                            stage = "Unknown progress state"
-                            current_progress_percentage = t.n  # Keep the same progress
-                        desc = (
-                            "QA run completed. Uploading results"
-                            if current_progress_percentage == 100.0
-                            else stage
-                        )
-                        t.set_description(desc)
-                        t.n = current_progress_percentage
-                        logger.debug("Setting progress to %s", t.n)
-                        t.refresh()
+                elif state is None:
+                    update_progress_from_result(
+                        iteration,
+                        t,
+                        uploading_text="QA run completed. Uploading results",
+                        log=logger,
+                    )
         raise HirundoError("QA run failed with an unknown error in check_run_by_id")
 
     @overload
@@ -744,32 +670,15 @@ class QADataset(BaseModel):
 
         """
         logger.debug("Checking run with ID: %s", run_id)
-        if retry > MAX_RETRIES:
-            raise HirundoError("Max retries reached")
-        last_event = None
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
-            async_iterator = await aiter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/dataset-qa/run/{run_id}",
-                headers=get_headers(),
-            )
-            async for sse in async_iterator:
-                if sse.event == "ping":
-                    continue
-                logger.debug(
-                    "[ASYNC] Received event: %s with data: %s and ID: %s and retry: %s",
-                    sse.event,
-                    sse.data,
-                    sse.id,
-                    sse.retry,
-                )
-                last_event = json.loads(sse.data)
-                yield last_event["data"]
-        if not last_event or last_event["data"]["state"] == RunStatus.PENDING.value:
-            QADataset.acheck_run_by_id(run_id, retry + 1)
+        async for iteration in aiter_run_events(
+            f"{API_HOST}/dataset-qa/run/{run_id}",
+            headers=get_headers(),
+            retry=retry,
+            status_keys=("state",),
+            error_cls=HirundoError,
+            log=logger,
+        ):
+            yield iteration
 
     async def acheck_run(self) -> AsyncGenerator[dict, None]:
         """
