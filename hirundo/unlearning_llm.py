@@ -2,15 +2,16 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import Literal, overload
+from typing import TYPE_CHECKING, Literal, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
+from hirundo._llm_pipeline import get_pipeline_for_run_given_model
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
     RunStatus,
@@ -25,6 +26,11 @@ from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.dataset_qa import HirundoError
 from hirundo.logger import get_logger
 
+if TYPE_CHECKING:
+    from torch import device as torch_device
+    from transformers.configuration_utils import PretrainedConfig
+    from transformers.pipelines.base import Pipeline
+
 logger = get_logger(__name__)
 
 
@@ -34,6 +40,8 @@ class ModelSourceType(str, Enum):
 
 
 class HuggingFaceTransformersModel(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     type: Literal[ModelSourceType.HUGGINGFACE_TRANSFORMERS] = (
         ModelSourceType.HUGGINGFACE_TRANSFORMERS
     )
@@ -44,6 +52,8 @@ class HuggingFaceTransformersModel(BaseModel):
 
 
 class HuggingFaceTransformersModelOutput(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     type: Literal[ModelSourceType.HUGGINGFACE_TRANSFORMERS] = (
         ModelSourceType.HUGGINGFACE_TRANSFORMERS
     )
@@ -64,6 +74,8 @@ LlmSourcesOutput = HuggingFaceTransformersModelOutput | LocalTransformersModel
 
 
 class LlmModel(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: int | None = None
     organization_id: int | None = None
     model_name: str
@@ -168,8 +180,22 @@ class LlmModel(BaseModel):
         if archive_existing_runs is not None:
             self.archive_existing_runs = archive_existing_runs
 
+    def get_pipeline_for_run(
+        self,
+        run_id: str,
+        config: "PretrainedConfig | None" = None,
+        device: "str | int | torch_device | None" = None,
+        device_map: str | dict[str, int | str] | None = None,
+        trust_remote_code: bool = False,
+    ) -> "Pipeline":
+        return get_pipeline_for_run_given_model(
+            self, run_id, config, device, device_map, trust_remote_code
+        )
+
 
 class LlmModelOut(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: int
     organization_id: int
     creator_id: int
@@ -190,6 +216,25 @@ class LlmModelOut(BaseModel):
             updated_at=response_payload["updated_at"],
             model_name=response_payload["model_name"],
             model_source=response_payload["model_source"],
+        )
+
+    def get_pipeline_for_run(
+        self,
+        run_id: str,
+        config: "PretrainedConfig | None" = None,
+        device: "str | int | torch_device | None" = None,
+        device_map: str | dict[str, int | str] | None = None,
+        trust_remote_code: bool = False,
+        token: str | None = None,
+    ) -> "Pipeline":
+        return get_pipeline_for_run_given_model(
+            self,
+            run_id,
+            config,
+            device,
+            device_map,
+            trust_remote_code,
+            token=token,
         )
 
 
@@ -275,6 +320,8 @@ TargetUtility = DefaultUtility | CustomUtility
 
 
 class LlmRunInfo(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     organization_id: int | None = None
     name: str | None = None
     model_id: int | None = None
@@ -312,6 +359,8 @@ CeleryTaskState = str
 
 
 class OutputUnlearningLlmRun(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: int
     name: str
     model_id: int
@@ -328,6 +377,8 @@ class OutputUnlearningLlmRun(BaseModel):
     pre_process_progress: float
     optimization_progress: float
     post_process_progress: float
+
+    deleted_at: datetime.datetime | None
 
 
 STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
@@ -481,6 +532,7 @@ class LlmUnlearningRun:
                             "State is failure, rejected, or revoked: %s",
                             state,
                         )
+                        t.close()
                         handle_run_failure(
                             iteration,
                             error_cls=HirundoError,

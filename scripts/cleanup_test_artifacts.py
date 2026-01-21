@@ -1,19 +1,24 @@
 import datetime
 from datetime import timedelta, timezone
-from typing import Union
 
 import requests
 from hirundo import GitRepo, QADataset, StorageConfig
 from hirundo.dataset_qa import DataQARunOut, HirundoError, QADatasetOut, RunStatus
 from hirundo.logger import get_logger
 from hirundo.storage import ResponseStorageConfig
+from hirundo.unlearning_llm import (
+    LlmModel,
+    LlmModelOut,
+    LlmUnlearningRun,
+    OutputUnlearningLlmRun,
+)
 
 logger = get_logger(__name__)
 
 
 def _delete_dataset(
     dataset_id: int,
-    storage_config: Union[StorageConfig, ResponseStorageConfig, None],
+    storage_config: StorageConfig | ResponseStorageConfig | None,
     deleted_datasets: set[int],
     deleted_storage_configs: set[int],
     deleted_git_repos: set[int],
@@ -49,8 +54,23 @@ def _delete_dataset(
     return deleted_datasets, deleted_storage_configs, deleted_git_repos
 
 
-def _should_delete_dataset(
-    dataset_name: str, dataset_runs: list, expiry_date: datetime.datetime
+def _delete_llm(
+    llm_id: int,
+    deleted_llms: set[int],
+) -> set[int]:
+    try:
+        LlmModel.delete_by_id(llm_id)
+        deleted_llms.add(llm_id)
+    except (HirundoError, requests.HTTPError) as exc:
+        logger.warning("Failed to delete LLM with ID %s: %s", llm_id, exc)
+
+    return deleted_llms
+
+
+def _should_delete_resource(
+    resource_name: str,
+    runs: list[DataQARunOut | OutputUnlearningLlmRun],
+    expiry_date: datetime.datetime,
 ) -> bool:
     """
     Return ``True`` if the dataset should be deleted.
@@ -61,17 +81,16 @@ def _should_delete_dataset(
         expiry_date: The expiry date of the dataset.
     """
 
-    if not (dataset_name.startswith("TEST-") or dataset_name.startswith("T-")):
+    if not (resource_name.startswith("TEST-") or resource_name.startswith("T-")):
         return False
 
     all_runs_successful_or_archived = all(
-        run.status == RunStatus.SUCCESS or run.deleted_at is not None
-        for run in dataset_runs
+        run.status == RunStatus.SUCCESS or run.deleted_at is not None for run in runs
     )
     if all_runs_successful_or_archived:
         return True
 
-    most_recent_run_time = max(run.created_at for run in dataset_runs)
+    most_recent_run_time = max(run.created_at for run in runs)
     return most_recent_run_time <= expiry_date
 
 
@@ -104,6 +123,26 @@ def _collect_runs_by_dataset(
             continue
         runs_by_dataset[run.dataset_id].append(run)
     return runs_by_dataset
+
+
+def _collect_runs_by_llm(
+    llms: list[LlmModelOut],
+    all_live_runs: list[OutputUnlearningLlmRun],
+    all_archived_runs: list[OutputUnlearningLlmRun],
+):
+    runs_by_llm: dict[int, list] = dict()
+    for llm in llms:
+        runs_by_llm[llm.id] = []
+    for run in all_live_runs:
+        if run.model_id is None or run.run_id is None:
+            continue
+        if run.model_id not in runs_by_llm:
+            logger.warning(
+                "Run with ID %s has model ID that is not in the LLMs list", run.run_id
+            )
+            continue
+        runs_by_llm[run.model_id].append(run)
+    return runs_by_llm
 
 
 def _cleanup_storage_configs(one_week_ago: datetime.datetime) -> None:
@@ -139,9 +178,58 @@ def _cleanup_storage_configs(one_week_ago: datetime.datetime) -> None:
         )
 
 
+def _handle_llm_cleanup(one_week_ago: datetime.datetime):
+    archived_runs = set[str]()
+    trying_to_delete_llms = set[int]()
+    deleted_llms = set[int]()
+    llms = LlmModel.list()
+    llm_dict: dict[int, LlmModelOut] = {llm.id: llm for llm in llms}
+    all_live_llm_unlearning_runs = LlmUnlearningRun.list()
+    all_archived_llm_unlearning_runs = LlmUnlearningRun.list(archived=True)
+    runs_by_llm = _collect_runs_by_llm(
+        llms,
+        all_live_llm_unlearning_runs,
+        all_archived_llm_unlearning_runs,
+    )
+
+    for llm_id, llm_runs in runs_by_llm.items():
+        llm = llm_dict.get(llm_id)
+
+        if llm and _should_delete_resource(llm.model_name, llm_runs, one_week_ago):
+            trying_to_delete_llms.add(llm_id)
+            for run in llm_runs:
+                if run.deleted_at is not None:
+                    continue
+                try:
+                    LlmUnlearningRun.archive(run.run_id)
+                    archived_runs.add(run.run_id)
+                except (HirundoError, requests.HTTPError) as exc:
+                    logger.warning(
+                        "Failed to archive run with ID %s: %s", run.run_id, exc
+                    )
+            deleted_llms = _delete_llm(
+                llm_id,
+                deleted_llms,
+            )
+
+    logger.info(
+        "Deleted %s (%s) LLMs and archived %s (%s) runs",
+        deleted_llms,
+        len(deleted_llms),
+        archived_runs,
+        len(archived_runs),
+    )
+    if trying_to_delete_llms != deleted_llms:
+        logger.warning(
+            "Tried to delete %s LLMs, but only deleted %s LLMs",
+            trying_to_delete_llms,
+            deleted_llms,
+        )
+
+
 def main() -> None:
-    all_live_runs = QADataset.list_runs()
-    all_archived_runs = QADataset.list_runs(archived=True)
+    all_live_data_qa_runs = QADataset.list_runs()
+    all_archived_data_qa_runs = QADataset.list_runs(archived=True)
     datasets = {
         dataset_entry.id: dataset_entry
         for dataset_entry in QADataset.list_datasets()
@@ -151,7 +239,7 @@ def main() -> None:
     one_week_ago = now - timedelta(days=7)
 
     runs_by_dataset = _collect_runs_by_dataset(
-        datasets, all_live_runs, all_archived_runs
+        datasets, all_live_data_qa_runs, all_archived_data_qa_runs
     )
     trying_to_delete_datasets = set[int]()
     deleted_datasets = set[int]()
@@ -161,7 +249,9 @@ def main() -> None:
     for dataset_id, dataset_runs in runs_by_dataset.items():
         dataset = datasets.get(dataset_id)
 
-        if dataset and _should_delete_dataset(dataset.name, dataset_runs, one_week_ago):
+        if dataset and _should_delete_resource(
+            dataset.name, dataset_runs, one_week_ago
+        ):
             trying_to_delete_datasets.add(dataset_id)
             for run in dataset_runs:
                 if run.deleted_at is not None:
@@ -202,6 +292,7 @@ def main() -> None:
             deleted_datasets,
         )
 
+    _handle_llm_cleanup(one_week_ago)
     _cleanup_storage_configs(one_week_ago)
 
 

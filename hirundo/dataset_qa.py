@@ -776,3 +776,5 @@ class DataQARunOut(BaseModel):
     approved: bool
     created_at: datetime.datetime
     run_args: RunArgs | None
+
+    deleted_at: datetime.datetime | None

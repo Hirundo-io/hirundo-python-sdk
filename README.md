@@ -67,7 +67,31 @@ You can install the codebase with a simple `pip install hirundo` to install the 
 
 ## Usage
 
-Classification example:
+### Unlearning LLM behavior
+
+Make sure to install the `transformers` extra, i.e. `pip install hirundo[transformers]` or `uv pip install hirundo[transformers]` if you have `uv` installed which is much faster than `pip`.
+
+```python
+llm = LlmModel(
+    model_name="Nemotron-Flash-1B",
+    model_source=HuggingFaceTransformersModel(
+        model_name="nvidia/Nemotron-Flash-1B",
+    ),
+)
+llm_id = llm.create()
+run_info = BiasRunInfo(
+    bias_type=BiasType.ALL,
+)
+run_id = LlmUnlearningRun.launch(
+    llm_id,
+    run_info,
+)
+new_adapter = llm.get_pipeline_for_run(run_id)
+```
+
+### Dataset QA
+
+#### Classification example:
 
 ```python
 from hirundo import (
@@ -104,7 +128,7 @@ results = test_dataset.check_run()
 print(results)
 ```
 
-Object detection example:
+#### Object detection example:
 
 ```python
 from hirundo import (
