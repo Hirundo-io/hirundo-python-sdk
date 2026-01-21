@@ -115,7 +115,7 @@ nh3==0.2.18
     # via
     #   -c requirements/requirements.txt
     #   readme-renderer
-numpy==2.4.1
+numpy==2.0.2
     # via
     #   accelerate
     #   peft
