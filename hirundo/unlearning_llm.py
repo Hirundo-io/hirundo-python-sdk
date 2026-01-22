@@ -11,7 +11,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
-from hirundo._llm_pipeline import get_pipeline_for_run_given_model
+from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
     RunStatus,
@@ -180,7 +180,7 @@ class LlmModel(BaseModel):
         if archive_existing_runs is not None:
             self.archive_existing_runs = archive_existing_runs
 
-    def get_pipeline_for_run(
+    def get_hf_pipeline_for_run(
         self,
         run_id: str,
         config: "PretrainedConfig | None" = None,
@@ -188,7 +188,7 @@ class LlmModel(BaseModel):
         device_map: str | dict[str, int | str] | None = None,
         trust_remote_code: bool = False,
     ) -> "Pipeline":
-        return get_pipeline_for_run_given_model(
+        return get_hf_pipeline_for_run_given_model(
             self, run_id, config, device, device_map, trust_remote_code
         )
 
@@ -205,7 +205,7 @@ class LlmModelOut(BaseModel):
     model_name: str
     model_source: LlmSourcesOutput
 
-    def get_pipeline_for_run(
+    def get_hf_pipeline_for_run(
         self,
         run_id: str,
         config: "PretrainedConfig | None" = None,
@@ -214,7 +214,7 @@ class LlmModelOut(BaseModel):
         trust_remote_code: bool = False,
         token: str | None = None,
     ) -> "Pipeline":
-        return get_pipeline_for_run_given_model(
+        return get_hf_pipeline_for_run_given_model(
             self,
             run_id,
             config,

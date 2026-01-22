@@ -24,7 +24,7 @@ ZIP_FILE_CHUNK_SIZE = 50 * 1024 * 1024  # 50 MB
 REQUIRED_PACKAGES_FOR_PIPELINE = ["peft", "transformers", "accelerate"]
 
 
-def get_pipeline_for_run_given_model(
+def get_hf_pipeline_for_run_given_model(
     llm: "LlmModel | LlmModelOut",
     run_id: str,
     config: "PretrainedConfig | None" = None,

@@ -86,7 +86,7 @@ run_id = LlmUnlearningRun.launch(
     llm_id,
     run_info,
 )
-new_adapter = llm.get_pipeline_for_run(run_id)
+new_adapter = llm.get_hf_pipeline_for_run(run_id)
 ```
 
 ### Dataset QA
