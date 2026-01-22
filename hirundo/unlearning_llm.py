@@ -364,7 +364,7 @@ class OutputUnlearningLlmRun(BaseModel):
     optimization_progress: float
     post_process_progress: float
 
-    deleted_at: datetime.datetime | None
+    deleted_at: datetime.datetime | None = None
 
 
 STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
