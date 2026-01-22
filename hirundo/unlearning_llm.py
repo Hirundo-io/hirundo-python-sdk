@@ -108,7 +108,7 @@ class LlmModel(BaseModel):
             timeout=READ_TIMEOUT,
         )
         raise_for_status_with_reason(llm_model_response)
-        return LlmModelOut.from_response(llm_model_response.json())
+        return LlmModelOut.model_validate(llm_model_response.json())
 
     @staticmethod
     def get_by_name(llm_model_name: str) -> "LlmModelOut":
@@ -118,7 +118,7 @@ class LlmModel(BaseModel):
             timeout=READ_TIMEOUT,
         )
         raise_for_status_with_reason(llm_model_response)
-        return LlmModelOut.from_response(llm_model_response.json())
+        return LlmModelOut.model_validate(llm_model_response.json())
 
     @staticmethod
     def list(organization_id: int | None = None) -> list["LlmModelOut"]:
@@ -133,7 +133,7 @@ class LlmModel(BaseModel):
         )
         raise_for_status_with_reason(llm_model_response)
         llm_model_json = llm_model_response.json()
-        return [LlmModelOut.from_response(llm_model) for llm_model in llm_model_json]
+        return [LlmModelOut.model_validate(llm_model) for llm_model in llm_model_json]
 
     @staticmethod
     def delete_by_id(llm_model_id: int) -> None:
@@ -204,19 +204,6 @@ class LlmModelOut(BaseModel):
     updated_at: datetime.datetime
     model_name: str
     model_source: LlmSourcesOutput
-
-    @staticmethod
-    def from_response(response_payload: dict[str, typing.Any]) -> "LlmModelOut":
-        return LlmModelOut(
-            id=response_payload["id"],
-            organization_id=response_payload["organization_id"],
-            creator_id=response_payload["creator_id"],
-            creator_name=response_payload["creator_name"],
-            created_at=response_payload["created_at"],
-            updated_at=response_payload["updated_at"],
-            model_name=response_payload["model_name"],
-            model_source=response_payload["model_source"],
-        )
 
     def get_pipeline_for_run(
         self,
