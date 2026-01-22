@@ -41,7 +41,7 @@ def get_hf_pipeline_for_run_given_model(
     from peft import PeftModel
     from transformers.models.auto.configuration_auto import AutoConfig
     from transformers.models.auto.modeling_auto import (
-        MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES,
+        MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES,
         AutoModelForCausalLM,
         AutoModelForImageTextToText,
     )
@@ -121,7 +121,8 @@ def get_hf_pipeline_for_run_given_model(
         )
         config_dict = config.to_dict() if hasattr(config, "to_dict") else config
         is_multimodal = (
-            config_dict.get("model_type") in MODEL_FOR_VISION_2_SEQ_MAPPING_NAMES.keys()
+            config_dict.get("model_type")
+            in MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES.keys()
         )
         if is_multimodal:
             base_model = AutoModelForImageTextToText.from_pretrained(
