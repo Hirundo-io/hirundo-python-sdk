@@ -324,7 +324,6 @@ class LlmRunInfo(BaseModel):
 
     organization_id: int | None = None
     name: str | None = None
-    model_id: int | None = None
     target_behaviors: list[TargetBehavior]
     target_utilities: list[TargetUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None = None
@@ -400,11 +399,7 @@ class LlmUnlearningRun:
         run_response_json = run_response.json() if run_response.content else {}
         if isinstance(run_response_json, str):
             return run_response_json
-        run_id = (
-            run_response_json.get("run_id")
-            or run_response_json.get("hir_run_id")
-            or run_response_json.get("id")
-        )
+        run_id = run_response_json.get("run_id")
         if not run_id:
             raise ValueError("No run ID returned from launch request")
         return run_id
@@ -574,6 +569,8 @@ class LlmUnlearningRun:
         Check the status of a run given its ID.
 
         This generator will produce values to show progress of the run.
+
+        Note: This function does not handle errors nor show progress. It is expected that you do that.
 
         Args:
             run_id: The `run_id` produced by a `launch` call

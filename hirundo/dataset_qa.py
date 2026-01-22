@@ -688,6 +688,8 @@ class QADataset(BaseModel):
 
         This generator will produce values to show progress of the run.
 
+        Note: This function does not handle errors nor show progress. It is expected that you do that.
+
         Yields:
             Each event will be a dict, where:
             - `"state"` is PENDING, STARTED, RETRY, FAILURE or SUCCESS
