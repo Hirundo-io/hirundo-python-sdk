@@ -3,10 +3,8 @@ from abc import ABC
 
 from pydantic import BaseModel, Field
 
+from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType
-
-if typing.TYPE_CHECKING:
-    from hirundo._urls import HirundoUrl
 
 
 class Metadata(BaseModel, ABC, frozen=True):
@@ -21,7 +19,7 @@ class HirundoCSV(Metadata, frozen=True):
     type: typing.Literal[DatasetMetadataType.HIRUNDO_CSV] = (
         DatasetMetadataType.HIRUNDO_CSV
     )
-    csv_url: "HirundoUrl"
+    csv_url: HirundoUrl
     """
     The URL to access the dataset metadata CSV file.
     e.g. `s3://my-bucket-name/my-folder/my-metadata.csv`, `gs://my-bucket-name/my-folder/my-metadata.csv`,
@@ -36,7 +34,7 @@ class COCO(Metadata, frozen=True):
     """
 
     type: typing.Literal[DatasetMetadataType.COCO] = DatasetMetadataType.COCO
-    json_url: "HirundoUrl"
+    json_url: HirundoUrl
     """
     The URL to access the dataset metadata JSON file.
     e.g. `s3://my-bucket-name/my-folder/my-metadata.json`, `gs://my-bucket-name/my-folder/my-metadata.json`,
@@ -47,8 +45,8 @@ class COCO(Metadata, frozen=True):
 
 class YOLO(Metadata, frozen=True):
     type: typing.Literal[DatasetMetadataType.YOLO] = DatasetMetadataType.YOLO
-    data_yaml_url: "HirundoUrl | None" = None
-    labels_dir_url: "HirundoUrl"
+    data_yaml_url: HirundoUrl | None = None
+    labels_dir_url: HirundoUrl
 
 
 class HuggingFaceAudio(Metadata, frozen=True):
@@ -73,7 +71,7 @@ class Keylabs(Metadata, frozen=True):
     Keylabs project ID.
     """
 
-    labels_dir_url: "HirundoUrl"
+    labels_dir_url: HirundoUrl
     """
     URL to the directory containing the Keylabs labels.
     """
