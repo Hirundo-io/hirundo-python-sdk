@@ -39,6 +39,8 @@ dependencies = [
     #  ⬆️ Required to fix vulnerability CVE-2026-21441
     "setuptools>=78.1.1",
     #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
+    "docutils<0.22.0",
+    #  ⬆️ Required for sphinx compatibility
 ]
 
 [project.scripts]

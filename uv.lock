@@ -549,6 +549,7 @@ name = "hirundo"
 version = "0.1.21"
 source = { editable = "." }
 dependencies = [
+    { name = "docutils" },
     { name = "h11" },
     { name = "httpx" },
     { name = "httpx-sse" },
@@ -626,6 +627,7 @@ requires-dist = [
     { name = "basedpyright", marker = "extra == 'dev'", specifier = "==1.37.1" },
     { name = "bumpver", marker = "extra == 'dev'" },
     { name = "cryptography", marker = "extra == 'dev'", specifier = ">=44.0.1" },
+    { name = "docutils", specifier = "<0.22.0" },
     { name = "esbonio", marker = "extra == 'docs'" },
     { name = "filelock", marker = "extra == 'dev'", specifier = ">=3.20.1" },
     { name = "furo", marker = "extra == 'docs'" },

@@ -8,27 +8,28 @@ annotated-types==0.7.0
     # via
     #   -c requirements/requirements.txt
     #   pydantic
-anyio==4.4.0
+anyio==4.12.1
     # via
     #   -c requirements/requirements.txt
     #   httpx
-certifi==2024.7.4
+certifi==2026.1.4
     # via
     #   -c requirements/requirements.txt
     #   httpcore
     #   httpx
     #   requests
-charset-normalizer==3.3.2
+charset-normalizer==3.4.4
     # via
     #   -c requirements/requirements.txt
     #   requests
-click==8.1.7
+click==8.3.1
     # via
     #   -c requirements/requirements.txt
     #   typer
 docutils==0.21.2
     # via
     #   -c requirements/requirements.txt
+    #   hirundo (pyproject.toml)
     #   readme-renderer
 filelock==3.20.3
     # via
@@ -50,11 +51,11 @@ httpcore==1.0.9
     # via
     #   -c requirements/requirements.txt
     #   httpx
-httpx==0.27.0
+httpx==0.28.1
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-httpx-sse==0.4.0
+httpx-sse==0.4.3
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
@@ -64,35 +65,35 @@ huggingface-hub==0.36.0
     #   peft
     #   tokenizers
     #   transformers
-idna==3.7
+id==1.5.0
+    # via
+    #   -c requirements/requirements.txt
+    #   twine
+idna==3.11
     # via
     #   -c requirements/requirements.txt
     #   anyio
     #   httpx
     #   requests
-importlib-metadata==8.0.0
-    # via
-    #   -c requirements/requirements.txt
-    #   twine
 jaraco-classes==3.4.0
     # via
     #   -c requirements/requirements.txt
     #   keyring
-jaraco-context==5.3.0
+jaraco-context==6.1.0
     # via
     #   -c requirements/requirements.txt
     #   keyring
-jaraco-functools==4.0.1
+jaraco-functools==4.4.0
     # via
     #   -c requirements/requirements.txt
     #   keyring
 jinja2==3.1.6
     # via torch
-keyring==25.2.1
+keyring==25.7.0
     # via
     #   -c requirements/requirements.txt
     #   twine
-markdown-it-py==3.0.0
+markdown-it-py==4.0.0
     # via
     #   -c requirements/requirements.txt
     #   rich
@@ -102,58 +103,56 @@ mdurl==0.1.2
     # via
     #   -c requirements/requirements.txt
     #   markdown-it-py
-more-itertools==10.3.0
+more-itertools==10.8.0
     # via
     #   -c requirements/requirements.txt
     #   jaraco-classes
     #   jaraco-functools
 mpmath==1.3.0
     # via sympy
-networkx==3.6.1
+networkx==3.4.2
     # via torch
-nh3==0.2.18
+nh3==0.3.2
     # via
     #   -c requirements/requirements.txt
     #   readme-renderer
-numpy==2.0.2
+numpy==2.2.6
     # via
     #   accelerate
     #   peft
     #   transformers
 packaging==26.0
     # via
+    #   -c requirements/requirements.txt
     #   accelerate
     #   huggingface-hub
     #   peft
     #   transformers
+    #   twine
 peft==0.18.1
     # via hirundo (pyproject.toml)
-pkginfo==1.10.0
-    # via
-    #   -c requirements/requirements.txt
-    #   twine
 psutil==7.2.1
     # via
     #   accelerate
     #   peft
-pydantic==2.8.2
+pydantic==2.12.5
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-pydantic-core==2.20.1
+pydantic-core==2.41.5
     # via
     #   -c requirements/requirements.txt
     #   pydantic
-pygments==2.18.0
+pygments==2.19.2
     # via
     #   -c requirements/requirements.txt
     #   readme-renderer
     #   rich
-python-dotenv==1.0.1
+python-dotenv==1.2.1
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-pyyaml==6.0.1
+pyyaml==6.0.3
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
@@ -167,11 +166,12 @@ readme-renderer==44.0
     #   twine
 regex==2026.1.15
     # via transformers
-requests==2.32.4
+requests==2.32.5
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
     #   huggingface-hub
+    #   id
     #   requests-toolbelt
     #   transformers
     #   twine
@@ -183,7 +183,7 @@ rfc3986==2.0.0
     # via
     #   -c requirements/requirements.txt
     #   twine
-rich==13.7.1
+rich==14.2.0
     # via
     #   -c requirements/requirements.txt
     #   twine
@@ -193,7 +193,7 @@ safetensors==0.7.0
     #   accelerate
     #   peft
     #   transformers
-setuptools==80.9.0
+setuptools==80.10.1
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
@@ -202,18 +202,13 @@ shellingham==1.5.4
     # via
     #   -c requirements/requirements.txt
     #   typer
-sniffio==1.3.1
-    # via
-    #   -c requirements/requirements.txt
-    #   anyio
-    #   httpx
-stamina==24.2.0
+stamina==25.2.0
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
 sympy==1.14.0
     # via torch
-tenacity==8.5.0
+tenacity==9.1.2
     # via
     #   -c requirements/requirements.txt
     #   stamina
@@ -223,7 +218,7 @@ torch==2.10.0
     # via
     #   accelerate
     #   peft
-tqdm==4.66.5
+tqdm==4.67.1
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
@@ -234,23 +229,23 @@ transformers==4.57.6
     # via
     #   hirundo (pyproject.toml)
     #   peft
-twine==5.1.1
+twine==6.2.0
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-typer==0.12.3
+typer==0.21.1
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-types-pyyaml==6.0.12.20240311
+types-pyyaml==6.0.12.20250915
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-types-requests==2.32.0.20240712
+types-requests==2.32.4.20260107
     # via
     #   -c requirements/requirements.txt
     #   hirundo (pyproject.toml)
-typing-extensions==4.12.2
+typing-extensions==4.15.0
     # via
     #   -c requirements/requirements.txt
     #   huggingface-hub
@@ -258,6 +253,11 @@ typing-extensions==4.12.2
     #   pydantic-core
     #   torch
     #   typer
+    #   typing-inspection
+typing-inspection==0.4.2
+    # via
+    #   -c requirements/requirements.txt
+    #   pydantic
 urllib3==2.6.3
     # via
     #   -c requirements/requirements.txt
@@ -265,7 +265,3 @@ urllib3==2.6.3
     #   requests
     #   twine
     #   types-requests
-zipp==3.19.2
-    # via
-    #   -c requirements/requirements.txt
-    #   importlib-metadata
