@@ -779,4 +779,4 @@ class DataQARunOut(BaseModel):
     created_at: datetime.datetime
     run_args: RunArgs | None
 
-    deleted_at: datetime.datetime | None
+    deleted_at: datetime.datetime | None = None
