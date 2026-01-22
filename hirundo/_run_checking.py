@@ -80,6 +80,30 @@ def get_state(payload: dict, status_keys: tuple[str, ...]) -> str | None:
     return None
 
 
+def _extract_event_data(event: dict, error_cls: type[Exception]) -> dict:
+    if "data" in event:
+        return event["data"]
+    if "detail" in event:
+        raise error_cls(event["detail"])
+    if "reason" in event:
+        raise error_cls(event["reason"])
+    raise error_cls("Unknown error")
+
+
+def _should_retry_after_stream(
+    last_event: dict | None,
+    status_keys: tuple[str, ...],
+    pending_state_value: str,
+) -> bool:
+    if not last_event:
+        return True
+    data = last_event.get("data")
+    if data is None:
+        return False
+    last_state = get_state(data, status_keys)
+    return last_state == pending_state_value
+
+
 def iter_run_events(
     url: str,
     *,
@@ -107,51 +131,35 @@ def iter_run_events(
     Yields:
         Event payloads decoded from the SSE data field.
     """
-    if retry > max_retries:
-        raise error_cls("Max retries reached")
-    last_event = None
-    with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
-        for sse in iter_sse_retrying(
-            client,
-            "GET",
-            url,
-            headers=headers,
-        ):
-            if sse.event == "ping":
-                continue
-            log.debug(
-                "[SYNC] received event: %s with data: %s and ID: %s and retry: %s",
-                sse.event,
-                sse.data,
-                sse.id,
-                sse.retry,
-            )
-            last_event = json.loads(sse.data)
-            if not last_event:
-                continue
-            if "data" in last_event:
-                data = last_event["data"]
-            else:
-                if "detail" in last_event:
-                    raise error_cls(last_event["detail"])
-                if "reason" in last_event:
-                    raise error_cls(last_event["reason"])
-                raise error_cls("Unknown error")
-            yield data
-    last_state = None
-    if last_event and "data" in last_event:
-        last_state = get_state(last_event["data"], status_keys)
-    if not last_event or last_state == pending_state_value:
-        iter_run_events(
-            url,
-            headers=headers,
-            retry=retry + 1,
-            max_retries=max_retries,
-            pending_state_value=pending_state_value,
-            status_keys=status_keys,
-            error_cls=error_cls,
-            log=log,
-        )
+    while True:
+        if retry > max_retries:
+            raise error_cls("Max retries reached")
+        last_event = None
+        with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
+            for sse in iter_sse_retrying(
+                client,
+                "GET",
+                url,
+                headers=headers,
+            ):
+                if sse.event == "ping":
+                    continue
+                log.debug(
+                    "[SYNC] received event: %s with data: %s and ID: %s and retry: %s",
+                    sse.event,
+                    sse.data,
+                    sse.id,
+                    sse.retry,
+                )
+                last_event = json.loads(sse.data)
+                if not last_event:
+                    continue
+                data = _extract_event_data(last_event, error_cls)
+                yield data
+        if _should_retry_after_stream(last_event, status_keys, pending_state_value):
+            retry += 1
+            continue
+        return
 
 
 async def aiter_run_events(
@@ -181,48 +189,36 @@ async def aiter_run_events(
     Yields:
         Event payloads decoded from the SSE data field.
     """
-    if retry > max_retries:
-        raise error_cls("Max retries reached")
-    last_event = None
-    async with httpx.AsyncClient(timeout=httpx.Timeout(None, connect=5.0)) as client:
-        async_iterator = await aiter_sse_retrying(
-            client,
-            "GET",
-            url,
-            headers=headers or {},
-        )
-        async for sse in async_iterator:
-            if sse.event == "ping":
-                continue
-            log.debug(
-                "[ASYNC] Received event: %s with data: %s and ID: %s and retry: %s",
-                sse.event,
-                sse.data,
-                sse.id,
-                sse.retry,
+    while True:
+        if retry > max_retries:
+            raise error_cls("Max retries reached")
+        last_event = None
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(None, connect=5.0)
+        ) as client:
+            async_iterator = await aiter_sse_retrying(
+                client,
+                "GET",
+                url,
+                headers=headers or {},
             )
-            last_event = json.loads(sse.data)
-            if "data" not in last_event:
-                if "detail" in last_event:
-                    raise error_cls(last_event["detail"])
-                if "reason" in last_event:
-                    raise error_cls(last_event["reason"])
-                raise error_cls("Unknown error")
-            yield last_event["data"]
-    last_state = None
-    if last_event and "data" in last_event:
-        last_state = get_state(last_event["data"], status_keys)
-    if not last_event or last_state == pending_state_value:
-        aiter_run_events(
-            url,
-            headers=headers,
-            retry=retry + 1,
-            max_retries=max_retries,
-            pending_state_value=pending_state_value,
-            status_keys=status_keys,
-            error_cls=error_cls,
-            log=log,
-        )
+            async for sse in async_iterator:
+                if sse.event == "ping":
+                    continue
+                log.debug(
+                    "[ASYNC] Received event: %s with data: %s and ID: %s and retry: %s",
+                    sse.event,
+                    sse.data,
+                    sse.id,
+                    sse.retry,
+                )
+                last_event = json.loads(sse.data)
+                data = _extract_event_data(last_event, error_cls)
+                yield data
+        if _should_retry_after_stream(last_event, status_keys, pending_state_value):
+            retry += 1
+            continue
+        return
 
 
 def update_progress_from_result(
