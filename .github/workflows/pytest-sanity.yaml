@@ -56,20 +56,20 @@ jobs:
           python -m pip install --upgrade pip
           python -m venv .venv
           source .venv/bin/activate
-          pip install -r requirements/dev.txt -r requirements/polars.txt
+          pip install -r requirements/dev.txt -r requirements/polars.txt -r requirements/transformers.txt
       - name: Run commands on Windows
         if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: |
           python -m pip install --upgrade 'pip>=24.1.2'
           python -m venv .venv
           .venv\Scripts\activate
-          python -m pip install -r requirements\dev.txt -r requirements\polars.txt
+          python -m pip install -r requirements\dev.txt -r requirements\polars.txt -r requirements\transformers.txt
       - name: Run PyTest on Linux and macOS
         if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: .venv/bin/pytest
         env:
-          API_HOST: ${{ secrets.API_HOST }}
-          API_KEY: ${{ secrets.API_KEY }}
+          API_HOST: ${{ secrets.API_HOST2 }}
+          API_KEY: ${{ secrets.API_KEY2 }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -80,8 +80,8 @@ jobs:
         if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: .venv/Scripts/pytest
         env:
-          API_HOST: ${{ secrets.API_HOST }}
-          API_KEY: ${{ secrets.API_KEY }}
+          API_HOST: ${{ secrets.API_HOST2 }}
+          API_KEY: ${{ secrets.API_KEY2 }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

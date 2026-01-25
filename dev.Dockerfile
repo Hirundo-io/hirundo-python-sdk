@@ -7,6 +7,7 @@ COPY . .
 RUN pip install -r requirements/requirements.txt \
     -r requirements/dev.txt -r requirements/docs.txt \
     -r requirements/pandas.txt -r requirements/polars.txt \
+    -r requirements/transformers.txt \
      && pip install ipykernel
 
 CMD ["python"]
