@@ -1,4 +1,5 @@
 import logging
+import os
 
 from hirundo import (
     BiasRunInfo,
@@ -26,9 +27,11 @@ def test_unlearn_llm_behavior():
     run_info = BiasRunInfo(
         bias_type=BiasType.ALL,
     )
-    run_id = LlmUnlearningRun.launch(
-        llm_id,
-        run_info,
-    )
-    new_adapter = llm.get_hf_pipeline_for_run(run_id)
-    assert isinstance(new_adapter, Pipeline)
+    assert llm_id is not None
+    if os.getenv("FULL_TEST", "false") == "true":
+        run_id = LlmUnlearningRun.launch(
+            llm_id,
+            run_info,
+        )
+        new_adapter = llm.get_hf_pipeline_for_run(run_id)
+        assert isinstance(new_adapter, Pipeline)
