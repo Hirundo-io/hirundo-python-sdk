@@ -16,8 +16,8 @@ from hirundo import (
 from tests.dataset_qa_shared import (
     cleanup,
     dataset_qa_sync_test,
-    get_unique_id,
 )
+from tests.testing_utils import get_unique_id
 
 logger = logging.getLogger(__name__)
 

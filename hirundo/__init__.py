@@ -40,6 +40,15 @@ from .storage import (
     StorageGit,
     StorageS3,
 )
+from .unlearning_llm import (
+    BiasRunInfo,
+    BiasType,
+    HuggingFaceTransformersModel,
+    LlmModel,
+    LlmSources,
+    LlmUnlearningRun,
+    LocalTransformersModel,
+)
 from .unzip import load_df, load_from_zip
 
 __all__ = [
@@ -77,8 +86,15 @@ __all__ = [
     "StorageGit",
     "StorageConfig",
     "DatasetQAResults",
+    "BiasRunInfo",
+    "BiasType",
+    "HuggingFaceTransformersModel",
+    "LlmModel",
+    "LlmSources",
+    "LlmUnlearningRun",
+    "LocalTransformersModel",
     "load_df",
     "load_from_zip",
 ]
 
-__version__ = "0.1.21"
+__version__ = "0.1.22"

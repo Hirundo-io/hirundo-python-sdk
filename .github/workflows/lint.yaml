@@ -1,4 +1,4 @@
-name: "Lint: Ruff and Pyright"
+name: "Lint: Ruff and Basedpyright"
 on:
   pull_request:
     types: [opened, synchronize, reopened, assigned]
@@ -16,7 +16,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v5
@@ -27,19 +27,19 @@ jobs:
           python -m pip install --upgrade pip
           python -m venv .venv
           source .venv/bin/activate
-          pip install -r requirements/dev.txt -r requirements/pandas.txt -r requirements/polars.txt
+          pip install -r requirements/dev.txt -r requirements/pandas.txt -r requirements/polars.txt -r requirements/transformers.txt
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
       - uses: astral-sh/ruff-action@v3
       - run: ruff check
       - run: ruff format --check
 
-  pyright:
+  basedpyright:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v5
@@ -50,8 +50,6 @@ jobs:
           python -m pip install --upgrade pip
           python -m venv .venv
           source .venv/bin/activate
-          pip install -r requirements/dev.txt -r requirements/pandas.txt -r requirements/polars.txt
+          pip install -r requirements/dev.txt -r requirements/pandas.txt -r requirements/polars.txt -r requirements/transformers.txt
       - run: echo "$PWD/.venv/bin" >> $GITHUB_PATH
-      - uses: jakebailey/pyright-action@v2
-        with:
-          pylance-version: latest-release
+      - run: basedpyright

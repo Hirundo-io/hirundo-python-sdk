@@ -16,6 +16,13 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
+    - id: basedpyright
+      name: basedpyright
+      entry: basedpyright
+      language: python
+      types: [python]
+      pass_filenames: false
+      additional_dependencies: [basedpyright==1.37.1]
     - id: pip-compile
       name: compile requirements/requirements.txt
       entry: uv
@@ -54,11 +61,18 @@ repos:
       always_run: false
       files: pyproject.toml$
       additional_dependencies: [uv]
-    - id: pip-sync
-      name: sync
+    - id: pip-compile-transformers
+      name: compile requirements/transformers.txt
       entry: uv
-      args: ["pip", "sync", "requirements/dev.txt", "requirements/docs.txt", "requirements/pandas.txt", "requirements/polars.txt"]
+      args: ["pip", "compile", "--extra", "transformers", "-o", "requirements/transformers.txt", "-c", "requirements/requirements.txt"]
       language: python
       always_run: false
-      files: requirements.txt$
+      files: pyproject.toml$
       additional_dependencies: [uv]
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    # uv version.
+    rev: 0.9.6
+    hooks:
+      - id: uv-lock
+      - id: uv-sync
+        args: ["--extra", "dev", "--extra", "docs", "--extra", "pandas", "--extra", "polars", "--extra", "transformers"]

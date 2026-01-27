@@ -1,5 +1,4 @@
 import os
-import typing
 from collections import defaultdict
 from contextlib import contextmanager
 
@@ -16,13 +15,7 @@ from hirundo.logger import get_logger
 logger = get_logger(__name__)
 
 
-def get_unique_id():
-    return (
-        os.getenv("UNIQUE_ID", "").replace(".", "-").replace("/", "-").replace("+", "-")
-    )
-
-
-def cleanup_conflict_by_unique_id(unique_id: typing.Optional[str]):
+def cleanup_conflict_by_unique_id(unique_id: str | None):
     if not unique_id:
         return
     runs = QADataset.list_runs()
@@ -170,9 +163,9 @@ def cleanup(test_dataset: QADataset):
 
 def dataset_qa_sync_test(
     test_dataset: QADataset,
-    alternative_env: typing.Optional[str] = None,
+    alternative_env: str | None = None,
     sanity=False,
-    run_args: typing.Optional[RunArgs] = None,
+    run_args: RunArgs | None = None,
 ):
     logger.info("Sync: Finished cleanup")
     if (os.getenv("FULL_TEST", "false") == "true" and sanity) or (
@@ -193,7 +186,7 @@ def dataset_qa_sync_test(
 async def dataset_qa_async_test(
     test_dataset: QADataset,
     env: str,
-    run_args: typing.Optional[RunArgs] = None,
+    run_args: RunArgs | None = None,
 ):
     logger.info("Async: Finished cleanup")
     if os.getenv(env, "false") == "true":

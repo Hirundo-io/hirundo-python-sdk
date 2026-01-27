@@ -6,7 +6,7 @@ This repo contains the source code for the Hirundo Python SDK.
 
 To learn about how to use this SDK, please visit the [http://docs.hirundo.io/](documentation) or see the Google Colab examples.
 
-Note: Currently we only support the main CPython release 3.9, 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
+Note: Currently we only support the main CPython release 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
 
 ## Development
 
@@ -44,12 +44,18 @@ uv pip compile --extra dev -o requirements/dev.txt -c requirements.txt pyproject
 uv pip compile --extra pandas -o requirements/pandas.txt -c requirements.txt pyproject.toml
 uv pip compile --extra polars -o requirements/polars.txt -c requirements.txt pyproject.toml
 uv pip compile --extra docs -o requirements/docs.txt -c requirements.txt pyproject.toml
+uv pip compile --extra transformers -o requirements/transformers.txt -c requirements.txt pyproject.toml
 ```
 
 #### Sync installed packages
 
 ```bash
-uv pip sync requirements/dev.txt requirements/polars.txt
+uv pip sync requirements/dev.txt requirements/pandas.txt requirements/polars.txt requirements/docs.txt requirements/transformers.txt
+```
+or
+
+```bash
+uv sync --extra dev --extra pandas --extra polars --extra docs --extra transformers
 ```
 
 ### Build process
