@@ -75,4 +75,4 @@ repos:
     hooks:
       - id: uv-lock
       - id: uv-sync
-        args: ["--extra", "dev", "--extra", "docs", "--extra", "pandas", "--extra", "polars", "--extra", "transformers"]
+        args: ["--group", "dev"]

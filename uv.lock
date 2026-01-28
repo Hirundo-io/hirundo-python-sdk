@@ -619,6 +619,11 @@ transformers = [
     { name = "transformers" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "hirundo", extra = ["dev", "docs", "pandas", "polars", "transformers"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'transformers'", specifier = ">=1.12.0" },
@@ -679,6 +684,9 @@ requires-dist = [
     { name = "virtualenv", marker = "extra == 'dev'", specifier = ">=20.6.6" },
 ]
 provides-extras = ["dev", "docs", "pandas", "polars", "transformers"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "hirundo", extras = ["dev", "docs", "pandas", "polars", "transformers"] }]
 
 [[package]]
 name = "httpcore"
