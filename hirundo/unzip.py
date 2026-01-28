@@ -269,8 +269,8 @@ def download_and_extract_llm_behavior_eval_zip(
 
         if model_name:
             model_folder = model_name.split("/")[-1]
-            summary_brief_name = f"{model_folder}/summary_brief.csv"
-            summary_full_name = f"{model_folder}/summary_full.csv"
+            summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
+            summary_full_name = f"responses/{model_folder}/summary_full.csv"
 
             with zipfile.ZipFile(zip_file_path, "r") as zip_file:
                 filenames = [file.filename for file in zip_file.filelist]
