@@ -1,28 +1,17 @@
 import json
 from collections.abc import AsyncGenerator, Generator
-from enum import Enum
 
 import httpx
 from tqdm import tqdm
 
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
+from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
 from hirundo.logger import get_logger
 
 _logger = get_logger(__name__)
 
 DEFAULT_MAX_RETRIES = 200
-
-
-class RunStatus(Enum):
-    PENDING = "PENDING"
-    STARTED = "STARTED"
-    SUCCESS = "SUCCESS"
-    FAILURE = "FAILURE"
-    AWAITING_MANUAL_APPROVAL = "AWAITING MANUAL APPROVAL"
-    REVOKED = "REVOKED"
-    REJECTED = "REJECTED"
-    RETRY = "RETRY"
 
 
 STATUS_TO_PROGRESS_MAP = {

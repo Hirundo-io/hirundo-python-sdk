@@ -17,12 +17,12 @@ from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
 from hirundo._llm_sources import HuggingFaceTransformersModelOutput, LlmSourcesOutput
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
-    RunStatus,
     build_status_text_map,
     get_state,
     handle_run_failure,
     update_progress_from_result,
 )
+from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData, _parse_sse_payload
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults

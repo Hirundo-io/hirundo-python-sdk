@@ -3,7 +3,8 @@ from datetime import timedelta, timezone
 
 import requests
 from hirundo import GitRepo, QADataset, StorageConfig
-from hirundo.dataset_qa import DataQARunOut, HirundoError, QADatasetOut, RunStatus
+from hirundo._run_status import RunStatus
+from hirundo.dataset_qa import DataQARunOut, HirundoError, QADatasetOut
 from hirundo.logger import get_logger
 from hirundo.storage import ResponseStorageConfig
 from hirundo.unlearning_llm import (

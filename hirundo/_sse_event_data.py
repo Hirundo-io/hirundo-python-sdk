@@ -2,7 +2,7 @@ from typing import Any
 
 from pydantic import BaseModel, TypeAdapter
 
-from hirundo._run_checking import RunStatus
+from hirundo._run_status import RunStatus
 
 
 class SseRunEventData(BaseModel):

@@ -7,6 +7,7 @@ from ._llm_sources import (
     LocalTransformersModel,
     ModelSourceType,
 )
+from ._run_status import RunStatus
 from .dataset_enum import (
     DatasetMetadataType,
     LabelingType,
@@ -105,6 +106,7 @@ __all__ = [
     "load_df",
     "load_from_zip",
     "ModelSourceType",
+    "RunStatus",
 ]
 
 __version__ = "0.1.22"

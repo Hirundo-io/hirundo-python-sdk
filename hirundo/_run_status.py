@@ -1,0 +1,12 @@
+from enum import Enum
+
+
+class RunStatus(str, Enum):
+    PENDING = "PENDING"
+    STARTED = "STARTED"
+    SUCCESS = "SUCCESS"
+    FAILURE = "FAILURE"
+    AWAITING_MANUAL_APPROVAL = "AWAITING MANUAL APPROVAL"
+    REVOKED = "REVOKED"
+    REJECTED = "REJECTED"
+    RETRY = "RETRY"
