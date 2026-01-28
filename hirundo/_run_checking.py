@@ -6,6 +6,7 @@ import httpx
 from tqdm import tqdm
 
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
+from hirundo._sse_event_data import SseRunEventData
 from hirundo.logger import get_logger
 
 _logger = get_logger(__name__)
@@ -62,7 +63,9 @@ def build_status_text_map(
     }
 
 
-def get_state(payload: dict, status_keys: tuple[str, ...]) -> str | None:
+def get_state(
+    payload: dict | SseRunEventData, status_keys: tuple[str, ...]
+) -> str | None:
     """
     Return the first non-null state value from a payload using a list of keys.
 
@@ -74,7 +77,7 @@ def get_state(payload: dict, status_keys: tuple[str, ...]) -> str | None:
         The first non-null state value, or None if none are present.
     """
     for key in status_keys:
-        value = payload.get(key)
+        value = payload.get(key) if isinstance(payload, dict) else getattr(payload, key)
         if value is not None:
             return value
     return None
@@ -222,7 +225,7 @@ async def aiter_run_events(
 
 
 def update_progress_from_result(
-    iteration: dict,
+    iteration: dict | SseRunEventData,
     progress: tqdm,
     *,
     uploading_text: str,
@@ -240,13 +243,15 @@ def update_progress_from_result(
     Returns:
         True if a progress update occurred, False otherwise.
     """
-    if (
-        iteration.get("result")
-        and isinstance(iteration["result"], dict)
-        and iteration["result"].get("result")
-        and isinstance(iteration["result"]["result"], str)
-    ):
-        result_info = iteration["result"]["result"].split(":")
+    result_outer = (
+        iteration.get("result") if isinstance(iteration, dict) else iteration.result
+    )
+    result_inner = (
+        result_outer.get("result") if isinstance(result_outer, dict) else result_outer
+    )
+
+    if result_inner:
+        result_info = result_inner.split(":")
         if len(result_info) > 1:
             stage = result_info[0]
             current_progress_percentage = float(
@@ -268,7 +273,7 @@ def update_progress_from_result(
 
 
 def handle_run_failure(
-    iteration: dict, *, error_cls: type[Exception], run_label: str
+    iteration: dict | SseRunEventData, *, error_cls: type[Exception], run_label: str
 ) -> None:
     """
     Raise a run-specific failure exception based on the iteration payload.
@@ -278,6 +283,10 @@ def handle_run_failure(
         error_cls: Exception type to raise.
         run_label: Human-readable label for the run type.
     """
-    if iteration.get("result"):
-        raise error_cls(f"{run_label} run failed with error: {iteration['result']}")
+    if (
+        result := iteration.get("result")
+        if isinstance(iteration, dict)
+        else iteration.result
+    ):
+        raise error_cls(f"{run_label} run failed with error: {result}")
     raise error_cls(f"{run_label} run failed with an unknown error")

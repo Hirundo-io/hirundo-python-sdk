@@ -1,3 +1,12 @@
+from ._hirundo_error import HirundoError
+from ._llm_sources import (
+    HuggingFaceTransformersModel,
+    HuggingFaceTransformersModelOutput,
+    LlmSources,
+    LlmSourcesOutput,
+    LocalTransformersModel,
+    ModelSourceType,
+)
 from .dataset_enum import (
     DatasetMetadataType,
     LabelingType,
@@ -5,7 +14,7 @@ from .dataset_enum import (
 )
 from .dataset_qa import (
     ClassificationRunArgs,
-    HirundoError,
+    HirundoDatasetQaError,
     ModalityType,
     ObjectDetectionRunArgs,
     QADataset,
@@ -24,15 +33,16 @@ from .labeling import (
     KeylabsObjSegVideo,
 )
 from .llm_behavior_eval import (
-    BiasType,
     EvalRunInfo,
     EvalRunRecord,
+    HirundoLlmBehaviorEvalError,
     JudgeModel,
     LlmBehaviorEval,
-    LlmBehaviorEvalError,
     ModelOrRun,
     PresetType,
 )
+from .llm_behavior_eval_results import LlmBehaviorEvalResults
+from .llm_bias_type import BiasType
 from .storage import (
     StorageConfig,
     StorageGCP,
@@ -42,20 +52,18 @@ from .storage import (
 )
 from .unlearning_llm import (
     BiasRunInfo,
-    BiasType,
-    HuggingFaceTransformersModel,
     LlmModel,
-    LlmSources,
     LlmUnlearningRun,
-    LocalTransformersModel,
 )
 from .unzip import load_df, load_from_zip
 
 __all__ = [
     "COCO",
     "YOLO",
-    "HirundoError",
     "HirundoCSV",
+    "HirundoError",
+    "HirundoDatasetQaError",
+    "HirundoLlmBehaviorEvalError",
     "KeylabsAuth",
     "KeylabsObjDetImages",
     "KeylabsObjDetVideo",
@@ -67,7 +75,7 @@ __all__ = [
     "EvalRunRecord",
     "JudgeModel",
     "LlmBehaviorEval",
-    "LlmBehaviorEvalError",
+    "LlmBehaviorEvalResults",
     "ModalityType",
     "ModelOrRun",
     "PresetType",
@@ -87,14 +95,16 @@ __all__ = [
     "StorageConfig",
     "DatasetQAResults",
     "BiasRunInfo",
-    "BiasType",
     "HuggingFaceTransformersModel",
+    "HuggingFaceTransformersModelOutput",
     "LlmModel",
     "LlmSources",
+    "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
     "load_df",
     "load_from_zip",
+    "ModelSourceType",
 ]
 
 __version__ = "0.1.22"

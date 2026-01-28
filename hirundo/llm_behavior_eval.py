@@ -1,26 +1,42 @@
 import datetime
-import json
+import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
+from typing import overload
 
 import httpx
 from pydantic import BaseModel, ConfigDict
+from tqdm import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
+from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
+from hirundo._llm_sources import HuggingFaceTransformersModelOutput, LlmSourcesOutput
+from hirundo._run_checking import (
+    STATUS_TO_PROGRESS_MAP,
+    RunStatus,
+    build_status_text_map,
+    get_state,
+    handle_run_failure,
+    update_progress_from_result,
+)
+from hirundo._sse_event_data import SseRunEventData, _parse_sse_payload
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
+from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
+from hirundo.llm_bias_type import BiasType
 from hirundo.logger import get_logger
+from hirundo.unzip import download_and_extract_llm_behavior_eval_zip
 
 logger = get_logger(__name__)
 
 
-class LlmBehaviorEvalError(Exception):
-    """
-    Custom exception used to indicate errors in `hirundo` LLM behavior eval runs.
-    """
+STATUS_TO_TEXT_MAP = build_status_text_map("LLM behavior eval")
 
+
+class HirundoLlmBehaviorEvalError(HirundoError):
     pass
 
 
@@ -36,16 +52,6 @@ class PresetType(str, Enum):
     HALU_EVAL = "HALU_EVAL"
     MED_HALLU = "MED_HALLU"
     INJECTION_EVAL = "INJECTION_EVAL"
-
-
-class BiasType(str, Enum):
-    ALL = "ALL"
-    RACE = "RACE"
-    NATIONALITY = "NATIONALITY"
-    GENDER = "GENDER"
-    PHYSICAL_APPEARANCE = "PHYSICAL_APPEARANCE"
-    RELIGION = "RELIGION"
-    AGE = "AGE"
 
 
 class JudgeModel(BaseModel):
@@ -77,7 +83,7 @@ class OutputLlm(BaseModel):
     created_at: datetime.datetime
     updated_at: datetime.datetime
     model_name: str
-    model_source: dict
+    model_source: LlmSourcesOutput
 
 
 class OutputUnlearningLlmRun(BaseModel):
@@ -86,6 +92,7 @@ class OutputUnlearningLlmRun(BaseModel):
     id: int
     name: str
     run_id: str
+    model: OutputLlm | None = None
     status: str
     created_at: datetime.datetime
 
@@ -223,7 +230,7 @@ class LlmBehaviorEval:
             or response_payload.get("id")
         )
         if not run_identifier:
-            raise LlmBehaviorEvalError(
+            raise HirundoLlmBehaviorEvalError(
                 "Unable to determine the run ID from the response payload."
             )
         return run_identifier
@@ -242,7 +249,7 @@ class LlmBehaviorEval:
 
     def cancel(self) -> None:
         if not self.run_id:
-            raise ValueError("No run has been started")
+            raise HirundoLlmBehaviorEvalError("No run has been started")
         self.cancel_by_id(self.run_id)
 
     @staticmethod
@@ -260,7 +267,7 @@ class LlmBehaviorEval:
 
     def rename(self, new_name: str) -> None:
         if not self.run_id:
-            raise ValueError("No run has been started")
+            raise HirundoLlmBehaviorEvalError("No run has been started")
         self.rename_by_id(self.run_id, new_name)
 
     @staticmethod
@@ -277,7 +284,7 @@ class LlmBehaviorEval:
 
     def archive(self) -> None:
         if not self.run_id:
-            raise ValueError("No run has been started")
+            raise HirundoLlmBehaviorEvalError("No run has been started")
         self.archive_by_id(self.run_id)
 
     @staticmethod
@@ -294,7 +301,7 @@ class LlmBehaviorEval:
 
     def restore(self) -> None:
         if not self.run_id:
-            raise ValueError("No run has been started")
+            raise HirundoLlmBehaviorEvalError("No run has been started")
         self.restore_by_id(self.run_id)
 
     @staticmethod
@@ -336,10 +343,24 @@ class LlmBehaviorEval:
         ]
 
     @staticmethod
-    def stream_results_by_id(run_id: str) -> Generator[dict, None, None]:
-        """
-        Stream evaluation results for a run.
-        """
+    def _resolve_model_name(run_info: EvalRunRecord) -> str | None:
+        if run_info.model and isinstance(
+            run_info.model.model_source, HuggingFaceTransformersModelOutput
+        ):
+            return run_info.model.model_source.model_name
+        if (
+            run_info.source_run
+            and run_info.source_run.model
+            and isinstance(
+                run_info.source_run.model.model_source,
+                HuggingFaceTransformersModelOutput,
+            )
+        ):
+            return run_info.source_run.model.model_source.model_name
+        return None
+
+    @staticmethod
+    def _check_run_by_id(run_id: str) -> Generator[SseRunEventData, None, None]:
         with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
             for sse_event in iter_sse_retrying(
                 client,
@@ -349,22 +370,133 @@ class LlmBehaviorEval:
             ):
                 if sse_event.event == "ping":
                     continue
-                try:
-                    yield json.loads(sse_event.data)
-                except json.JSONDecodeError:
-                    logger.debug("Non-JSON SSE payload received: %s", sse_event.data)
-                    yield {"data": sse_event.data}
-
-    def stream_results(self) -> Generator[dict, None, None]:
-        if not self.run_id:
-            raise ValueError("No run has been started")
-        yield from self.stream_results_by_id(self.run_id)
+                yield _parse_sse_payload(sse_event.data)
 
     @staticmethod
-    async def astream_results_by_id(run_id: str) -> AsyncGenerator[dict, None]:
+    @overload
+    def check_run_by_id(
+        run_id: str, stop_on_manual_approval: typing.Literal[True]
+    ) -> LlmBehaviorEvalResults | None: ...
+
+    @staticmethod
+    @overload
+    def check_run_by_id(
+        run_id: str, stop_on_manual_approval: typing.Literal[False] = False
+    ) -> LlmBehaviorEvalResults: ...
+
+    @staticmethod
+    @overload
+    def check_run_by_id(
+        run_id: str, stop_on_manual_approval: bool
+    ) -> LlmBehaviorEvalResults | None: ...
+
+    @staticmethod
+    def check_run_by_id(
+        run_id: str, stop_on_manual_approval: bool = False
+    ) -> LlmBehaviorEvalResults | None:
         """
-        Async stream evaluation results for a run.
+        Check the status of a run given its ID
+
+        Args:
+            run_id: The `run_id` produced by a `launch_eval_run` call
+            stop_on_manual_approval: If True, the function will return `None` if the run is awaiting manual approval
+
+        Returns:
+            An LlmBehaviorEvalResults object with the results of the evaluation run
+
+        Raises:
+            HirundoLlmBehaviorEvalError: If the maximum number of retries is reached or if the run fails
         """
+        logger.debug("Checking run with ID: %s", run_id)
+        with logging_redirect_tqdm():
+            progress_bar = tqdm(total=100.0)
+            for iteration in LlmBehaviorEval._check_run_by_id(run_id):
+                state = get_state(iteration, ("state",))
+                if state in STATUS_TO_PROGRESS_MAP:
+                    progress_bar.set_description(STATUS_TO_TEXT_MAP[state])
+                    progress_bar.n = STATUS_TO_PROGRESS_MAP[state]
+                    logger.debug("Setting progress to %s", progress_bar.n)
+                    progress_bar.refresh()
+                    if state in [
+                        RunStatus.FAILURE.value,
+                        RunStatus.REJECTED.value,
+                        RunStatus.REVOKED.value,
+                    ]:
+                        logger.error(
+                            "State is failure, rejected, or revoked: %s",
+                            state,
+                        )
+                        handle_run_failure(
+                            iteration,
+                            error_cls=HirundoLlmBehaviorEvalError,
+                            run_label="LLM behavior eval",
+                        )
+                    elif state == RunStatus.SUCCESS.value:
+                        progress_bar.close()
+                        zip_temporary_url = iteration.result
+                        if not zip_temporary_url or not isinstance(
+                            zip_temporary_url, str
+                        ):
+                            raise HirundoLlmBehaviorEvalError(
+                                "LLM behavior eval run completed without a results URL."
+                            )
+                        run_info = LlmBehaviorEval.get_run_info_by_id(run_id)
+                        model_name = LlmBehaviorEval._resolve_model_name(run_info)
+                        return download_and_extract_llm_behavior_eval_zip(
+                            run_id,
+                            zip_temporary_url,
+                            model_name,
+                        )
+                    elif (
+                        state == RunStatus.AWAITING_MANUAL_APPROVAL.value
+                        and stop_on_manual_approval
+                    ):
+                        progress_bar.close()
+                        return None
+                elif state is None:
+                    update_progress_from_result(
+                        iteration,
+                        progress_bar,
+                        uploading_text="LLM behavior eval run completed. Uploading results",
+                        log=logger,
+                    )
+        raise HirundoLlmBehaviorEvalError(
+            "LLM behavior eval run failed with an unknown error in check_run_by_id"
+        )
+
+    @overload
+    def check_run(
+        self, stop_on_manual_approval: typing.Literal[True]
+    ) -> LlmBehaviorEvalResults | None: ...
+
+    @overload
+    def check_run(
+        self, stop_on_manual_approval: typing.Literal[False] = False
+    ) -> LlmBehaviorEvalResults: ...
+
+    def check_run(
+        self, stop_on_manual_approval: bool = False
+    ) -> LlmBehaviorEvalResults | None:
+        """
+        Check the status of the current active instance's run.
+
+        Returns:
+            An LlmBehaviorEvalResults object with the results of the evaluation run
+        """
+        if not self.run_id:
+            raise HirundoLlmBehaviorEvalError("No run has been started")
+        return self.check_run_by_id(self.run_id, stop_on_manual_approval)
+
+    @staticmethod
+    async def acheck_run_by_id(run_id: str) -> AsyncGenerator[SseRunEventData, None]:
+        """
+        Async version of :func:`check_run_by_id`
+
+        Check the status of a run given its ID.
+
+        This generator will produce values to show progress of the run.
+        """
+        logger.debug("Checking run with ID: %s", run_id)
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(None, connect=5.0)
         ) as client:
@@ -377,14 +509,19 @@ class LlmBehaviorEval:
             async for sse_event in async_iterator:
                 if sse_event.event == "ping":
                     continue
-                try:
-                    yield json.loads(sse_event.data)
-                except json.JSONDecodeError:
-                    logger.debug("Non-JSON SSE payload received: %s", sse_event.data)
-                    yield {"data": sse_event.data}
+                yield _parse_sse_payload(sse_event.data)
 
-    async def astream_results(self) -> AsyncGenerator[dict, None]:
+    async def acheck_run(self) -> AsyncGenerator[SseRunEventData, None]:
+        """
+        Async version of :func:`check_run`
+
+        Check the status of the current active instance's run.
+
+        This generator will produce values to show progress of the run.
+
+        Note: This function does not handle errors nor show progress. It is expected that you do that.
+        """
         if not self.run_id:
-            raise ValueError("No run has been started")
-        async for payload in self.astream_results_by_id(self.run_id):
-            yield payload
+            raise HirundoLlmBehaviorEvalError("No run has been started")
+        async for iteration in self.acheck_run_by_id(self.run_id):
+            yield iteration

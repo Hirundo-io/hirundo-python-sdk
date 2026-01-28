@@ -12,6 +12,7 @@ from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
+from hirundo._llm_sources import LlmSources, LlmSourcesOutput
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
     RunStatus,
@@ -24,6 +25,7 @@ from hirundo._run_checking import (
 )
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.dataset_qa import HirundoError
+from hirundo.llm_bias_type import BiasType
 from hirundo.logger import get_logger
 
 if TYPE_CHECKING:
@@ -32,45 +34,6 @@ if TYPE_CHECKING:
     from transformers.pipelines.base import Pipeline
 
 logger = get_logger(__name__)
-
-
-class ModelSourceType(str, Enum):
-    HUGGINGFACE_TRANSFORMERS = "huggingface_transformers"
-    LOCAL_TRANSFORMERS = "local_transformers"
-
-
-class HuggingFaceTransformersModel(BaseModel):
-    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
-
-    type: Literal[ModelSourceType.HUGGINGFACE_TRANSFORMERS] = (
-        ModelSourceType.HUGGINGFACE_TRANSFORMERS
-    )
-    revision: str | None = None
-    code_revision: str | None = None
-    model_name: str
-    token: str | None = None
-
-
-class HuggingFaceTransformersModelOutput(BaseModel):
-    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
-
-    type: Literal[ModelSourceType.HUGGINGFACE_TRANSFORMERS] = (
-        ModelSourceType.HUGGINGFACE_TRANSFORMERS
-    )
-    model_name: str
-
-
-class LocalTransformersModel(BaseModel):
-    type: Literal[ModelSourceType.LOCAL_TRANSFORMERS] = (
-        ModelSourceType.LOCAL_TRANSFORMERS
-    )
-    revision: None = None
-    code_revision: None = None
-    local_path: str
-
-
-LlmSources = HuggingFaceTransformersModel | LocalTransformersModel
-LlmSourcesOutput = HuggingFaceTransformersModelOutput | LocalTransformersModel
 
 
 class LlmModel(BaseModel):
@@ -233,16 +196,6 @@ class DatasetType(str, Enum):
 
 class UnlearningLlmAdvancedOptions(BaseModel):
     max_tokens_for_model: dict[DatasetType, int] | int | None = None
-
-
-class BiasType(str, Enum):
-    ALL = "ALL"
-    RACE = "RACE"
-    NATIONALITY = "NATIONALITY"
-    GENDER = "GENDER"
-    PHYSICAL_APPEARANCE = "PHYSICAL_APPEARANCE"
-    RELIGION = "RELIGION"
-    AGE = "AGE"
 
 
 class UtilityType(str, Enum):
