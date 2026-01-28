@@ -7,7 +7,7 @@ packages = ["hirundo"]
 
 [project]
 name = "hirundo"
-version = "0.1.21"
+version = "0.2.3"
 description = "This package is used to interface with Hirundo's platform. It provides a simple API to optimize your ML datasets."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
