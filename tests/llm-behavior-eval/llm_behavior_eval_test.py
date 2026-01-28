@@ -38,3 +38,5 @@ def test_llm_behavior_eval():
         results = LlmBehaviorEval.check_run_by_id(run_id)
         assert results is not None
         assert results.cached_zip_path is not None
+        assert results.summary_brief is not None
+        assert results.summary_full is not None
