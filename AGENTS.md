@@ -1,5 +1,11 @@
 # Repository Guidelines
 
+## Instructions
+
+- Always use context7 when I need code generation, setup or configuration steps, or
+  library/API documentation. This means you should automatically use the Context7 MCP
+  tools to resolve library id and get library docs without me having to explicitly ask.
+
 ## Project Structure & Module Organization
 
 - `hirundo/` holds the SDK source (CLI entry point is `hirundo.cli:app`).
@@ -21,6 +27,8 @@
 - Python 3.10+ codebase, 4-space indentation, line length 88 (Ruff defaults).
 - Follow Ruff linting rules (`pyproject.toml`), with tests allowing `assert` usage.
 - Prefer descriptive names; avoid short, cryptic identifiers in new code.
+- Avoid 1-3 character variable names in new or refactored code. Use descriptive names
+  even in small scopes.
 
 ## Testing Guidelines
 
