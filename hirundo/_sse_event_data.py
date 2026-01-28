@@ -1,7 +1,6 @@
-from typing import Any
+from pydantic import BaseModel, ValidationError
 
-from pydantic import BaseModel
-
+from hirundo import HirundoError
 from hirundo._run_status import RunStatus
 from hirundo.logger import get_logger
 
@@ -14,12 +13,13 @@ class SseRunEventData(BaseModel):
     result: str | dict | None
 
 
-def _parse_sse_payload(payload: Any) -> SseRunEventData:
-    if isinstance(payload, dict):
-        if "data" in payload:
-            data = payload["data"]
-            if isinstance(data, dict):
-                return SseRunEventData.model_validate(data)
+class SseRunEventDataPayload(BaseModel):
+    data: SseRunEventData
 
-    logger.error("Invalid SSE payload: %s", payload)
-    raise ValueError(f"Invalid SSE payload: {payload}")
+
+def _parse_sse_payload(payload: str) -> SseRunEventData:
+    try:
+        return SseRunEventDataPayload.model_validate_json(payload).data
+    except ValidationError as e:
+        logger.error("Invalid SSE payload: %s: %s", payload, exc_info=e)
+        raise HirundoError(f"Invalid SSE payload: {payload}") from e
