@@ -44,10 +44,11 @@ jobs:
           git config user.name "GitHub Actions [release-bot]"
           git config user.email "github-actions@hirundo.io"
           git checkout -b release-${{ github.event.inputs.version }}
-          bumpver update --set-version ${{ github.event.inputs.version }} --commit --push
+          bumpver update --set-version ${{ github.event.inputs.version }} --commit
           uv lock
           git add uv.lock
           git commit -m "Bump 'uv.lock' version to ${{ github.event.inputs.version }}"
+          git push
           git push -u origin release-${{ github.event.inputs.version }}
           gh pr create -a ${{ github.event.sender.login || github.actor }} --title "v${{ github.event.inputs.version }}" \
             --body "" --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"
