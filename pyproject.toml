@@ -108,7 +108,7 @@ version_pattern = "MAJOR.MINOR.PATCH[PYTAGNUM][.postINC1][.devINC1]"
 
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['^version = "{version}"$', '^current_version = "{version}"$']
-"uv.lock" = ['^version = "{version}"$']
+"uv.lock" = ['(?m)(?<=^name = "hirundo"\\n)version = "{version}"$']
 "hirundo/__init__.py" = ['^__version__ = "{version}"$']
 "docs/_templates/github-pages-redirect.html" = [
     """<meta http-equiv="refresh" content="0; url=./v{version}/index.html" />""",
