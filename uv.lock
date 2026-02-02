@@ -546,7 +546,7 @@ wheels = [
 
 [[package]]
 name = "hirundo"
-version = "0.1.21"
+version = "0.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "docutils" },
