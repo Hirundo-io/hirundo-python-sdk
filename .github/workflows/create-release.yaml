@@ -43,6 +43,7 @@ jobs:
           git config user.email "github-actions@hirundo.io"
           git checkout -b release-${{ github.event.inputs.version }}
           bumpver update --set-version ${{ github.event.inputs.version }} --commit --push
+          uv lock
           git push -u origin release-${{ github.event.inputs.version }}
           gh pr create -a ${{ github.event.sender.login || github.actor }} --title "v${{ github.event.inputs.version }}" \
             --body "" --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"
