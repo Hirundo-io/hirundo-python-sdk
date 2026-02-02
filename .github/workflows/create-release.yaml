@@ -28,9 +28,8 @@ jobs:
         with:
           ref: ${{ github.event.ref }}
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
           cache: 'pip'
       - name: Bump version with `bumpver` then push tag
         env:
