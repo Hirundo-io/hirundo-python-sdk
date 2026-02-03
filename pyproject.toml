@@ -7,7 +7,7 @@ packages = ["hirundo"]
 
 [project]
 name = "hirundo"
-version = "0.2.3"
+version = "0.2.3.post1"
 description = "This package is used to interface with Hirundo's platform. It provides a simple API to optimize your ML datasets."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
@@ -103,7 +103,7 @@ polars = ["polars>=1.0.0"]
 transformers = ["transformers>=4.57.3", "peft>=0.18.1", "accelerate>=1.12.0"]
 
 [tool.bumpver]
-current_version = "0.2.3"
+current_version = "0.2.3.post1"
 version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
 
 [tool.bumpver.file_patterns]
