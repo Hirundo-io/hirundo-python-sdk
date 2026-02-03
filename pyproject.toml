@@ -113,6 +113,7 @@ version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
     """<meta http-equiv="refresh" content="0; url=./v{version}/index.html" />""",
     """<link rel="canonical" href="https://hirundo-io.github.io/hirundo/v{version}/index.html" />$""",
 ]
+"docs/conf.py" = ['^release = "{version}"$']
 
 [tool.ruff]
 src = ["hirundo"]
