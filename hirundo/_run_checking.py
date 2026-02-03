@@ -66,7 +66,11 @@ def get_state(
         The first non-null state value, or None if none are present.
     """
     for key in status_keys:
-        value = payload.get(key) if isinstance(payload, dict) else getattr(payload, key, None)
+        value = (
+            payload.get(key)
+            if isinstance(payload, dict)
+            else getattr(payload, key, None)
+        )
         if value is not None:
             return value
     return None
@@ -258,32 +262,7 @@ def update_progress_from_result(
         log.debug("Setting progress to %s", progress.n)
         progress.refresh()
         return True
-    if isinstance(result_inner, dict):
-        stage = (
-            result_inner.get("stage")
-            or result_inner.get("state")
-            or result_inner.get("status")
-        )
-        progress_value = result_inner.get("progress")
-        if progress_value is None:
-            progress_value = result_inner.get("percentage")
-        if progress_value is None:
-            progress_value = result_inner.get("percent")
-        if isinstance(progress_value, str):
-            progress_value = progress_value.strip().removesuffix("%")
-        if isinstance(progress_value, (int, float, str)):
-            try:
-                current_progress_percentage = float(progress_value)
-            except (TypeError, ValueError):
-                current_progress_percentage = progress.n
-            else:
-                desc = uploading_text if current_progress_percentage == 100.0 else stage
-                if desc:
-                    progress.set_description(desc)
-                progress.n = current_progress_percentage
-                log.debug("Setting progress to %s", progress.n)
-                progress.refresh()
-                return True
+    if result_inner is not None:
         log.debug("Skipping non-string progress result payload: %s", result_inner)
     return False
 
