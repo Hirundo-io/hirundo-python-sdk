@@ -1,6 +1,6 @@
 # [hirundo](https://docs.hirundo.io/) · [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Hirundo-io/hirundo-client/blob/main/LICENSE) [![pypi version](https://img.shields.io/pypi/v/hirundo)](https://pypi.org/project/hirundo/)
 
-[![Deploy docs](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml) [![Ruff & Pyright](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml) [![Unit tests](https://github.com/Hirundo-io/hirundo-client/actions/workflows/pytest-full.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/pytest-full.yaml) [![Vulnerability scan](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml)
+[![Deploy docs](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml?query=event%3Amerge_group) [![Ruff & Pyright](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml?query=event%3Amerge_group) [![Sanity tests]([[https://github.com/Hirundo-io/hirundo-client/actions/workflows/pytest-full.yaml](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/pytest-sanity.yaml?query=event%3Amerge_group)](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/pytest-sanity.yaml/badge.svg?event=merge_group)] [![Vulnerability scan](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml?query=event%3Amerge_group)
 
 This package exposes access to Hirundo APIs for dataset QA for Machine Learning.
 
@@ -14,8 +14,7 @@ Support dataset storage configs include:
 
 Note: This Python package must be used alongside a Hirundo server, either the SaaS platform, a custom VPC deployment or an on-premises installation.
 
-Optimizing a classification dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+## Optimizing a classification dataset
 
 Currently `hirundo` requires a CSV file with the following columns (all columns are required):
 
@@ -36,8 +35,7 @@ Errors and warnings DataFrame (filename: `invalid_data.csv`) columns:
 
    - ``status``: status message (one of ``NO_LABELS`` / ``MISSING_IMAGE`` / ``INVALID_IMAGE``)
 
-Optimizing an object detection (OD) dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+## Optimizing an object detection (OD) dataset
 
 Currently ``hirundo`` requires a CSV file with the following columns (all columns are required):
 
