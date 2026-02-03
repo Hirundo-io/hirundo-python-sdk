@@ -48,7 +48,6 @@ jobs:
           uv lock
           git add uv.lock
           git commit -m "Bump 'uv.lock' version to ${{ github.event.inputs.version }}"
-          git push
-          git push -u origin release-${{ github.event.inputs.version }}
+          git push --set-upstream origin release-${{ github.event.inputs.version }}
           gh pr create -a ${{ github.event.sender.login || github.actor }} --title "v${{ github.event.inputs.version }}" \
             --body "" --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"
