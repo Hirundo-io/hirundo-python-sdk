@@ -381,9 +381,7 @@ class LlmBehaviorEval:
                     payload = _parse_sse_payload(sse_event.data)
                     last_payload = payload
                     yield payload
-            last_state = (
-                get_state(last_payload, ("state",)) if last_payload else None
-            )
+            last_state = get_state(last_payload, ("state",)) if last_payload else None
             if last_payload is None or last_state == RunStatus.PENDING.value:
                 retry_count += 1
                 continue
