@@ -21,5 +21,5 @@ def _parse_sse_payload(payload: str) -> SseRunEventData:
     try:
         return SseRunEventDataPayload.model_validate_json(payload).data
     except ValidationError as e:
-        logger.error("Invalid SSE payload: %s: %s", payload, exc_info=e)
+        logger.error("Invalid SSE payload: %s", payload, exc_info=True)
         raise HirundoError(f"Invalid SSE payload: {payload}") from e

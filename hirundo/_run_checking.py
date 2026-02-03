@@ -66,7 +66,7 @@ def get_state(
         The first non-null state value, or None if none are present.
     """
     for key in status_keys:
-        value = payload.get(key) if isinstance(payload, dict) else getattr(payload, key)
+        value = payload.get(key) if isinstance(payload, dict) else getattr(payload, key, None)
         if value is not None:
             return value
     return None

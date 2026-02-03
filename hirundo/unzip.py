@@ -256,11 +256,11 @@ def download_and_extract_llm_behavior_eval_zip(
         headers=headers,
         timeout=DOWNLOAD_READ_TIMEOUT,
         stream=True,
-    ) as r:
-        r.raise_for_status()
-        with open(zip_file_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
-                f.write(chunk)
+    ) as response:
+        response.raise_for_status()
+        with open(zip_file_path, "wb") as output_file:
+            for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
+                output_file.write(chunk)
         logger.info(
             "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
             run_id,
