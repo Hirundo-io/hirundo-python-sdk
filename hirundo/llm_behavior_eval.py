@@ -16,6 +16,7 @@ from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
 from hirundo._llm_sources import HuggingFaceTransformersModelOutput, LlmSourcesOutput
 from hirundo._run_checking import (
+    DEFAULT_MAX_RETRIES,
     STATUS_TO_PROGRESS_MAP,
     build_status_text_map,
     get_state,
@@ -360,17 +361,33 @@ class LlmBehaviorEval:
         return None
 
     @staticmethod
-    def _check_run_by_id(run_id: str) -> Generator[SseRunEventData, None, None]:
-        with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
-            for sse_event in iter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/llm-behavior-eval/run/{run_id}",
-                headers=get_headers(),
-            ):
-                if sse_event.event == "ping":
-                    continue
-                yield _parse_sse_payload(sse_event.data)
+    def _check_run_by_id(
+        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+    ) -> Generator[SseRunEventData, None, None]:
+        retry_count = 0
+        while True:
+            if retry_count > max_retries:
+                raise HirundoLlmBehaviorEvalError("Max retries reached")
+            last_payload = None
+            with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
+                for sse_event in iter_sse_retrying(
+                    client,
+                    "GET",
+                    f"{API_HOST}/llm-behavior-eval/run/{run_id}",
+                    headers=get_headers(),
+                ):
+                    if sse_event.event == "ping":
+                        continue
+                    payload = _parse_sse_payload(sse_event.data)
+                    last_payload = payload
+                    yield payload
+            last_state = (
+                get_state(last_payload, ("state",)) if last_payload else None
+            )
+            if last_payload is None or last_state == RunStatus.PENDING.value:
+                retry_count += 1
+                continue
+            return
 
     @staticmethod
     @overload
