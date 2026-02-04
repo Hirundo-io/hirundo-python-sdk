@@ -82,25 +82,37 @@ def get_public_exports(module_path: Path) -> set[str]:
     return collect_exports(tree.body)
 
 
-def resolve_module_name(module_path: Path) -> str | None:
-    stem = module_path.stem
-    if stem == "__init__":
-        return "hirundo"
-    if stem.startswith("_") or stem == "__main__":
+def resolve_module_name(module_path: Path, package_dir: Path) -> str | None:
+    relative = module_path.relative_to(package_dir)
+    parts = relative.with_suffix("").parts
+    if "__pycache__" in parts:
         return None
-    return f"hirundo.{stem}"
+    if parts[-1] == "__main__":
+        return None
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    if any(part.startswith("_") for part in parts):
+        return None
+    if not parts:
+        return "hirundo"
+    return "hirundo." + ".".join(parts)
 
 
-def collect_module_exports(package_dir: Path) -> dict[str, set[str]]:
+def collect_module_exports(package_dir: Path) -> tuple[dict[str, set[str]], list[Path]]:
     module_exports: dict[str, set[str]] = {}
-    for module_path in package_dir.glob("*.py"):
-        module_name = resolve_module_name(module_path)
+    parse_errors: list[Path] = []
+    for module_path in package_dir.rglob("*.py"):
+        module_name = resolve_module_name(module_path, package_dir)
         if not module_name:
             continue
-        exports = get_public_exports(module_path)
+        try:
+            exports = get_public_exports(module_path)
+        except SyntaxError:
+            parse_errors.append(module_path)
+            continue
         if exports:
             module_exports[module_name] = exports
-    return module_exports
+    return module_exports, parse_errors
 
 
 def collect_docs_modules(docs_dir: Path) -> set[str]:
@@ -129,12 +141,21 @@ def report_mismatches(missing_docs: list[str], extra_docs: list[str]) -> int:
     return 1
 
 
+def report_parse_errors(parse_errors: list[Path]) -> int:
+    if not parse_errors:
+        return 0
+    print("Failed to parse module source files:")
+    for module_path in parse_errors:
+        print(f"  - {module_path}")
+    return 1
+
+
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     package_dir = repo_root / "hirundo"
     docs_dir = repo_root / "docs"
 
-    module_exports = collect_module_exports(package_dir)
+    module_exports, parse_errors = collect_module_exports(package_dir)
     docs_modules = collect_docs_modules(docs_dir)
 
     public_modules = set(module_exports.keys())
@@ -142,7 +163,9 @@ def main() -> int:
     missing_docs = sorted(public_modules - docs_modules)
     extra_docs = sorted(docs_modules - public_modules)
 
-    return report_mismatches(missing_docs, extra_docs)
+    parse_status = report_parse_errors(parse_errors)
+    mismatch_status = report_mismatches(missing_docs, extra_docs)
+    return 1 if parse_status or mismatch_status else 0
 
 
 if __name__ == "__main__":

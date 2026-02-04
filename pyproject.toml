@@ -8,7 +8,7 @@ packages = ["hirundo"]
 [project]
 name = "hirundo"
 version = "0.2.3.post1"
-description = "Hirundo platform and provides APIs for: LLM behavior unlearning & dataset QA."
+description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
 license = { file = "LICENSE" }
