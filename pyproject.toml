@@ -65,7 +65,7 @@ dev = [
     "uv>=0.9.6",
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
-    "virtualenv>=20.6.6",
+    "virtualenv>=20.36.1",
     #  ⬆️ Needed for `pre-commit` version fix for vulnerability GHSA-rqc4-2hc7-8c8v
     "authlib>=1.6.6",
     #  ⬆️ Required to fix vulnerability CVE-2025-68158
@@ -78,7 +78,7 @@ dev = [
     #  ⬆️ Required to fix vulnerabilities GHSA-cpwx-vrp4-4pq7 , GHSA-gmj6-6f8f-6699 & GHSA-q2x7-8rv6-6q7h
     "filelock>=3.20.1",
     #  ⬆️ Required to fix vulnerability CVE-2025-68146
-    "marshmallow>=3.26.2",
+    "marshmallow>=4.1.2",
     #  ⬆️ Required to fix vulnerability CVE-2025-68480
     "pip-audit",
 ]
