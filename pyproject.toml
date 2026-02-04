@@ -82,6 +82,7 @@ dev = [
     #  ⬆️ Required to fix vulnerability CVE-2025-68146
     "marshmallow>=3.26.2",
     #  ⬆️ Required to fix vulnerability CVE-2025-68480
+    "pip-audit",
 ]
 docs = [
     "sphinx>=7.4.7",
