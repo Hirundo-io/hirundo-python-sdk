@@ -14,13 +14,14 @@ When opening Pull Requests, note that the repository has GitHub Actions which ru
 
 ### Install dev dependencies
 
+Note: You need to [install](https://docs.astral.sh/uv/getting-started/installation/) and use [`uv`](https://docs.astral.sh/uv/) as a faster drop-in replacement for `pip` for our project.
+
+
+Then you can install the dependencies with:
 ```bash
-pip install -r requirements/dev.txt
+uv sync --all-groups
 ```
 
-Note: You can [install](https://docs.astral.sh/uv/getting-started/installation/) and use [`uv`](https://docs.astral.sh/uv/) as a faster drop-in replacement for `pip`. We have it as part of our dev dependencies for this reason.
-
-### Install `git` hooks (optional)
 ### Install `git` hooks (optional)
 
 ```bash
@@ -34,25 +35,6 @@ ruff check
 ruff format
 ```
 
-### Change packages
-
-#### Update `requirements.txt` files (optional; pre-commit hooks run this automatically)
-
-```bash
-uv pip compile pyproject.toml
-uv pip compile --group dev -o requirements/dev.txt -c requirements.txt pyproject.toml
-uv pip compile --extra pandas -o requirements/pandas.txt -c requirements.txt pyproject.toml
-uv pip compile --extra polars -o requirements/polars.txt -c requirements.txt pyproject.toml
-uv pip compile --extra docs -o requirements/docs.txt -c requirements.txt pyproject.toml
-uv pip compile --extra transformers -o requirements/transformers.txt -c requirements.txt pyproject.toml
-```
-
-#### Sync installed packages (optional; pre-commit hooks run this automatically)
-
-```bash
-uv sync --all-groups
-```
-
 ### Build process
 
 To build the package, run:
@@ -60,7 +42,7 @@ To build the package, run:
 
 ### Documentation
 
-We use `sphinx` to generate our documentation. Note: If you want to manually create the HTML files from your documentation, you must install `requirements/docs.txt` instead of/in addition to `requirements/dev.txt`.
+We use `sphinx` to generate our documentation. Note: If you want to manually create the HTML files from your documentation, you must install the `dev` dependency group.
 
 #### Documentation releases
 Documentation releases are published via GitHub Actions on merges to `main`.

@@ -1,13 +1,11 @@
 ARG PLATFORM=linux/amd64
 
-FROM --platform=${PLATFORM} mcr.microsoft.com/devcontainers/python:3.10
+FROM --platform=${PLATFORM} ghcr.io/astral-sh/uv:python3.10-trixie
 
 COPY . .
 
-RUN pip install -r requirements/requirements.txt \
-    -r requirements/dev.txt -r requirements/docs.txt \
-    -r requirements/pandas.txt -r requirements/polars.txt \
-    -r requirements/transformers.txt \
-     && pip install ipykernel
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN uv sync --all-groups
+     && uv pip install ipykernel
 
-CMD ["python"]
+CMD ["uv", "run", "python"]
