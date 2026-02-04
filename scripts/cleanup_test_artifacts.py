@@ -2,9 +2,10 @@ import datetime
 from datetime import timedelta, timezone
 
 import requests
-from hirundo import GitRepo, QADataset, StorageConfig
+from hirundo import GitRepo, LlmBehaviorEval, QADataset, StorageConfig
 from hirundo._run_status import RunStatus
 from hirundo.dataset_qa import DataQARunOut, HirundoError, QADatasetOut
+from hirundo.llm_behavior_eval import EvalRunRecord
 from hirundo.logger import get_logger
 from hirundo.storage import ResponseStorageConfig
 from hirundo.unlearning_llm import (
@@ -70,7 +71,7 @@ def _delete_llm(
 
 def _should_delete_resource(
     resource_name: str,
-    runs: list[DataQARunOut | OutputUnlearningLlmRun],
+    runs: list[DataQARunOut | OutputUnlearningLlmRun | EvalRunRecord],
     expiry_date: datetime.datetime,
 ) -> bool:
     """
@@ -291,12 +292,42 @@ def _handle_llm_cleanup(one_week_ago: datetime.datetime):
         )
 
 
+def _handle_llm_behavior_eval_cleanup(one_week_ago: datetime.datetime) -> None:
+    archived_runs = set[str]()
+    trying_to_archive_runs = set[str]()
+    live_runs = LlmBehaviorEval.list_runs(archived=False)
+    for run in live_runs:
+        if _should_delete_resource(run.name, [run], one_week_ago):
+            trying_to_archive_runs.add(run.run_id)
+            try:
+                LlmBehaviorEval.archive_by_id(run.run_id)
+                archived_runs.add(run.run_id)
+            except (HirundoError, requests.HTTPError) as exc:
+                logger.warning(
+                    "Failed to archive LLM behavior eval run with ID %s: %s",
+                    run.run_id,
+                    exc,
+                )
+    logger.info(
+        "Archived %s (%s) LLM behavior eval runs",
+        archived_runs,
+        len(archived_runs),
+    )
+    if trying_to_archive_runs != archived_runs:
+        logger.warning(
+            "Tried to archive %s LLM behavior eval runs, but only archived %s runs",
+            trying_to_archive_runs,
+            archived_runs,
+        )
+
+
 def main() -> None:
     now = datetime.datetime.now(timezone.utc)
     one_week_ago = now - timedelta(days=7)
 
     _handle_datasets_cleanup(one_week_ago)
     _handle_llm_cleanup(one_week_ago)
+    _handle_llm_behavior_eval_cleanup(one_week_ago)
     _cleanup_storage_configs(one_week_ago)
 
 
