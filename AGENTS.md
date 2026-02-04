@@ -17,3 +17,4 @@ Activate the local virtualenv before running any Python/uv commands: `source .ve
   `from hirundo._http import requests, raise_for_status_with_reason`.
 - Use `hirundo.logger.get_logger(__name__)` for logging.
 - Auth loads from `.env` or `~/.hirundo.conf` via `hirundo/_env.py`.
+- Avoid 1-3 character variable names in new or refactored code. Use descriptive names even in small scopes.
