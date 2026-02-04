@@ -441,6 +441,7 @@ class LlmBehaviorEval:
                             "State is failure, rejected, or revoked: %s",
                             state,
                         )
+                        progress_bar.close()
                         handle_run_failure(
                             iteration,
                             error_cls=HirundoLlmBehaviorEvalError,
