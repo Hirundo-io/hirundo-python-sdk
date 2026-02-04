@@ -8,7 +8,7 @@ packages = ["hirundo"]
 [project]
 name = "hirundo"
 version = "0.2.3.post1"
-description = "This package is used to interface with Hirundo's platform. It provides a simple API to optimize your ML datasets."
+description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -113,6 +113,7 @@ version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
     """<meta http-equiv="refresh" content="0; url=./v{version}/index.html" />""",
     """<link rel="canonical" href="https://hirundo-io.github.io/hirundo/v{version}/index.html" />$""",
 ]
+"docs/conf.py" = ['^release = "{version}"$']
 
 [tool.ruff]
 src = ["hirundo"]
@@ -193,6 +194,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]
 "notebooks/**/*.ipynb" = ["S324"]
+"docs/**/*.py" = ["E402"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

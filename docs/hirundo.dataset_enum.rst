@@ -1,10 +1,10 @@
 .. meta::
    :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
 
-hirundo.dataset\_qa module
-====================================
+hirundo.dataset_enum module
+===========================
 
-.. automodule:: hirundo.dataset_qa
+.. automodule:: hirundo.dataset_enum
    :members:
    :undoc-members:
    :show-inheritance:
