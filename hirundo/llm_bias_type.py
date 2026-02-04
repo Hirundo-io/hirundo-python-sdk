@@ -9,3 +9,11 @@ class BBQBiasType(str, Enum):
     PHYSICAL_APPEARANCE = "PHYSICAL_APPEARANCE"
     RELIGION = "RELIGION"
     AGE = "AGE"
+
+
+class UnqoverBiasType(str, Enum):
+    ALL = "ALL"
+    RACE = "RACE"
+    NATIONALITY = "NATIONALITY"
+    GENDER = "GENDER"
+    RELIGION = "RELIGION"

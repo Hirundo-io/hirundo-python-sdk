@@ -43,7 +43,7 @@ from .llm_behavior_eval import (
     PresetType,
 )
 from .llm_behavior_eval_results import LlmBehaviorEvalResults
-from .llm_bias_type import BBQBiasType
+from .llm_bias_type import BBQBiasType, UnqoverBiasType
 from .storage import (
     StorageConfig,
     StorageGCP,
@@ -71,6 +71,7 @@ __all__ = [
     "KeylabsObjSegImages",
     "KeylabsObjSegVideo",
     "BBQBiasType",
+    "UnqoverBiasType",
     "QADataset",
     "EvalRunInfo",
     "EvalRunRecord",
