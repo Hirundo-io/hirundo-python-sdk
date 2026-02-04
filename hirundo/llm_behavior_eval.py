@@ -136,6 +136,8 @@ class EvalRunRecord(BaseModel):
     metrics: LlmEvalMetrics | None = None
     responses_zip_url: str | None = None
 
+    deleted_at: datetime.datetime | None = None
+
 
 class LlmBehaviorEval:
     def __init__(self, run_id: str | None = None):
