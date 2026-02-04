@@ -13,6 +13,7 @@ Welcome to the ``hirundo`` client library documentation. This SDK connects to th
 Hirundo platform and provides APIs for:
 
 - LLM behavior unlearning runs (reducing bias, prompt injections and other unwanted behaviors).
+- LLM behavior eval runs (measuring bias, hallucination, prompt injection, and more).
 - Dataset QA for machine learning datasets.
 
 Getting started
@@ -43,6 +44,17 @@ and returns an adapter that can be used with Hugging Face Transformers pipelines
 Example:
 
 .. literalinclude:: llm_unlearning_example.py
+   :language: python
+
+LLM behavior eval
+-----------------
+
+Run standardized evaluations over an LLM or an unlearning run to quantify
+behavior changes (bias, hallucination, prompt injections, and more).
+
+Example:
+
+.. literalinclude:: llm_behavior_eval_example.py
    :language: python
 
 Dataset QA

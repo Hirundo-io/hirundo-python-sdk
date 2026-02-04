@@ -3,6 +3,7 @@
 The Hirundo Python SDK lets you:
 
 - Launch and monitor LLM behavior unlearning runs.
+- Run LLM behavior evaluations for bias, hallucination, and prompt injection.
 - Run dataset QA for ML datasets (classification, object detection, and more).
 - Fetch QA results as `pandas` or `polars` DataFrames.
 
@@ -22,7 +23,7 @@ pip install hirundo
 Optional extras:
 
 - LLM behavior unlearning (Transformers + PEFT): `pip install hirundo[transformers]`
-- Dataset QA results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
+- Dataset QA or LLM behavior eval results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
 
 If you want to install from source, clone this repository and run:
 
@@ -68,6 +69,43 @@ run_id = LlmUnlearningRun.launch(
 
 result = LlmUnlearningRun.check_run(run_id)
 new_adapter = llm.get_hf_pipeline_for_run(run_id)
+```
+
+## Quickstart: LLM behavior eval
+
+If you want results as DataFrames, install `hirundo[pandas]` or `hirundo[polars]`.
+
+```python
+from hirundo import (
+    BiasType,
+    EvalRunInfo,
+    HuggingFaceTransformersModel,
+    LlmBehaviorEval,
+    LlmModel,
+    ModelOrRun,
+    PresetType,
+)
+
+llm = LlmModel(
+    model_name="Nemotron-Flash-1B",
+    model_source=HuggingFaceTransformersModel(
+        model_name="nvidia/Nemotron-Flash-1B",
+    ),
+)
+llm_id = llm.create()
+
+run_id = LlmBehaviorEval.launch_eval_run(
+    ModelOrRun.MODEL,
+    EvalRunInfo(
+        name="Nemotron BBQ bias eval",
+        model_id=llm_id,
+        preset_type=PresetType.BBQ_BIAS,
+        bias_type=BiasType.ALL,
+    ),
+)
+
+results = LlmBehaviorEval.check_run_by_id(run_id)
+print(results.summary_brief)
 ```
 
 ## Quickstart: Dataset QA
