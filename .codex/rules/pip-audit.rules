@@ -1,0 +1,11 @@
+prefix_rule(
+    pattern = ["pip-audit"],
+    decision = "allow",
+    justification = "pip-audit is allowed to run",
+    match = [
+        "pip-audit",
+    ],
+    not_match = [
+        "uvx pip-audit",
+    ],
+)
