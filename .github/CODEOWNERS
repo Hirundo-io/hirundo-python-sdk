@@ -6,4 +6,5 @@ uv.lock @Hirundo-io/hirundo-admins @Hirundo-io/hirundo-devops
 pyproject.toml
 hirundo/__init__.py
 docs/_templates/github-pages-redirect.html
+docs/conf.py
 #  ⬆️ Allow changes to versions, but nothing else without CODEOWNERS
