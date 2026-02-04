@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ValidationError
 
-from hirundo import HirundoError
+from hirundo._hirundo_error import HirundoError
 from hirundo._run_status import RunStatus
 from hirundo.logger import get_logger
 
