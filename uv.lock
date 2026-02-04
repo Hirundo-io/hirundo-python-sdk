@@ -617,7 +617,6 @@ name = "hirundo"
 version = "0.2.3.post1"
 source = { editable = "." }
 dependencies = [
-    { name = "build" },
     { name = "docutils" },
     { name = "h11" },
     { name = "httpx" },
@@ -629,7 +628,6 @@ dependencies = [
     { name = "setuptools" },
     { name = "stamina" },
     { name = "tqdm" },
-    { name = "twine" },
     { name = "typer" },
     { name = "types-pyyaml" },
     { name = "types-requests" },
@@ -653,6 +651,7 @@ transformers = [
 dev = [
     { name = "authlib" },
     { name = "basedpyright" },
+    { name = "build" },
     { name = "bumpver" },
     { name = "cryptography" },
     { name = "filelock" },
@@ -687,7 +686,6 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'transformers'", specifier = ">=1.12.0" },
-    { name = "build" },
     { name = "docutils", specifier = "<0.22.0" },
     { name = "h11", specifier = ">=0.16.0" },
     { name = "httpx", specifier = ">=0.27.0" },
@@ -703,7 +701,6 @@ requires-dist = [
     { name = "stamina", specifier = ">=24.2.0" },
     { name = "tqdm", specifier = ">=4.66.5" },
     { name = "transformers", marker = "extra == 'transformers'", specifier = ">=4.57.3" },
-    { name = "twine", specifier = ">=5.0.0" },
     { name = "typer", specifier = ">=0.12.3" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "types-requests", specifier = ">=2.31.0" },
@@ -715,6 +712,7 @@ provides-extras = ["pandas", "polars", "transformers"]
 dev = [
     { name = "authlib", specifier = ">=1.6.6" },
     { name = "basedpyright", specifier = "==1.37.1" },
+    { name = "build" },
     { name = "bumpver", specifier = ">=2025.1131" },
     { name = "cryptography", specifier = ">=44.0.1" },
     { name = "filelock", specifier = ">=3.20.1" },
