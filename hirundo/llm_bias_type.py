@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class BiasType(str, Enum):
+class BBQBiasType(str, Enum):
     ALL = "ALL"
     RACE = "RACE"
     NATIONALITY = "NATIONALITY"

@@ -2,7 +2,7 @@ import logging
 import os
 
 from hirundo import (
-    BiasType,
+    BBQBiasType,
     EvalRunInfo,
     HuggingFaceTransformersModel,
     LlmBehaviorEval,
@@ -29,7 +29,7 @@ def test_llm_behavior_eval():
         name=f"TEST-LLM-BEHAVIOR-EVAL-RUN-{unique_id}",
         model_id=llm_id,
         preset_type=PresetType.BBQ_BIAS,
-        bias_type=BiasType.ALL,
+        bias_type=BBQBiasType.ALL,
     )
     assert llm_id is not None
     if os.getenv("FULL_TEST", "false") == "true":

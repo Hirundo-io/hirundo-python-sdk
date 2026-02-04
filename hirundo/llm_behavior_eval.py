@@ -27,7 +27,7 @@ from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData, _parse_sse_payload
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
-from hirundo.llm_bias_type import BiasType
+from hirundo.llm_bias_type import BBQBiasType
 from hirundo.logger import get_logger
 from hirundo.unzip import download_and_extract_llm_behavior_eval_zip
 
@@ -70,7 +70,7 @@ class EvalRunInfo(BaseModel):
     source_run_id: str | None = None
     file_path: str | None = None
     preset_type: PresetType | None = None
-    bias_type: BiasType | None = None
+    bias_type: BBQBiasType | None = None
     judge_model: JudgeModel | None = None
 
 
@@ -124,7 +124,7 @@ class EvalRunRecord(BaseModel):
     source_run: OutputUnlearningLlmRun | None
     file_path: str | None
     preset_type: PresetType | None
-    bias_type: BiasType | None
+    bias_type: BBQBiasType | None
     judge_model: JudgeModel | None
     run_id: str
     mlflow_run_id: str | None

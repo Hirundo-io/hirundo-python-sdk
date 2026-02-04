@@ -1,7 +1,7 @@
 """Examples for docs/index.rst literalinclude blocks."""
 
 from hirundo import (
-    BiasType,
+    BBQBiasType,
     EvalRunInfo,
     HuggingFaceTransformersModel,
     LlmBehaviorEval,
@@ -24,7 +24,7 @@ run_id = LlmBehaviorEval.launch_eval_run(
         name="Nemotron BBQ bias eval",
         model_id=llm_id,
         preset_type=PresetType.BBQ_BIAS,
-        bias_type=BiasType.ALL,
+        bias_type=BBQBiasType.ALL,
     ),
 )
 

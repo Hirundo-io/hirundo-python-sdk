@@ -25,7 +25,7 @@ from hirundo._run_checking import (
 from hirundo._run_status import RunStatus
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.dataset_qa import HirundoError
-from hirundo.llm_bias_type import BiasType
+from hirundo.llm_bias_type import BBQBiasType
 from hirundo.logger import get_logger
 
 if TYPE_CHECKING:
@@ -227,7 +227,7 @@ class CustomUtility(BaseModel):
 
 class BiasBehavior(BaseModel):
     type: Literal["BIAS"] = "BIAS"
-    bias_type: BiasType
+    bias_type: BBQBiasType
 
 
 class HallucinationType(str, Enum):
@@ -270,7 +270,7 @@ class LlmRunInfo(BaseModel):
 
 
 class BiasRunInfo(BaseModel):
-    bias_type: BiasType
+    bias_type: BBQBiasType
     organization_id: int | None = None
     name: str | None = None
     target_utilities: list[TargetUtility] | None = None
