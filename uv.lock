@@ -546,7 +546,7 @@ wheels = [
 
 [[package]]
 name = "hirundo"
-version = "0.1.21"
+version = "0.2.3.post1"
 source = { editable = "." }
 dependencies = [
     { name = "docutils" },
@@ -630,7 +630,7 @@ requires-dist = [
     { name = "authlib", marker = "extra == 'dev'", specifier = ">=1.6.6" },
     { name = "autodoc-pydantic", marker = "extra == 'docs'", specifier = ">=2.2.0" },
     { name = "basedpyright", marker = "extra == 'dev'", specifier = "==1.37.1" },
-    { name = "bumpver", marker = "extra == 'dev'" },
+    { name = "bumpver", marker = "extra == 'dev'", specifier = ">=2025.1131" },
     { name = "cryptography", marker = "extra == 'dev'", specifier = ">=44.0.1" },
     { name = "docutils", specifier = "<0.22.0" },
     { name = "esbonio", marker = "extra == 'docs'" },

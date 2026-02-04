@@ -7,8 +7,8 @@ packages = ["hirundo"]
 
 [project]
 name = "hirundo"
-version = "0.1.21"
-description = "This package is used to interface with Hirundo's platform. It provides a simple API to optimize your ML datasets."
+version = "0.2.3.post1"
+description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -72,7 +72,7 @@ dev = [
     "authlib>=1.6.6",
     #  ⬆️ Required to fix vulnerability CVE-2025-68158
     "ruff>=0.12.0",
-    "bumpver",
+    "bumpver>=2025.1131",
     "platformdirs>=4.3.6",
     "cryptography>=44.0.1",
     #  ⬆️ Required to fix vulnerability GHSA-79v4-65xg-pq4g
@@ -106,16 +106,17 @@ transformers = ["transformers>=4.57.3", "peft>=0.18.1", "accelerate>=1.12.0"]
 dev = ["hirundo[dev,docs,pandas,polars,transformers]"]
 
 [tool.bumpver]
-current_version = "0.1.3b1"
-version_pattern = "MAJOR.MINOR.PATCH[PYTAGNUM]"
+current_version = "0.2.3.post1"
+version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
 
 [tool.bumpver.file_patterns]
-"pyproject.toml" = ['^version = "{version}"$']
+"pyproject.toml" = ['^version = "{version}"$', '^current_version = "{version}"$']
 "hirundo/__init__.py" = ['^__version__ = "{version}"$']
 "docs/_templates/github-pages-redirect.html" = [
     """<meta http-equiv="refresh" content="0; url=./v{version}/index.html" />""",
     """<link rel="canonical" href="https://hirundo-io.github.io/hirundo/v{version}/index.html" />$""",
 ]
+"docs/conf.py" = ['^release = "{version}"$']
 
 [tool.ruff]
 src = ["hirundo"]
@@ -196,6 +197,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 [tool.ruff.lint.per-file-ignores]
 "tests/*.py" = ["S101"]
 "notebooks/**/*.ipynb" = ["S324"]
+"docs/**/*.py" = ["E402"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

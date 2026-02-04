@@ -46,7 +46,7 @@ jobs:
           fi
       - name: Set up Python
         if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'

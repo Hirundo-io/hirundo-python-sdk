@@ -6,80 +6,78 @@
 .. meta::
    :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
 
-hirundo documentation
-=====================
+Hirundo Python SDK
+==================
 
-Welcome to the ``hirundo`` client library documentation.
+Welcome to the ``hirundo`` client library documentation. This SDK connects to the
+Hirundo platform and provides APIs for:
 
-This package is used to interface with Hirundo's platform.
+- LLM behavior unlearning runs (reducing bias, prompt injections and other unwanted behaviors).
+- Dataset QA for machine learning datasets.
 
-Currently the only supported feature is a simple API to optimize your ML datasets.
+Getting started
+---------------
 
-Optimizing a dataset
---------------------
+Install the SDK:
 
-You do not need to share any of your code to optimize your dataset.
+.. code-block:: bash
 
-Currently ``hirundo`` supports the following dataset types:
-   - (Multi-class) Classification datasets
-   - Object Detection datasets
+   pip install hirundo
 
-Support dataset storage configs include:
-   - Google Cloud (GCP) Storage
-   - Amazon Web Services (AWS) S3
-   - Git LFS (Large File Storage) repositories (e.g. GitHub or HuggingFace)
+Configure API access:
 
-Optimizing a classification dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: bash
 
-Currently ``hirundo`` requires a CSV file with the following columns (all columns are required):
-   - ``image_path``: The location of the image within the dataset ``data_root_url``
-   - ``class_name``: The semantic label, i.e. the class name of the class that the image was annotated as belonging to
+   hirundo setup
 
-And outputs two Pandas DataFrames with the dataset columns as well as:
+This writes ``API_KEY`` (and optionally ``API_HOST``) to a local ``.env`` file or
+``~/.hirundo.conf`` for subsequent SDK usage.
 
-Suspect DataFrame (filename: `mislabel_suspects.csv`) columns:
-   - ``suspect_score``: mislabel suspect score
-   - ``suspect_level``: mislabel suspect level
-   - ``suspect_rank``: mislabel suspect ranking
-   - ``suggested_class_name``: suggested semantic label
-   - ``suggested_class_conf``: suggested semantic label confidence
+LLM behavior unlearning
+-----------------------
 
-Errors and warnings DataFrame (filename: `invalid_data.csv`) columns:
-   - ``status``: status message (one of ``NO_LABELS`` / ``MISSING_IMAGE`` / ``INVALID_IMAGE``)
+The SDK can launch unlearning runs to reduce unwanted behaviors in LLMs. A run
+targets one or more behaviors (bias, prompt injection, or custom datasets)
+and returns an adapter that can be used with Hugging Face Transformers pipelines.
 
-Optimizing an object detection (OD) dataset
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Example:
 
-Currently ``hirundo`` requires a CSV file with the following columns (all columns are required):
-   - ``image_path``: The location of the image within the dataset ``data_root_url``
-   - ``object_id``: The ID of the bounding box within the dataset. Used to indicate object suspects
-   - ``class_name``: Object semantic label, i.e. the class name of the object that was annotated
-   - ``xmin``: leftmost horizontal pixel coordinate of the object's bounding box
-   - ``ymin``: uppermost vertical pixel coordinate of the object's bounding box
-   - ``xmax``: rightmost horizontal pixel coordinate of the object's bounding box
-   - ``ymax``: lowermost vertical pixel coordinate of the object's bounding box
+.. literalinclude:: llm_unlearning_example.py
+   :language: python
 
-And outputs two Pandas DataFrames with the dataset columns as well as:
+Dataset QA
+----------
 
-Suspect DataFrame (filename: `mislabel_suspects.csv`) columns:
-   - ``suspect_score``: object mislabel suspect score
-   - ``suspect_level``: object mislabel suspect level
-   - ``suspect_rank``: object mislabel suspect ranking
-   - ``suggested_class_name``: suggested object semantic label
-   - ``suggested_class_conf``: suggested object semantic label confidence
+You can run QA on datasets without sharing your training code. The API supports
+multiple labeling types, including:
 
-Errors and warnings DataFrame (filename: `invalid_data.csv`) columns:
-   - ``status``: status message (one of ``NO_LABELS`` / ``MISSING_IMAGE`` / ``INVALID_IMAGE`` / ``INVALID_BBOX`` / ``INVALID_BBOX_SIZE``)
+- Single-label classification
+- Object detection
+- Object/semantic/panoptic segmentation
+- Speech-to-text
+- Tabular classification
 
-Google Colab notebooks with more examples
------------------------------------------
-You can find more examples of how to use ``hirundo`` in
-`Google Colab notebooks <https://github.com/Hirundo-io/hirundo-python-sdk/tree/main/notebooks>`_.
+Supported storage backends include:
 
-Package contents
-----------------
+- Amazon S3
+- Google Cloud Storage (GCS)
+- Git repositories with LFS (GitHub, Hugging Face)
+
+Example:
+
+.. literalinclude:: dataset_qa_example.py
+   :language: python
+
+API reference
+-------------
+
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 2
 
    modules
+
+Google Colab notebooks
+----------------------
+
+You can find more examples in the
+`Google Colab notebooks <https://github.com/Hirundo-io/hirundo-python-sdk/tree/main/notebooks>`_.
