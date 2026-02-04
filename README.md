@@ -2,9 +2,9 @@
 
 The Hirundo Python SDK lets you:
 
-- Run dataset QA for ML datasets (classification, object detection, and more).
 - Launch and monitor LLM behavior unlearning runs.
-- Fetch QA results as pandas or polars DataFrames.
+- Run dataset QA for ML datasets (classification, object detection, and more).
+- Fetch QA results as `pandas` or `polars` DataFrames.
 
 This SDK requires access to a Hirundo server (SaaS, VPC, or on-prem).
 
@@ -21,8 +21,8 @@ pip install hirundo
 
 Optional extras:
 
-- Dataset QA results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
 - LLM behavior unlearning (Transformers + PEFT): `pip install hirundo[transformers]`
+- Dataset QA results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
 
 If you want to install from source, clone this repository and run:
 
@@ -42,7 +42,7 @@ This writes `API_KEY` (and optionally `API_HOST`) to `.env` in the current direc
 
 ## Quickstart: LLM behavior unlearning
 
-Make sure you have the `transformers` extra installed.
+Make sure you have the `transformers` extra installed (`pip install hirundo[transformers]`).
 
 ```python
 from hirundo import (

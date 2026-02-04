@@ -10,9 +10,9 @@ if TYPE_CHECKING:
 
 
 def is_public_name(name: str) -> bool:
-    if name.startswith("_"):
-        return False
     if name.startswith("__") and name.endswith("__"):
+        return False
+    if name.startswith("_"):
         return False
     return True
 

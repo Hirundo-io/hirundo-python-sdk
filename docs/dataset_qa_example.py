@@ -1,30 +1,5 @@
 """Examples for docs/index.rst literalinclude blocks."""
 
-# -- llm-unlearning-example-start
-from hirundo import (
-    BiasRunInfo,
-    BiasType,
-    HuggingFaceTransformersModel,
-    LlmModel,
-    LlmUnlearningRun,
-)
-
-llm = LlmModel(
-    model_name="Nemotron-Flash-1B",
-    model_source=HuggingFaceTransformersModel(
-        model_name="nvidia/Nemotron-Flash-1B",
-    ),
-)
-llm_id = llm.create()
-run_id = LlmUnlearningRun.launch(
-    llm_id,
-    BiasRunInfo(bias_type=BiasType.ALL),
-)
-result = LlmUnlearningRun.check_run(run_id)
-new_adapter = llm.get_hf_pipeline_for_run(run_id)
-# -- llm-unlearning-example-end
-
-# -- dataset-qa-example-start
 import json
 import os
 
@@ -63,4 +38,3 @@ test_dataset = QADataset(
 test_dataset.run_qa()
 results = test_dataset.check_run()
 print(results)
-# -- dataset-qa-example-end

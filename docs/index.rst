@@ -12,7 +12,7 @@ Hirundo Python SDK
 Welcome to the ``hirundo`` client library documentation. This SDK connects to the
 Hirundo platform and provides APIs for:
 
-- LLM behavior unlearning runs (bias, hallucination, and safety behaviors).
+- LLM behavior unlearning runs (reducing bias, prompt injections and other unwanted behaviors).
 - Dataset QA for machine learning datasets.
 
 Getting started
@@ -37,15 +37,13 @@ LLM behavior unlearning
 -----------------------
 
 The SDK can launch unlearning runs to reduce unwanted behaviors in LLMs. A run
-targets one or more behaviors (bias, hallucination, security, or custom datasets)
+targets one or more behaviors (bias, prompt injection, or custom datasets)
 and returns an adapter that can be used with Hugging Face Transformers pipelines.
 
 Example:
 
-.. literalinclude:: _examples.py
+.. literalinclude:: llm_unlearning_example.py
    :language: python
-   :start-after: llm-unlearning-example-start
-   :end-before: llm-unlearning-example-end
 
 Dataset QA
 ----------
@@ -67,10 +65,8 @@ Supported storage backends include:
 
 Example:
 
-.. literalinclude:: _examples.py
+.. literalinclude:: dataset_qa_example.py
    :language: python
-   :start-after: dataset-qa-example-start
-   :end-before: dataset-qa-example-end
 
 API reference
 -------------
