@@ -23,6 +23,7 @@ from hirundo.dataset_qa_results import (
     DataFrameType,
     DatasetQAResults,
 )
+from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
 from hirundo.logger import get_logger
 
 ZIP_FILE_CHUNK_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -150,11 +151,11 @@ def download_and_extract_zip(
         headers=headers,
         timeout=DOWNLOAD_READ_TIMEOUT,
         stream=True,
-    ) as r:
-        r.raise_for_status()
-        with open(zip_file_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
-                f.write(chunk)
+    ) as response:
+        response.raise_for_status()
+        with open(zip_file_path, "wb") as output_file:
+            for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
+                output_file.write(chunk)
         logger.info(
             "Successfully downloaded the result zip file for run ID %s to %s",
             run_id,
@@ -222,6 +223,79 @@ def download_and_extract_zip(
                 object_suspects=object_suspects_df,
                 warnings_and_errors=warnings_and_errors_df,
             )
+
+
+def download_and_extract_llm_behavior_eval_zip(
+    run_id: str,
+    zip_url: str,
+    model_name: str | None = None,
+) -> LlmBehaviorEvalResults[DataFrameType]:
+    """
+    Download and extract the LLM behavior evaluation results zip file.
+
+    Args:
+        run_id: The ID of the LLM behavior eval run.
+        zip_url: The URL of the zip file to download.
+        model_name (optional): The full model name to resolve the folder within the zip.
+
+    Returns:
+        The LLM behavior eval results object.
+    """
+    cache_dir = Path.home() / ".hirundo" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    zip_file_path = cache_dir / f"{run_id}.zip"
+
+    headers = None
+    if Url(zip_url).scheme == "file":
+        zip_url = f"{API_HOST}/llm-behavior-eval/run/local-download" + zip_url.replace(
+            "file://", ""
+        )
+        headers = _get_auth_headers()
+    with requests.get(
+        zip_url,
+        headers=headers,
+        timeout=DOWNLOAD_READ_TIMEOUT,
+        stream=True,
+    ) as response:
+        response.raise_for_status()
+        with open(zip_file_path, "wb") as output_file:
+            for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
+                output_file.write(chunk)
+        logger.info(
+            "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
+            run_id,
+            zip_file_path,
+        )
+
+        if model_name:
+            model_folder = model_name.split("/")[-1]
+            summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
+            summary_full_name = f"responses/{model_folder}/summary_full.csv"
+
+            with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+                filenames = [file.filename for file in zip_file.filelist]
+                if summary_brief_name not in filenames:
+                    raise ValueError(
+                        f"Missing {summary_brief_name} in LLM behavior eval zip for run {run_id}"
+                    )
+                if summary_full_name not in filenames:
+                    raise ValueError(
+                        f"Missing {summary_full_name} in LLM behavior eval zip for run {run_id}"
+                    )
+                with zip_file.open(summary_brief_name) as summary_brief_file:
+                    summary_brief_df = load_df(summary_brief_file)
+                with zip_file.open(summary_full_name) as summary_full_file:
+                    summary_full_df = load_df(summary_full_file)
+        else:
+            summary_brief_df = None
+            summary_full_df = None
+
+        return LlmBehaviorEvalResults[DataFrameType](
+            cached_zip_path=zip_file_path,
+            model_name=model_name,
+            summary_brief=summary_brief_df,
+            summary_full=summary_full_df,
+        )
 
 
 def load_from_zip(

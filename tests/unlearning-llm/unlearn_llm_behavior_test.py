@@ -2,8 +2,8 @@ import logging
 import os
 
 from hirundo import (
+    BBQBiasType,
     BiasRunInfo,
-    BiasType,
     HuggingFaceTransformersModel,
     LlmModel,
     LlmUnlearningRun,
@@ -25,7 +25,7 @@ def test_unlearn_llm_behavior():
     )
     llm_id = llm.create()
     run_info = BiasRunInfo(
-        bias_type=BiasType.ALL,
+        bias_type=BBQBiasType.ALL,
     )
     assert llm_id is not None
     if os.getenv("FULL_TEST", "false") == "true":

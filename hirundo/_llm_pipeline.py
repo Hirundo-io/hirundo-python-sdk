@@ -48,9 +48,11 @@ def get_hf_pipeline_for_run_given_model(
     from transformers.models.auto.tokenization_auto import AutoTokenizer
     from transformers.pipelines import pipeline
 
-    from hirundo.unlearning_llm import (
+    from hirundo._llm_sources import (
         HuggingFaceTransformersModel,
         HuggingFaceTransformersModelOutput,
+    )
+    from hirundo.unlearning_llm import (
         LlmUnlearningRun,
     )
 

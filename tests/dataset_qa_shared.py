@@ -9,7 +9,7 @@ from hirundo import (
     RunArgs,
     StorageConfig,
 )
-from hirundo.dataset_qa import RunStatus
+from hirundo._run_status import RunStatus
 from hirundo.logger import get_logger
 
 logger = get_logger(__name__)

@@ -11,10 +11,10 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
+from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
-    RunStatus,
     aiter_run_events,
     build_status_text_map,
     get_state,
@@ -22,6 +22,7 @@ from hirundo._run_checking import (
     iter_run_events,
     update_progress_from_result,
 )
+from hirundo._run_status import RunStatus
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType
@@ -34,11 +35,7 @@ from hirundo.unzip import download_and_extract_zip
 logger = get_logger(__name__)
 
 
-class HirundoError(Exception):
-    """
-    Custom exception used to indicate errors in `hirundo` dataset QA runs
-    """
-
+class HirundoDatasetQaError(HirundoError):
     pass
 
 

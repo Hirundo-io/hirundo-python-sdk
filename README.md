@@ -3,6 +3,7 @@
 The Hirundo Python SDK lets you:
 
 - Launch and monitor LLM behavior unlearning runs.
+- Run LLM behavior evaluations for bias, hallucination, and prompt injection.
 - Run dataset QA for ML datasets (classification, object detection, and more).
 - Fetch QA results as `pandas` or `polars` DataFrames.
 
@@ -22,7 +23,7 @@ pip install hirundo
 Optional extras:
 
 - LLM behavior unlearning (Transformers + PEFT): `pip install hirundo[transformers]`
-- Dataset QA results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
+- Dataset QA or LLM behavior eval results as DataFrames: `pip install hirundo[pandas]` or `pip install hirundo[polars]`
 
 If you want to install from source, clone this repository and run:
 
@@ -40,120 +41,11 @@ hirundo setup
 
 This writes `API_KEY` (and optionally `API_HOST`) to `.env` in the current directory or `~/.hirundo.conf`.
 
-## Quickstart: LLM behavior unlearning
+## Quickstart examples
 
-Make sure you have the `transformers` extra installed (`pip install hirundo[transformers]`).
-
-```python
-from hirundo import (
-    BiasRunInfo,
-    BiasType,
-    HuggingFaceTransformersModel,
-    LlmModel,
-    LlmUnlearningRun,
-)
-
-llm = LlmModel(
-    model_name="Nemotron-Flash-1B",
-    model_source=HuggingFaceTransformersModel(
-        model_name="nvidia/Nemotron-Flash-1B",
-    ),
-)
-llm_id = llm.create()
-
-run_id = LlmUnlearningRun.launch(
-    llm_id,
-    BiasRunInfo(bias_type=BiasType.ALL),
-)
-
-result = LlmUnlearningRun.check_run(run_id)
-new_adapter = llm.get_hf_pipeline_for_run(run_id)
-```
-
-## Quickstart: Dataset QA
-
-### Classification
-
-```python
-import json
-import os
-
-from hirundo import (
-    HirundoCSV,
-    LabelingType,
-    QADataset,
-    StorageConfig,
-    StorageGCP,
-    StorageTypes,
-)
-
-gcp_bucket = StorageGCP(
-    bucket_name="cifar100bucket",
-    project="Hirundo-global",
-    credentials_json=json.loads(os.environ["GCP_CREDENTIALS"]),
-)
-
-test_dataset = QADataset(
-    name="TEST-GCP cifar 100 classification dataset",
-    labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
-    storage_config=StorageConfig(
-        name="cifar100bucket",
-        type=StorageTypes.GCP,
-        gcp=gcp_bucket,
-    ),
-    data_root_url=gcp_bucket.get_url(path="/pytorch-cifar/data"),
-    labeling_info=HirundoCSV(
-        csv_url=gcp_bucket.get_url(path="/pytorch-cifar/data/cifar100.csv"),
-    ),
-    classes=cifar100_classes,
-)
-
-test_dataset.run_qa()
-results = test_dataset.check_run()
-print(results)
-```
-
-### Object detection
-
-```python
-from hirundo import (
-    GitRepo,
-    HirundoCSV,
-    LabelingType,
-    QADataset,
-    StorageConfig,
-    StorageGit,
-    StorageTypes,
-)
-
-git_storage = StorageGit(
-    repo=GitRepo(
-        name="BDD-100k-validation-dataset",
-        repository_url="https://huggingface.co/datasets/hirundo-io/bdd100k-validation-only",
-    ),
-    branch="main",
-)
-
-test_dataset = QADataset(
-    name="TEST-HuggingFace-BDD-100k-validation-OD-validation-dataset",
-    labeling_type=LabelingType.OBJECT_DETECTION,
-    storage_config=StorageConfig(
-        name="BDD-100k-validation-dataset",
-        type=StorageTypes.GIT,
-        git=git_storage,
-    ),
-    data_root_url=git_storage.get_url(path="/BDD100K Val from Hirundo.zip/bdd100k"),
-    labeling_info=HirundoCSV(
-        csv_url=git_storage.get_url(
-            path="/BDD100K Val from Hirundo.zip/bdd100k/bdd100k.csv"
-        ),
-    ),
-)
-
-test_dataset.run_qa()
-results = test_dataset.check_run()
-print(results)
-```
+The full quickstart examples now live in the Sphinx docs so they can be linted,
+formatted, and type-checked as real Python files. See the examples embedded in
+`docs/index.rst`, which are sourced from `docs/*.py` files.
 
 ## Supported dataset storage
 
