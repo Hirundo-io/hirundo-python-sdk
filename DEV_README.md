@@ -18,7 +18,7 @@ When opening Pull Requests, note that the repository has GitHub Actions which ru
 pip install -r requirements/dev.txt
 ```
 
-Note: You can install and use `uv` as a faster drop-in replacement for `pip`. We have it as part of our dev dependencies for this reason.
+Note: You can [install](https://docs.astral.sh/uv/getting-started/installation/) and use [`uv`](https://docs.astral.sh/uv/) as a faster drop-in replacement for `pip`. We have it as part of our dev dependencies for this reason.
 
 ### Install `git` hooks (optional)
 ### Install `git` hooks (optional)
@@ -36,26 +36,21 @@ ruff format
 
 ### Change packages
 
-#### Update `requirements.txt` files
+#### Update `requirements.txt` files (optional; pre-commit hooks run this automatically)
 
 ```bash
 uv pip compile pyproject.toml
-uv pip compile --extra dev -o requirements/dev.txt -c requirements.txt pyproject.toml
+uv pip compile --group dev -o requirements/dev.txt -c requirements.txt pyproject.toml
 uv pip compile --extra pandas -o requirements/pandas.txt -c requirements.txt pyproject.toml
 uv pip compile --extra polars -o requirements/polars.txt -c requirements.txt pyproject.toml
 uv pip compile --extra docs -o requirements/docs.txt -c requirements.txt pyproject.toml
 uv pip compile --extra transformers -o requirements/transformers.txt -c requirements.txt pyproject.toml
 ```
 
-#### Sync installed packages
+#### Sync installed packages (optional; pre-commit hooks run this automatically)
 
 ```bash
-uv pip sync requirements/dev.txt requirements/pandas.txt requirements/polars.txt requirements/docs.txt requirements/transformers.txt
-```
-or
-
-```bash
-uv sync --extra dev --extra pandas --extra polars --extra docs --extra transformers
+uv sync --all-groups
 ```
 
 ### Build process
