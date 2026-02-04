@@ -75,9 +75,14 @@ Supported storage backends include:
 - Google Cloud Storage (GCS)
 - Git repositories with LFS (GitHub, Hugging Face)
 
-Example:
+Classification example:
 
-.. literalinclude:: dataset_qa_example.py
+.. literalinclude:: dataset_qa_classification_example.py
+   :language: python
+
+Object detection example:
+
+.. literalinclude:: dataset_qa_object_detection_example.py
    :language: python
 
 API reference
