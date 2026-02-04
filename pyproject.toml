@@ -62,7 +62,7 @@ dev = [
     "types-setuptools>=69.5.0",
     "pytest>=8.2.0",
     "pytest-asyncio>=0.23.6",
-    "uv>=0.9.6",
+    "uv>=0.9.29",
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
     "virtualenv>=20.36.1",
