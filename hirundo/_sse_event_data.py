@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 class SseRunEventData(BaseModel):
     id: str
-    state: RunStatus
+    state: RunStatus | None
     result: str | dict | None
 
 
