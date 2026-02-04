@@ -57,9 +57,10 @@ jobs:
           uv sync --group dev
       - name: Run commands on Windows
         if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
+        shell: pwsh
         run: |
           uv venv
-          .venv\Scripts\activate
+          & .\.venv\Scripts\Activate.ps1
           uv sync --group dev
       - name: Run PyTest on Linux and macOS
         if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
