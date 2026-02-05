@@ -9,7 +9,7 @@
 project = "hirundo"
 copyright = "2024, Hirundo"  # noqa: A001  Name is specified by Sphinx
 author = "Hirundo"
-release = "0.2.3.post1"
+release = "0.2.3.post2"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

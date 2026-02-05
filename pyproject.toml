@@ -7,7 +7,7 @@ packages = ["hirundo"]
 
 [project]
 name = "hirundo"
-version = "0.2.3.post1"
+version = "0.2.3.post2"
 description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
@@ -106,7 +106,7 @@ transformers = ["transformers>=4.57.3", "peft>=0.18.1", "accelerate>=1.12.0"]
 dev = ["hirundo[dev,docs,pandas,polars,transformers]"]
 
 [tool.bumpver]
-current_version = "0.2.3.post1"
+current_version = "0.2.3.post2"
 version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
 
 [tool.bumpver.file_patterns]
