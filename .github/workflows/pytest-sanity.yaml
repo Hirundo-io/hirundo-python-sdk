@@ -2,7 +2,7 @@ name: Run sanity tests with PyTest
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened, assigned]
   push:
     branches:
       - "main"
