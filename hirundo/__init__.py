@@ -1,3 +1,13 @@
+from ._hirundo_error import HirundoError
+from ._llm_sources import (
+    HuggingFaceTransformersModel,
+    HuggingFaceTransformersModelOutput,
+    LlmSources,
+    LlmSourcesOutput,
+    LocalTransformersModel,
+    ModelSourceType,
+)
+from ._run_status import RunStatus
 from .dataset_enum import (
     DatasetMetadataType,
     LabelingType,
@@ -5,7 +15,7 @@ from .dataset_enum import (
 )
 from .dataset_qa import (
     ClassificationRunArgs,
-    HirundoError,
+    HirundoDatasetQaError,
     ModalityType,
     ObjectDetectionRunArgs,
     QADataset,
@@ -23,6 +33,17 @@ from .labeling import (
     KeylabsObjSegImages,
     KeylabsObjSegVideo,
 )
+from .llm_behavior_eval import (
+    EvalRunInfo,
+    EvalRunRecord,
+    HirundoLlmBehaviorEvalError,
+    JudgeModel,
+    LlmBehaviorEval,
+    ModelOrRun,
+    PresetType,
+)
+from .llm_behavior_eval_results import LlmBehaviorEvalResults
+from .llm_bias_type import BBQBiasType, UnqoverBiasType
 from .storage import (
     StorageConfig,
     StorageGCP,
@@ -32,27 +53,34 @@ from .storage import (
 )
 from .unlearning_llm import (
     BiasRunInfo,
-    BiasType,
-    HuggingFaceTransformersModel,
     LlmModel,
-    LlmSources,
     LlmUnlearningRun,
-    LocalTransformersModel,
 )
 from .unzip import load_df, load_from_zip
 
 __all__ = [
     "COCO",
     "YOLO",
-    "HirundoError",
     "HirundoCSV",
+    "HirundoError",
+    "HirundoDatasetQaError",
+    "HirundoLlmBehaviorEvalError",
     "KeylabsAuth",
     "KeylabsObjDetImages",
     "KeylabsObjDetVideo",
     "KeylabsObjSegImages",
     "KeylabsObjSegVideo",
+    "BBQBiasType",
+    "UnqoverBiasType",
     "QADataset",
+    "EvalRunInfo",
+    "EvalRunRecord",
+    "JudgeModel",
+    "LlmBehaviorEval",
+    "LlmBehaviorEvalResults",
     "ModalityType",
+    "ModelOrRun",
+    "PresetType",
     "RunArgs",
     "ClassificationRunArgs",
     "ObjectDetectionRunArgs",
@@ -69,14 +97,17 @@ __all__ = [
     "StorageConfig",
     "DatasetQAResults",
     "BiasRunInfo",
-    "BiasType",
     "HuggingFaceTransformersModel",
+    "HuggingFaceTransformersModelOutput",
     "LlmModel",
     "LlmSources",
+    "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
     "load_df",
     "load_from_zip",
+    "ModelSourceType",
+    "RunStatus",
 ]
 
 __version__ = "0.2.3.post1"

@@ -17,6 +17,9 @@ Submodules
    hirundo.git
    hirundo.labeling
    hirundo.logger
+   hirundo.llm_behavior_eval
+   hirundo.llm_behavior_eval_results
+   hirundo.llm_bias_type
    hirundo.storage
    hirundo.unlearning_llm
    hirundo.unzip
