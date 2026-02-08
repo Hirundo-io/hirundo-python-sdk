@@ -1,0 +1,13 @@
+prefix_rule(
+    pattern = ["UV_CACHE_DIR=/tmp/uv-cache", "uv", "run", "pip-audit"],
+    decision = "allow",
+    justification = "pip-audit is allowed to run",
+    match = [
+        "'UV_CACHE_DIR=/tmp/uv-cache' uv run pip-audit",
+    ],
+    not_match = [
+        "uv run abc",
+        "uv run pip-audit",
+        "uvx pip-audit",
+    ],
+)

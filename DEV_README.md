@@ -22,41 +22,18 @@ ruff format
 
 ### Install dev dependencies
 
+Note: You need to [install](https://docs.astral.sh/uv/getting-started/installation/) and use [`uv`](https://docs.astral.sh/uv/) as a faster drop-in replacement for `pip` for our project.
+
+Then you can install the dependencies with:
+
 ```bash
-pip install -r requirements/dev.txt
+uv sync --all-groups
 ```
 
-Optional: install and use `uv` as a faster replacement for `pip`.
-
-### Install git hooks (optional)
+### Install `git` hooks (optional)
 
 ```bash
 pre-commit install
-```
-
-### Change dependencies
-
-#### Update `requirements.txt` files
-
-```bash
-uv pip compile pyproject.toml
-uv pip compile --extra dev -o requirements/dev.txt -c requirements.txt pyproject.toml
-uv pip compile --extra pandas -o requirements/pandas.txt -c requirements.txt pyproject.toml
-uv pip compile --extra polars -o requirements/polars.txt -c requirements.txt pyproject.toml
-uv pip compile --extra docs -o requirements/docs.txt -c requirements.txt pyproject.toml
-uv pip compile --extra transformers -o requirements/transformers.txt -c requirements.txt pyproject.toml
-```
-
-#### Sync installed packages
-
-```bash
-uv pip sync requirements/dev.txt requirements/pandas.txt requirements/polars.txt requirements/docs.txt requirements/transformers.txt
-```
-
-or
-
-```bash
-uv sync --extra dev --extra pandas --extra polars --extra docs --extra transformers
 ```
 
 ### Build the package
@@ -67,13 +44,9 @@ python -m build
 
 ### Documentation
 
-We use Sphinx to generate documentation. To build locally, install the docs extras and run:
+We use `sphinx` to generate our documentation. Note: If you want to manually create the HTML files from your documentation, you must install the `dev` dependency group.
 
-```bash
-pip install -r requirements/docs.txt
-cd docs
-make html
-```
+#### Documentation releases
 
 Documentation releases are published via GitHub Actions when changes are merged to `main`.
 

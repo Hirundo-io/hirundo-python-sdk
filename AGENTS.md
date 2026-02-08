@@ -1,10 +1,17 @@
 # Repository Guidelines
 
-## Instructions
+## Commands
 
-- Always use context7 when I need code generation, setup or configuration steps, or
-  library/API documentation. This means you should automatically use the Context7 MCP
-  tools to resolve library id and get library docs without me having to explicitly ask.
+Run from repo root unless noted.
+Activate the local virtualenv before running any Python/uv commands: `source .venv/bin/activate`.
+
+- Install deps (preferred): `uv sync --all-groups`
+- Lint: `ruff check .`
+- Format: `ruff format .`
+- Type check: `basedpyright`
+- Tests: `pytest`
+- Build: `python -m build`
+- Pre-commit hooks: `pre-commit install` (optional, but recommended)
 
 ## Project Structure & Module Organization
 
@@ -12,23 +19,23 @@
 - `tests/` contains pytest-based test coverage.
 - `docs/` and `source/` contain Sphinx documentation assets.
 - `notebooks/` and `on_prem_test_notebook.ipynb` provide example workflows.
-- `requirements/` stores compiled dependency sets (for dev, docs, pandas, polars, transformers).
 
-## Build, Test, and Development Commands
+## Project Rules
 
-- `uv sync --group dev`: fast dependency sync with extras.
-- `ruff check` / `ruff format`: lint and auto-format (run before PRs).
-- `pytest`: run the test suite.
-- `python -m build`: build the package artifacts.
-- `pre-commit install`: enable git hooks (optional, but recommended).
+- Tests are integration-heavy and often require credentials plus opt-in
+  env flags (`FULL_TEST` / `RUN_*`). See `tests/dataset_qa_shared.py`.
+- HTTP calls should use the retrying shim and error helper:
+  `from hirundo._http import requests, raise_for_status_with_reason`.
+- Use `hirundo.logger.get_logger(__name__)` for logging.
+- Auth loads from `.env` or `~/.hirundo.conf` via `hirundo/_env.py`.
+- Avoid 1-3 character variable names in new or refactored code. Use descriptive names
+  even in small scopes.
 
 ## Coding Style & Naming Conventions
 
 - Python 3.10+ codebase, 4-space indentation, line length 88 (Ruff defaults).
 - Follow Ruff linting rules (`pyproject.toml`), with tests allowing `assert` usage.
 - Prefer descriptive names; avoid short, cryptic identifiers in new code.
-- Avoid 1-3 character variable names in new or refactored code. Use descriptive names
-  even in small scopes.
 
 ## Testing Guidelines
 
@@ -36,10 +43,9 @@
 - Place tests in `tests/`; name files `test_*.py`.
 - Run locally with `pytest` before opening a PR (CI runs lint + integration tests).
 
-## Commit & Pull Request Guidelines
+## Pull Request Guidelines
 
-- Recent commit history favors `SDK-<id>: <summary>` (e.g., `SDK-78: Migrate to basedpyright`).
-- Include issue/PR references when available (e.g., `(#190)`).
+- PR titles should be `SDK-<id>: <summary>` (e.g., `SDK-78: Migrate to basedpyright`).
 - PRs should describe changes clearly and confirm `ruff check` and `ruff format` passed.
 
 ## Security & Configuration Tips
