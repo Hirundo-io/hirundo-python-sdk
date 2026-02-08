@@ -648,10 +648,13 @@ transformers = [
 ]
 
 [package.dev-dependencies]
+deploy = [
+    { name = "build" },
+    { name = "twine" },
+]
 dev = [
     { name = "authlib" },
     { name = "basedpyright" },
-    { name = "build" },
     { name = "bumpver" },
     { name = "cryptography" },
     { name = "filelock" },
@@ -665,7 +668,6 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "ruff" },
-    { name = "twine" },
     { name = "types-setuptools" },
     { name = "uv" },
     { name = "virtualenv" },
@@ -710,10 +712,13 @@ requires-dist = [
 provides-extras = ["pandas", "polars", "transformers"]
 
 [package.metadata.requires-dev]
+deploy = [
+    { name = "build" },
+    { name = "twine", specifier = ">=5.0.0" },
+]
 dev = [
     { name = "authlib", specifier = ">=1.6.6" },
     { name = "basedpyright", specifier = "==1.37.1" },
-    { name = "build" },
     { name = "bumpver", specifier = ">=2025.1131" },
     { name = "cryptography", specifier = ">=44.0.1" },
     { name = "filelock", specifier = ">=3.20.1" },
@@ -727,7 +732,6 @@ dev = [
     { name = "pytest", specifier = ">=8.2.0" },
     { name = "pytest-asyncio", specifier = ">=0.23.6" },
     { name = "ruff", specifier = ">=0.12.0" },
-    { name = "twine", specifier = ">=5.0.0" },
     { name = "types-setuptools", specifier = ">=69.5.0" },
     { name = "uv", specifier = ">=0.9.29" },
     { name = "virtualenv", specifier = ">=20.36.1" },

@@ -43,7 +43,7 @@ jobs:
         run: |
           uv venv
           source .venv/bin/activate
-          uv sync --group dev
+          uv sync --only-group deploy --no-install-project
           python -m build
       - name: Publish package distributions to TestPyPI (with act)
         env:

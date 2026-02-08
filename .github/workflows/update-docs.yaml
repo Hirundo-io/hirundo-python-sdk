@@ -40,7 +40,7 @@ jobs:
         run: |
           uv venv
           source .venv/bin/activate
-          uv sync --group docs --no-install-project
+          uv sync --only-group docs --no-install-project
           # Extract version from hirundo/__init__.py with error handling
           if [ -f "hirundo/__init__.py" ]; then
             export VERSION=$(python -c "import re; content=open('hirundo/__init__.py').read(); match=re.search(r'__version__ = [\"\'](.*?)[\"\']', content); print(match.group(1) if match else 'unknown')" 2>/dev/null || echo 'unknown')
