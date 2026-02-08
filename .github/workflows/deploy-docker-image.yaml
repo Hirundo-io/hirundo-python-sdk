@@ -21,7 +21,7 @@ permissions:
 jobs:
   build-and-push:
       if: (startsWith(github.ref, 'refs/tags/v') && contains(github.ref, '+on-prem')) || github.event_name == 'pull_request'
-      runs-on: ubuntu-latest
+      runs-on: ubuntu-latest-small-docker
 
       steps:
       - name: Checkout repository
