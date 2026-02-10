@@ -24,6 +24,7 @@ class DatasetMetadataType(str, Enum):
     HIRUNDO_CSV = "HirundoCSV"
     COCO = "COCO"
     YOLO = "YOLO"
+    HuggingFaceAudio = "HuggingFaceAudio"
     KeylabsObjDetImages = "KeylabsObjDetImages"
     KeylabsObjDetVideo = "KeylabsObjDetVideo"
     KeylabsObjSegImages = "KeylabsObjSegImages"
@@ -44,3 +45,4 @@ class StorageTypes(str, Enum):
     """
     Local storage config is only supported for on-premises installations.
     """
+    HUGGINGFACE = "HuggingFace"

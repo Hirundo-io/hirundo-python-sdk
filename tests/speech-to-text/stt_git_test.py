@@ -3,11 +3,11 @@ import os
 
 import pytest
 from hirundo import (
-    Domain,
     GitPlainAuth,
     GitRepo,
     HirundoCSV,
     LabelingType,
+    ModalityType,
     QADataset,
     StorageConfig,
     StorageGit,
@@ -16,8 +16,8 @@ from hirundo import (
 from tests.dataset_qa_shared import (
     cleanup,
     dataset_qa_sync_test,
-    get_unique_id,
 )
+from tests.testing_utils import get_unique_id
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ test_storage_git = StorageGit(
 )
 test_dataset = QADataset(
     name=f"TEST-STT-MASC-dataset{unique_id}",
-    domain=Domain.SPEECH,
+    modality=ModalityType.SPEECH,
     labeling_type=LabelingType.SPEECH_TO_TEXT,
     language="ar",
     storage_config=StorageConfig(

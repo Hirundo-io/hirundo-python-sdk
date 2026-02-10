@@ -1,16 +1,24 @@
-# Hirundo Python SDK
+# Hirundo Python SDK Development
 
 This repo contains the source code for the Hirundo Python SDK.
 
 ## Usage
 
-To learn about how to use this SDK, please visit the [http://docs.hirundo.io/](documentation) or see the Google Colab examples.
+For SDK usage, see:
 
-Note: Currently we only support the main CPython release 3.9, 3.10, 3.11, 3.12 & 3.13. PyPy support may be introduced in the future.
+- Documentation site: [https://docs.hirundo.io/](https://docs.hirundo.io/)
+- Example notebooks: [notebooks/](notebooks/)
 
-## Development
+Note: We currently support CPython 3.10, 3.11, 3.12, and 3.13. PyPy support may be introduced in the future.
 
-When opening Pull Requests, note that the repository has GitHub Actions which run on CI/CD to lint the code and run a suite of integration tests. Please do not open a Pull Request without first installing the dev dependencies and running `ruff check` and `ruff format` on your changes.
+## Development workflow
+
+Before opening a PR, install dev dependencies and run Ruff:
+
+```bash
+ruff check
+ruff format
+```
 
 ### Install dev dependencies
 
@@ -18,23 +26,15 @@ When opening Pull Requests, note that the repository has GitHub Actions which ru
 pip install -r requirements/dev.txt
 ```
 
-Note: You can install and use `uv` as a faster drop-in replacement for `pip`. We have it as part of our dev dependencies for this reason.
+Optional: install and use `uv` as a faster replacement for `pip`.
 
-### Install `git` hooks (optional)
-### Install `git` hooks (optional)
+### Install git hooks (optional)
 
 ```bash
 pre-commit install
 ```
 
-### Check lint and apply formatting with Ruff (optional; pre-commit hooks run this automatically)
-
-```bash
-ruff check
-ruff format
-```
-
-### Change packages
+### Change dependencies
 
 #### Update `requirements.txt` files
 
@@ -44,26 +44,39 @@ uv pip compile --extra dev -o requirements/dev.txt -c requirements.txt pyproject
 uv pip compile --extra pandas -o requirements/pandas.txt -c requirements.txt pyproject.toml
 uv pip compile --extra polars -o requirements/polars.txt -c requirements.txt pyproject.toml
 uv pip compile --extra docs -o requirements/docs.txt -c requirements.txt pyproject.toml
+uv pip compile --extra transformers -o requirements/transformers.txt -c requirements.txt pyproject.toml
 ```
 
 #### Sync installed packages
 
 ```bash
-uv pip sync requirements/dev.txt requirements/polars.txt
+uv pip sync requirements/dev.txt requirements/pandas.txt requirements/polars.txt requirements/docs.txt requirements/transformers.txt
 ```
 
-### Build process
+or
 
-To build the package, run:
-`python -m build`
+```bash
+uv sync --extra dev --extra pandas --extra polars --extra docs --extra transformers
+```
+
+### Build the package
+
+```bash
+python -m build
+```
 
 ### Documentation
 
-We use `sphinx` to generate our documentation. Note: If you want to manually create the HTML files from your documentation, you must install `requirements/docs.txt` instead of/in addition to `requirements/dev.txt`.
+We use Sphinx to generate documentation. To build locally, install the docs extras and run:
 
-#### Documentation releases
-Documentation releases are published via GitHub Actions on merges to `main`.
+```bash
+pip install -r requirements/docs.txt
+cd docs
+make html
+```
 
-### PyPI package releases
+Documentation releases are published via GitHub Actions when changes are merged to `main`.
 
-New versions of `hirundo` are released via a GitHub Actions workflow that creates a Pull Request with the version name and description, which is then published to PyPI when this Pull Request is merged.
+### PyPI releases
+
+New versions of `hirundo` are released via a GitHub Actions workflow that opens a PR with the new version. The package is published to PyPI when that PR is merged.

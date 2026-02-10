@@ -1,4 +1,4 @@
-import typing
+import datetime
 from pathlib import Path
 
 import pydantic
@@ -20,13 +20,13 @@ S3_PREFIX = "s3://"
 
 
 class StorageS3Base(BaseModel):
-    endpoint_url: typing.Optional[Url] = None
+    endpoint_url: Url | None = None
     bucket_url: S3BucketUrl
     region_name: str
     # ⬆️ We could restrict this, but if we're allowing custom endpoints then the validation may be wrong
-    access_key_id: typing.Optional[str] = None
+    access_key_id: str | None = None
 
-    def get_url(self, path: typing.Union[str, Path]) -> Url:
+    def get_url(self, path: str | Path) -> Url:
         """
         Get the full URL for a file in the S3 bucket
 
@@ -45,7 +45,7 @@ class StorageS3Base(BaseModel):
 
 
 class StorageS3(StorageS3Base):
-    secret_access_key: typing.Optional[str] = None
+    secret_access_key: str | None = None
 
 
 class StorageS3Out(StorageS3Base):
@@ -56,7 +56,7 @@ class StorageGCPBase(BaseModel):
     bucket_name: str
     project: str
 
-    def get_url(self, path: typing.Union[str, Path]) -> Url:
+    def get_url(self, path: str | Path) -> Url:
         """
         Get the full URL for a file in the GCP bucket
 
@@ -73,7 +73,7 @@ class StorageGCPBase(BaseModel):
 
 
 class StorageGCP(StorageGCPBase):
-    credentials_json: typing.Optional[dict] = None
+    credentials_json: dict | None = None
 
 
 class StorageGCPOut(StorageGCPBase):
@@ -104,9 +104,7 @@ class StorageGCPOut(StorageGCPBase):
 #     account_url: str
 
 
-def get_git_repo_url(
-    repo_url: typing.Union[str, Url], path: typing.Union[str, Path]
-) -> Url:
+def get_git_repo_url(repo_url: str | Url, path: str | Path) -> Url:
     """
     Get the full URL for a file in the git repository
 
@@ -127,12 +125,12 @@ def get_git_repo_url(
 
 
 class StorageGit(BaseModel):
-    repo_id: typing.Optional[int] = None
+    repo_id: int | None = None
     """
     The ID of the Git repository in the Hirundo system.
     Either :code:`repo_id` or :code:`repo` must be provided.
     """
-    repo: typing.Optional[GitRepo] = None
+    repo: GitRepo | None = None
     """
     The Git repository to link to.
     Either :code:`repo_id` or :code:`repo` must be provided.
@@ -148,7 +146,7 @@ class StorageGit(BaseModel):
             raise ValueError("Either repo_id or repo must be provided")
         return self
 
-    def get_url(self, path: typing.Union[str, Path]) -> Url:
+    def get_url(self, path: str | Path) -> Url:
         """
         Get the full URL for a file in the git repository
 
@@ -171,7 +169,7 @@ class StorageGitOut(BaseModel):
     repo: GitRepoOut
     branch: str
 
-    def get_url(self, path: typing.Union[str, Path]) -> Url:
+    def get_url(self, path: str | Path) -> Url:
         """
         Get the full URL for a file in the git repository
 
@@ -189,12 +187,12 @@ class StorageGitOut(BaseModel):
 
 
 class StorageConfig(BaseModel):
-    id: typing.Optional[int] = None
+    id: int | None = None
     """
     The ID of the :code:`StorageConfig` in the Hirundo system.
     """
 
-    organization_id: typing.Optional[int] = None
+    organization_id: int | None = None
     """
     The ID of the organization that the :code:`StorageConfig` belongs to.
     If not provided, it will be assigned to your default organization.
@@ -204,7 +202,7 @@ class StorageConfig(BaseModel):
     """
     A name to identify the :code:`StorageConfig` in the Hirundo system.
     """
-    type: typing.Optional[StorageTypes] = pydantic.Field(
+    type: StorageTypes | None = pydantic.Field(
         examples=[
             StorageTypes.S3,
             StorageTypes.GCP,
@@ -220,7 +218,7 @@ class StorageConfig(BaseModel):
     - :code:`Azure` (coming soon)
     - :code:`Git`
     """
-    s3: typing.Optional[StorageS3] = pydantic.Field(
+    s3: StorageS3 | None = pydantic.Field(
         default=None,
         examples=[
             {
@@ -238,7 +236,7 @@ class StorageConfig(BaseModel):
     The Amazon Web Services (AWS) S3 storage config details.
     Use this if you want to link to an S3 bucket.
     """
-    gcp: typing.Optional[StorageGCP] = pydantic.Field(
+    gcp: StorageGCP | None = pydantic.Field(
         default=None,
         examples=[
             None,
@@ -281,7 +279,7 @@ class StorageConfig(BaseModel):
     #         None,
     #     ],
     # )  TODO: Azure storage config is coming soon
-    git: typing.Optional[StorageGit] = pydantic.Field(
+    git: StorageGit | None = pydantic.Field(
         default=None,
         examples=[
             None,
@@ -340,7 +338,7 @@ class StorageConfig(BaseModel):
 
     @staticmethod
     def list(
-        organization_id: typing.Optional[int] = None,
+        organization_id: int | None = None,
     ) -> list["ResponseStorageConfig"]:
         """
         Lists all the :code:`StorageConfig`'s created by user's default organization
@@ -440,7 +438,10 @@ class ResponseStorageConfig(BaseModel):
     type: StorageTypes
     organization_name: str
     creator_name: str
-    s3: typing.Optional[StorageS3Out]
-    gcp: typing.Optional[StorageGCPOut]
+    s3: StorageS3Out | None
+    gcp: StorageGCPOut | None
     # azure: typing.Optional[StorageAzureOut]
-    git: typing.Optional[StorageGitOut]
+    git: StorageGitOut | None
+
+    created_at: datetime.datetime
+    updated_at: datetime.datetime

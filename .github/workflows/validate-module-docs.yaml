@@ -1,0 +1,24 @@
+name: "Docs: Module RST Coverage"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, assigned]
+  merge_group:
+    types: [checks_requested]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  module-docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - name: Validate module docs coverage
+        run: python scripts/validate_module_docs.py

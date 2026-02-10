@@ -11,11 +11,11 @@ DataFrameType = TypeAliasType("DataFrameType", None)
 if has_pandas:
     from hirundo._dataframe import pd
 
-    DataFrameType = TypeAliasType("DataFrameType", typing.Union[pd.DataFrame, None])
+    DataFrameType = TypeAliasType("DataFrameType", pd.DataFrame | None)
 if has_polars:
     from hirundo._dataframe import pl
 
-    DataFrameType = TypeAliasType("DataFrameType", typing.Union[pl.DataFrame, None])
+    DataFrameType = TypeAliasType("DataFrameType", pl.DataFrame | None)
 
 
 T = typing.TypeVar("T")
@@ -32,7 +32,7 @@ class DatasetQAResults(BaseModel, typing.Generic[T]):
     """
     A polars/pandas DataFrame containing the results of the data QA run
     """
-    object_suspects: typing.Optional[T]
+    object_suspects: T | None
     """
     A polars/pandas DataFrame containing the object-level results of the data QA run
     """

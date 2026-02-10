@@ -28,10 +28,11 @@ jobs:
         with:
           ref: ${{ github.event.ref }}
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: 3.9
           cache: 'pip'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
       - name: Bump version with `bumpver` then push tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,7 +44,10 @@ jobs:
           git config user.name "GitHub Actions [release-bot]"
           git config user.email "github-actions@hirundo.io"
           git checkout -b release-${{ github.event.inputs.version }}
-          bumpver update --set-version ${{ github.event.inputs.version }} --commit --push
-          git push -u origin release-${{ github.event.inputs.version }}
+          bumpver update --set-version ${{ github.event.inputs.version }} --commit
+          uv lock
+          git add uv.lock
+          git commit -m "Bump 'uv.lock' version to ${{ github.event.inputs.version }}"
+          git push --set-upstream origin release-${{ github.event.inputs.version }}
           gh pr create -a ${{ github.event.sender.login || github.actor }} --title "v${{ github.event.inputs.version }}" \
             --body "" --label "${{ github.event.inputs.test == 'true' && 'test' || 'release' }}"

@@ -32,9 +32,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Fetch all history for all tags and branches
-      - uses: actions/setup-python@v3
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.9"
+          cache: 'pip'
       - name: Install dependencies
         timeout-minutes: 5
         env:

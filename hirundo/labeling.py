@@ -3,10 +3,8 @@ from abc import ABC
 
 from pydantic import BaseModel, Field
 
+from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType
-
-if typing.TYPE_CHECKING:
-    from hirundo._urls import HirundoUrl
 
 
 class Metadata(BaseModel, ABC, frozen=True):
@@ -21,7 +19,7 @@ class HirundoCSV(Metadata, frozen=True):
     type: typing.Literal[DatasetMetadataType.HIRUNDO_CSV] = (
         DatasetMetadataType.HIRUNDO_CSV
     )
-    csv_url: "HirundoUrl"
+    csv_url: HirundoUrl
     """
     The URL to access the dataset metadata CSV file.
     e.g. `s3://my-bucket-name/my-folder/my-metadata.csv`, `gs://my-bucket-name/my-folder/my-metadata.csv`,
@@ -36,7 +34,7 @@ class COCO(Metadata, frozen=True):
     """
 
     type: typing.Literal[DatasetMetadataType.COCO] = DatasetMetadataType.COCO
-    json_url: "HirundoUrl"
+    json_url: HirundoUrl
     """
     The URL to access the dataset metadata JSON file.
     e.g. `s3://my-bucket-name/my-folder/my-metadata.json`, `gs://my-bucket-name/my-folder/my-metadata.json`,
@@ -47,8 +45,18 @@ class COCO(Metadata, frozen=True):
 
 class YOLO(Metadata, frozen=True):
     type: typing.Literal[DatasetMetadataType.YOLO] = DatasetMetadataType.YOLO
-    data_yaml_url: "typing.Optional[HirundoUrl]" = None
-    labels_dir_url: "HirundoUrl"
+    data_yaml_url: HirundoUrl | None = None
+    labels_dir_url: HirundoUrl
+
+
+class HuggingFaceAudio(Metadata, frozen=True):
+    type: typing.Literal[DatasetMetadataType.HuggingFaceAudio] = (
+        DatasetMetadataType.HuggingFaceAudio
+    )
+    audio_column: str
+    text_column: str
+    subset: str | None = None
+    split: str | None = None
 
 
 class KeylabsAuth(BaseModel):
@@ -63,7 +71,7 @@ class Keylabs(Metadata, frozen=True):
     Keylabs project ID.
     """
 
-    labels_dir_url: "HirundoUrl"
+    labels_dir_url: HirundoUrl
     """
     URL to the directory containing the Keylabs labels.
     """
@@ -73,11 +81,11 @@ class Keylabs(Metadata, frozen=True):
     Whether to include attributes in the class name.
     """
 
-    project_name: typing.Optional[str] = None
+    project_name: str | None = None
     """
     Keylabs project name (optional; added to output CSV if provided).
     """
-    keylabs_auth: typing.Optional[KeylabsAuth] = None
+    keylabs_auth: KeylabsAuth | None = None
     """
     Keylabs authentication credentials (optional; if provided, used to provide links to each sample).
     """
@@ -107,9 +115,9 @@ class KeylabsObjSegVideo(Keylabs, frozen=True):
     )
 
 
-KeylabsInfo = typing.Union[
-    KeylabsObjDetImages, KeylabsObjDetVideo, KeylabsObjSegImages, KeylabsObjSegVideo
-]
+KeylabsInfo = (
+    KeylabsObjDetImages | KeylabsObjDetVideo | KeylabsObjSegImages | KeylabsObjSegVideo
+)
 """
 The dataset labeling info for Keylabs. The dataset labeling info can be one of the following:
 - `DatasetMetadataType.KeylabsObjDetImages`: Indicates that the dataset metadata file is in the Keylabs object detection image format
@@ -118,12 +126,7 @@ The dataset labeling info for Keylabs. The dataset labeling info can be one of t
 - `DatasetMetadataType.KeylabsObjSegVideo`: Indicates that the dataset metadata file is in the Keylabs object segmentation video format
 """
 LabelingInfo = typing.Annotated[
-    typing.Union[
-        HirundoCSV,
-        COCO,
-        YOLO,
-        KeylabsInfo,
-    ],
+    HirundoCSV | COCO | YOLO | KeylabsInfo | HuggingFaceAudio,
     Field(discriminator="type"),
 ]
 """

@@ -1,6 +1,5 @@
 import asyncio
 import time
-import typing
 import uuid
 from collections.abc import AsyncGenerator, Generator
 
@@ -15,13 +14,15 @@ from hirundo.logger import get_logger
 
 logger = get_logger(__name__)
 
+MAX_RETRIES = 50
+
 
 # Credit: https://github.com/florimondmanca/httpx-sse/blob/master/README.md#handling-reconnections
 def iter_sse_retrying(
     client: httpx.Client,
     method: str,
     url: str,
-    headers: typing.Optional[dict[str, str]] = None,
+    headers: dict[str, str] | None = None,
 ) -> Generator[ServerSentEvent, None, None]:
     if headers is None:
         headers = {}
@@ -41,7 +42,8 @@ def iter_sse_retrying(
             httpx.ReadError,
             httpx.RemoteProtocolError,
             urllib3.exceptions.ReadTimeoutError,
-        )
+        ),
+        attempts=MAX_RETRIES,
     )
     def _iter_sse():
         nonlocal last_event_id, reconnection_delay
@@ -105,7 +107,8 @@ async def aiter_sse_retrying(
             httpx.ReadError,
             httpx.RemoteProtocolError,
             urllib3.exceptions.ReadTimeoutError,
-        )
+        ),
+        attempts=MAX_RETRIES,
     )
     async def _iter_sse() -> AsyncGenerator[ServerSentEvent, None]:
         nonlocal last_event_id, reconnection_delay

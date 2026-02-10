@@ -11,10 +11,18 @@ Submodules
    :maxdepth: 4
 
    hirundo.cli
+   hirundo.dataset_enum
    hirundo.dataset_qa
-   hirundo.enum
+   hirundo.dataset_qa_results
    hirundo.git
+   hirundo.labeling
+   hirundo.logger
+   hirundo.llm_behavior_eval
+   hirundo.llm_behavior_eval_results
+   hirundo.llm_bias_type
    hirundo.storage
+   hirundo.unlearning_llm
+   hirundo.unzip
 
 Module contents
 ---------------
