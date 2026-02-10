@@ -69,12 +69,12 @@ dev = [
     "ruff>=0.12.0",
     "bumpver>=2025.1131",
     "platformdirs>=4.3.6",
-    "cryptography>=44.0.1",
-    #  ⬆️ Required to fix vulnerability GHSA-79v4-65xg-pq4g
+    "cryptography>=46.0.5",
+    #  ⬆️ Required to fix vulnerability CVE-2026-26007
     "jinja2>=3.1.6",
     #  ⬆️ Required to fix vulnerabilities GHSA-cpwx-vrp4-4pq7 , GHSA-gmj6-6f8f-6699 & GHSA-q2x7-8rv6-6q7h
-    "filelock>=3.20.1",
-    #  ⬆️ Required to fix vulnerability CVE-2025-68146
+    "filelock>=3.20.3",
+    #  ⬆️ Required to fix vulnerability CVE-2026-22701
     "marshmallow>=4.1.2",
     #  ⬆️ Required to fix vulnerability CVE-2025-68480
     "pip-audit",
