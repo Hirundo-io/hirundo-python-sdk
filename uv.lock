@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -553,6 +553,7 @@ dependencies = [
     { name = "h11" },
     { name = "httpx" },
     { name = "httpx-sse" },
+    { name = "huggingface-hub" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
@@ -576,6 +577,7 @@ dev = [
     { name = "filelock" },
     { name = "httpx" },
     { name = "httpx-sse" },
+    { name = "huggingface-hub" },
     { name = "jinja2" },
     { name = "marshmallow" },
     { name = "platformdirs" },
@@ -641,6 +643,8 @@ requires-dist = [
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "httpx-sse", specifier = ">=0.4.0" },
     { name = "httpx-sse", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "huggingface-hub", specifier = ">=0.35.3" },
+    { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=0.35.3" },
     { name = "jinja2", marker = "extra == 'dev'", specifier = ">=3.1.6" },
     { name = "jinja2", marker = "extra == 'docs'", specifier = ">=3.1.6" },
     { name = "markupsafe", marker = "extra == 'docs'", specifier = ">=3.0.2" },
