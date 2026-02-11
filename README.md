@@ -1,4 +1,6 @@
-# Hirundo Python SDK
+# [hirundo](https://docs.hirundo.io/) · [![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Hirundo-io/hirundo-client/blob/main/LICENSE) [![pypi version](https://img.shields.io/pypi/v/hirundo)](https://pypi.org/project/hirundo/)
+
+[![Deploy to PyPI](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/deploy-to-pypi.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/deploy-to-pypi.yaml) [![Deploy docs](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml/badge.svg)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/update-docs.yaml) [![Ruff & Pyright](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/lint.yaml?query=event%3Amerge_group) [![Sanity tests](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/pytest-sanity.yaml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-python-sdk/actions/workflows/pytest-sanity.yaml?query=event%3Amerge_group) [![Vulnerability scan](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml/badge.svg?event=merge_group)](https://github.com/Hirundo-io/hirundo-client/actions/workflows/vulnerability-scan.yml?query=event%3Amerge_group)
 
 The Hirundo Python SDK lets you:
 
