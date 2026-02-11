@@ -16,63 +16,17 @@ repos:
       - id: ruff-format
   - repo: local
     hooks:
-    - id: basedpyright
-      name: basedpyright
-      entry: basedpyright
-      language: python
-      types: [python]
-      pass_filenames: false
-      additional_dependencies: [basedpyright==1.37.1]
-    - id: pip-compile
-      name: compile requirements/requirements.txt
-      entry: uv
-      args: ["pip", "compile", "-o", "requirements/requirements.txt"]
-      language: python
-      always_run: false
-      files: pyproject.toml$
-      additional_dependencies: [uv]
-    - id: pip-compile-dev
-      name: compile requirements/dev.txt
-      entry: uv
-      args: ["pip", "compile", "--extra", "dev", "-o", "requirements/dev.txt", "-c", "requirements/requirements.txt"]
-      language: python
-      always_run: false
-      files: pyproject.toml$
-      additional_dependencies: [uv]
-    - id: pip-compile-pandas
-      name: compile requirements/pandas.txt
-      entry: uv
-      args: ["pip", "compile", "--extra", "pandas", "-o", "requirements/pandas.txt", "-c", "requirements/requirements.txt"]
-      language: python
-      files: pyproject.toml$
-      additional_dependencies: [uv]
-    - id: pip-compile-polars
-      name: compile requirements/polars.txt
-      entry: uv
-      args: ["pip", "compile", "--extra", "polars", "-o", "requirements/polars.txt", "-c", "requirements/requirements.txt"]
-      language: python
-      files: pyproject.toml$
-      additional_dependencies: [uv]
-    - id: pip-compile-docs
-      name: compile requirements/docs.txt
-      entry: uv
-      args: ["pip", "compile", "--extra", "docs", "-o", "requirements/docs.txt", "-c", "requirements/requirements.txt"]
-      language: python
-      always_run: false
-      files: pyproject.toml$
-      additional_dependencies: [uv]
-    - id: pip-compile-transformers
-      name: compile requirements/transformers.txt
-      entry: uv
-      args: ["pip", "compile", "--extra", "transformers", "-o", "requirements/transformers.txt", "-c", "requirements/requirements.txt"]
-      language: python
-      always_run: false
-      files: pyproject.toml$
-      additional_dependencies: [uv]
+      - id: basedpyright
+        name: basedpyright
+        entry: basedpyright
+        language: python
+        types: [python]
+        pass_filenames: false
+        additional_dependencies: [basedpyright==1.37.1]
   - repo: https://github.com/astral-sh/uv-pre-commit
     # uv version.
-    rev: 0.9.6
+    rev: 0.9.29
     hooks:
       - id: uv-lock
       - id: uv-sync
-        args: ["--group", "dev"]
+        args: ["--all-groups"]
