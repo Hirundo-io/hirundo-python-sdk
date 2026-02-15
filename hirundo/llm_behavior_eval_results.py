@@ -1,13 +1,16 @@
 import typing
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 T = typing.TypeVar("T")
 
 
 class LlmBehaviorEvalResults(BaseModel, typing.Generic[T]):
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        protected_namespaces=("model_validate", "model_dump"),
+    )
 
     cached_zip_path: Path
     """

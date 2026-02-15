@@ -69,6 +69,8 @@ class JudgeModel(BaseModel):
 
 
 class EvalRunInfo(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     organization_id: int | None = None
     name: str | None = None
     model_id: int | None = None
@@ -80,7 +82,9 @@ class EvalRunInfo(BaseModel):
 
 
 class OutputLlm(BaseModel):
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(
+        extra="allow", protected_namespaces=("model_validate", "model_dump")
+    )
 
     id: int
     organization_id: int
@@ -121,6 +125,8 @@ class LlmEvalMetrics(BaseModel):
 
 
 class EvalRunRecord(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: int
     name: str
     model_id: int | None
