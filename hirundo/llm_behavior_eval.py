@@ -15,6 +15,10 @@ from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
 from hirundo._llm_sources import HuggingFaceTransformersModelOutput, LlmSourcesOutput
+from hirundo._model_access import (
+    validate_huggingface_model_access,
+    validate_judge_model_access,
+)
 from hirundo._run_checking import (
     DEFAULT_MAX_RETRIES,
     STATUS_TO_PROGRESS_MAP,
@@ -29,6 +33,7 @@ from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
 from hirundo.llm_bias_type import BBQBiasType, UnqoverBiasType
 from hirundo.logger import get_logger
+from hirundo.unlearning_llm import LlmModel
 from hirundo.unzip import download_and_extract_llm_behavior_eval_zip
 
 logger = get_logger(__name__)
@@ -64,6 +69,8 @@ class JudgeModel(BaseModel):
 
 
 class EvalRunInfo(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     organization_id: int | None = None
     name: str | None = None
     model_id: int | None = None
@@ -75,7 +82,9 @@ class EvalRunInfo(BaseModel):
 
 
 class OutputLlm(BaseModel):
-    model_config = {"extra": "allow"}
+    model_config = ConfigDict(
+        extra="allow", protected_namespaces=("model_validate", "model_dump")
+    )
 
     id: int
     organization_id: int
@@ -116,6 +125,8 @@ class LlmEvalMetrics(BaseModel):
 
 
 class EvalRunRecord(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     id: int
     name: str
     model_id: int | None
@@ -142,6 +153,22 @@ class EvalRunRecord(BaseModel):
 class LlmBehaviorEval:
     def __init__(self, run_id: str | None = None):
         self.run_id = run_id
+
+    @staticmethod
+    def _validate_model_access(model_or_run: ModelOrRun, run_info: EvalRunInfo) -> None:
+        if run_info.judge_model is not None:
+            validate_judge_model_access(
+                path_or_repo_id=run_info.judge_model.path_or_repo_id,
+                token=run_info.judge_model.token,
+            )
+        if model_or_run == ModelOrRun.MODEL and run_info.model_id is not None:
+            llm_model = LlmModel.get_by_id(run_info.model_id)
+            if isinstance(llm_model.model_source, HuggingFaceTransformersModelOutput):
+                validate_huggingface_model_access(
+                    model_name=llm_model.model_source.model_name,
+                    token=llm_model.model_source.token,
+                    model_role="LLM",
+                )
 
     @staticmethod
     def _parse_eval_run_record(response_payload: dict) -> EvalRunRecord:
@@ -218,6 +245,8 @@ class LlmBehaviorEval:
             model_or_run_value = ModelOrRun(model_or_run)
         else:
             model_or_run_value = model_or_run
+
+        LlmBehaviorEval._validate_model_access(model_or_run_value, run_info)
 
         response = requests.post(
             f"{API_HOST}/llm-behavior-eval/run/{model_or_run_value.value}",

@@ -12,7 +12,12 @@ from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
-from hirundo._llm_sources import LlmSources, LlmSourcesOutput
+from hirundo._llm_sources import (
+    HuggingFaceTransformersModel,
+    LlmSources,
+    LlmSourcesOutput,
+)
+from hirundo._model_access import validate_huggingface_model_access
 from hirundo._run_checking import (
     STATUS_TO_PROGRESS_MAP,
     aiter_run_events,
@@ -49,6 +54,12 @@ class LlmModel(BaseModel):
         self,
         replace_if_exists: bool = False,
     ) -> int:
+        if isinstance(self.model_source, HuggingFaceTransformersModel):
+            validate_huggingface_model_access(
+                model_name=self.model_source.model_name,
+                token=self.model_source.token,
+                model_role="LLM",
+            )
         llm_model_response = requests.post(
             f"{API_HOST}/unlearning-llm/llm/",
             json={
