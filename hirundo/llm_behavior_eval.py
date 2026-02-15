@@ -160,7 +160,7 @@ class LlmBehaviorEval:
             if isinstance(llm_model.model_source, HuggingFaceTransformersModelOutput):
                 validate_huggingface_model_access(
                     model_name=llm_model.model_source.model_name,
-                    token=None,
+                    token=llm_model.model_source.token,
                     model_role="LLM",
                 )
 

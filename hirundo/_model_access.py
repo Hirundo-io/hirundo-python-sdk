@@ -28,14 +28,6 @@ def _build_huggingface_access_message(
             )
         return f"{message_prefix} is gated. Please provide a HuggingFace token with access."
 
-    if hint == "private":
-        if token_provided:
-            return (
-                f"{message_prefix} is private and the provided HuggingFace token does not "
-                "have access. Please use a token with access or a different model."
-            )
-        return f"{message_prefix} is private. Please provide a HuggingFace token with access."
-
     if hint == "not_found":
         if token_provided:
             return (
