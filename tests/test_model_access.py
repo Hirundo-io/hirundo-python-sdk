@@ -39,7 +39,7 @@ def _build_huggingface_hub_error(
     message: str,
     status_code: int,
 ) -> ExceptionType:
-    return cast(Any, exception_type)(
+    return cast("Any", exception_type)(
         message,
         response=_build_huggingface_error_response(status_code=status_code),
     )
