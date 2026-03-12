@@ -66,6 +66,13 @@ def validate_huggingface_model_access(
     token: str | None,
     model_role: str,
 ) -> None:
+    """Validate that a Hugging Face model can be accessed.
+
+    Args:
+        model_name: Hugging Face repository ID for the model to validate.
+        token: Optional Hugging Face access token used for authenticated access.
+        model_role: Human-readable role for the model in error messages.
+    """
     huggingface_api = HfApi(token=token)
     token_provided = token is not None
 
@@ -114,6 +121,14 @@ def validate_huggingface_model_access(
 
 
 def validate_judge_model_access(path_or_repo_id: str, token: str | None) -> None:
+    """Validate that a judge model can be accessed.
+
+    Args:
+        path_or_repo_id: Local filesystem path or Hugging Face repository ID for the
+            judge model.
+        token: Optional Hugging Face access token used when the judge model is hosted
+            on Hugging Face.
+    """
     if _is_local_model_path(path_or_repo_id):
         return
 
