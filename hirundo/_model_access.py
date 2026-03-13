@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from huggingface_hub import HfApi
-from huggingface_hub.errors import GatedRepoError, RepositoryNotFoundError
+from huggingface_hub.errors import (
+    GatedRepoError,
+    HfHubHTTPError,
+    RepositoryNotFoundError,
+)
 from requests import HTTPError
 
 from hirundo._hirundo_error import HirundoError
@@ -61,6 +65,13 @@ def _is_local_model_path(path_or_repo_id: str) -> bool:
     return potential_path.exists()
 
 
+def _get_huggingface_error_status_code(
+    exception: HfHubHTTPError | HTTPError,
+) -> int | None:
+    response = exception.response
+    return response.status_code if response is not None else None
+
+
 def validate_huggingface_model_access(
     model_name: str,
     token: str | None,
@@ -96,11 +107,10 @@ def validate_huggingface_model_access(
                 token_provided=token_provided,
             )
         ) from exception
-    except HTTPError as exception:
-        if exception.response is not None and exception.response.status_code in {
-            401,
-            403,
-        }:
+    except (HfHubHTTPError, HTTPError) as exception:
+        status_code = _get_huggingface_error_status_code(exception)
+
+        if status_code in {401, 403}:
             hint = "unauthorized"
         else:
             hint = "generic"
@@ -108,7 +118,7 @@ def validate_huggingface_model_access(
             "HuggingFace access validation failed for %s model '%s' with status %s.",
             model_role,
             model_name,
-            exception.response.status_code if exception.response is not None else None,
+            status_code,
         )
         raise HirundoError(
             _build_huggingface_access_message(

@@ -106,6 +106,26 @@ def test_validate_huggingface_model_access_raises_unauthorized_message(
     user_access_secret = secrets.token_hex(8)
 
     def fake_model_info(_self: object, *, repo_id: str) -> None:
+        raise _build_huggingface_hub_error(
+            HfHubHTTPError, "unauthorized", status_code=401
+        )
+
+    monkeypatch.setattr(model_access_module.HfApi, "model_info", fake_model_info)
+
+    with pytest.raises(HirundoError, match="provided HuggingFace token"):
+        validate_huggingface_model_access(
+            model_name="private/model",
+            token=user_access_secret,
+            model_role="judge",
+        )
+
+
+def test_validate_huggingface_model_access_keeps_legacy_http_error_support(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    user_access_secret = secrets.token_hex(8)
+
+    def fake_model_info(_self: object, *, repo_id: str) -> None:
         raise _build_http_error(status_code=401)
 
     monkeypatch.setattr(model_access_module.HfApi, "model_info", fake_model_info)
