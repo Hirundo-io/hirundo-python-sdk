@@ -161,6 +161,11 @@ class LlmBehaviorEval:
                 path_or_repo_id=run_info.judge_model.path_or_repo_id,
                 token=run_info.judge_model.token,
             )
+        if model_or_run == ModelOrRun.MODEL and run_info.model_id is None:
+            raise HirundoLlmBehaviorEvalError(
+                "model_id is required when model_or_run is 'model'"
+            )
+
         if model_or_run == ModelOrRun.MODEL and run_info.model_id is not None:
             llm_model = LlmModel.get_by_id(run_info.model_id)
             if isinstance(llm_model.model_source, HuggingFaceTransformersModelOutput):
