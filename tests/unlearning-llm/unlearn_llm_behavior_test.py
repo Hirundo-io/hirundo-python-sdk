@@ -1,5 +1,4 @@
 import logging
-import os
 
 from hirundo import (
     BBQBiasType,
@@ -8,6 +7,7 @@ from hirundo import (
     LlmModel,
     LlmUnlearningRun,
 )
+from hirundo._env import get_env_bool
 from tests.testing_utils import get_unique_id
 from transformers.pipelines.base import Pipeline
 
@@ -28,7 +28,7 @@ def test_unlearn_llm_behavior():
         bias_type=BBQBiasType.ALL,
     )
     assert llm_id is not None
-    if os.getenv("FULL_TEST", "false") == "true":
+    if get_env_bool("FULL_TEST"):
         run_id = LlmUnlearningRun.launch(
             llm_id,
             run_info,

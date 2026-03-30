@@ -1,4 +1,3 @@
-import os
 from collections import defaultdict
 from contextlib import contextmanager
 
@@ -9,6 +8,7 @@ from hirundo import (
     RunArgs,
     StorageConfig,
 )
+from hirundo._env import get_env_bool
 from hirundo._run_status import RunStatus
 from hirundo.logger import get_logger
 
@@ -168,8 +168,8 @@ def dataset_qa_sync_test(
     run_args: RunArgs | None = None,
 ):
     logger.info("Sync: Finished cleanup")
-    if (os.getenv("FULL_TEST", "false") == "true" and sanity) or (
-        alternative_env and os.getenv(alternative_env, "false") == "true"
+    if (get_env_bool("FULL_TEST") and sanity) or (
+        alternative_env and get_env_bool(alternative_env)
     ):
         run_id = test_dataset.run_qa(replace_dataset_if_exists=True, run_args=run_args)
         logger.info("Sync: Started dataset QA run with run ID %s", run_id)
@@ -189,7 +189,7 @@ async def dataset_qa_async_test(
     run_args: RunArgs | None = None,
 ):
     logger.info("Async: Finished cleanup")
-    if os.getenv(env, "false") == "true":
+    if get_env_bool(env):
         run_id = test_dataset.run_qa(replace_dataset_if_exists=True, run_args=run_args)
         logger.info("Async: Started dataset QA run with run ID %s", run_id)
         events_generator = test_dataset.acheck_run()

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from hirundo._env import API_HOST
+from hirundo._env import API_HOST, get_env_bool
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
@@ -53,8 +53,16 @@ class LlmModel(BaseModel):
     def create(
         self,
         replace_if_exists: bool = False,
+        validate_hf_access: bool = True,
     ) -> int:
-        if isinstance(self.model_source, HuggingFaceTransformersModel):
+        should_validate_hf_access = validate_hf_access or get_env_bool(
+            "HIRUNDO_VALIDATE_HF_ACCESS",
+            default=True,
+        )
+
+        if should_validate_hf_access and isinstance(
+            self.model_source, HuggingFaceTransformersModel
+        ):
             validate_huggingface_model_access(
                 model_name=self.model_source.model_name,
                 token=self.model_source.token,
