@@ -28,6 +28,7 @@ class HuggingFaceTransformersModelOutput(BaseModel):
         ModelSourceType.HUGGINGFACE_TRANSFORMERS
     )
     model_name: str
+    token: str | None = None
 
 
 class LocalTransformersModel(BaseModel):

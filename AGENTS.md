@@ -41,6 +41,8 @@ Activate the local virtualenv before running any Python/uv commands: `source .ve
 
 - Frameworks: `pytest` and `pytest-asyncio`.
 - Place tests in `tests/`; name files `test_*.py`.
+- Write tests in `pytest` style; do not add new `unittest`-based tests or `unittest`
+  assertions/fixtures.
 - Run locally with `pytest` before opening a PR (CI runs lint + integration tests).
 
 ## Pull Request Guidelines
