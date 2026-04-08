@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from hirundo._env import API_HOST, EnvLocation
+from hirundo.skills import skills_app
 
 docs = "sphinx" in sys.modules
 hirundo_epilog = (
@@ -25,6 +26,8 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
 )
+
+app.add_typer(skills_app, name="skills")
 
 
 def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):

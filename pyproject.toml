@@ -5,6 +5,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["hirundo"]
 
+[tool.setuptools.package-data]
+hirundo = ["skills_data/*.md"]
+
 [project]
 name = "hirundo"
 version = "0.2.3.post2"
