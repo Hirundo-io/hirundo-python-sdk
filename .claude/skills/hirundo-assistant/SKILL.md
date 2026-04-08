@@ -359,4 +359,4 @@ After generating and confirming the code, help the user:
 | `hirundo change-remote` | Change API host |
 | `hirundo check-run <id>` | Check a Dataset QA run status |
 | `hirundo list-runs` | List Dataset QA runs |
-| `hirundo skills install <tool>` | Install this skill for your coding assistant |
+| `hirundo skills install <tool>` | Install this skill (claude-code, cursor, opencode, codex) |
