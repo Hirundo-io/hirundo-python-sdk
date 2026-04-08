@@ -11,6 +11,9 @@ from rich.console import Console
 from rich.table import Table
 
 from hirundo._env import API_HOST, EnvLocation
+from hirundo.cli_dataset_qa import dataset_qa_app
+from hirundo.cli_eval import eval_app
+from hirundo.cli_unlearning import unlearning_app
 
 docs = "sphinx" in sys.modules
 hirundo_epilog = (
@@ -26,6 +29,10 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
 )
+
+app.add_typer(eval_app, name="eval")
+app.add_typer(dataset_qa_app, name="dataset-qa")
+app.add_typer(unlearning_app, name="unlearning")
 
 
 class RunType(str, Enum):
