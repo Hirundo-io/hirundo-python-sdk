@@ -1,38 +1,14 @@
-"""
-CLI sub-app for Dataset QA commands.
-
-Commands:
-    hirundo dataset-qa run    - Launch a Dataset QA run
-    hirundo dataset-qa list   - List Dataset QA runs
-    hirundo dataset-qa check  - Check the status of a Dataset QA run
-"""
-
-import sys
 from typing import Annotated
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
-docs = "sphinx" in sys.modules
-dataset_qa_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
-)
+from hirundo._cli_common import console, hirundo_epilog, make_app
 
-console = Console()
-
-dataset_qa_app = typer.Typer(
-    name="dataset-qa",
-    no_args_is_help=True,
-    rich_markup_mode="rich",
-    epilog=dataset_qa_epilog,
-    help="Launch and monitor Dataset QA runs.",
-)
+dataset_qa_app = make_app("dataset-qa", "Launch and monitor Dataset QA runs.")
 
 
-@dataset_qa_app.command("run", epilog=dataset_qa_epilog)
+@dataset_qa_app.command("run", epilog=hirundo_epilog)
 def dataset_qa_run(
     dataset_id: Annotated[int, typer.Argument(help="ID of the dataset to run QA on.")],
     wait: Annotated[
@@ -56,7 +32,7 @@ def dataset_qa_run(
         )
 
 
-@dataset_qa_app.command("list", epilog=dataset_qa_epilog)
+@dataset_qa_app.command("list", epilog=hirundo_epilog)
 def dataset_qa_list(
     archived: Annotated[
         bool,
@@ -84,7 +60,7 @@ def dataset_qa_list(
     console.print(table)
 
 
-@dataset_qa_app.command("check", epilog=dataset_qa_epilog)
+@dataset_qa_app.command("check", epilog=hirundo_epilog)
 def dataset_qa_check(
     run_id: Annotated[str, typer.Argument(help="The run ID to check.")],
 ):

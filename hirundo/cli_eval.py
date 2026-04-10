@@ -1,38 +1,14 @@
-"""
-CLI sub-app for LLM behavior evaluation commands.
-
-Commands:
-    hirundo eval run    - Launch an LLM behavior evaluation run
-    hirundo eval list   - List evaluation runs
-    hirundo eval check  - Check the status of an evaluation run
-"""
-
-import sys
 from typing import Annotated, Optional
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
-docs = "sphinx" in sys.modules
-eval_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
-)
+from hirundo._cli_common import console, hirundo_epilog, make_app, validate_enum
 
-console = Console()
-
-eval_app = typer.Typer(
-    name="eval",
-    no_args_is_help=True,
-    rich_markup_mode="rich",
-    epilog=eval_epilog,
-    help="Launch and monitor LLM behavior evaluation runs.",
-)
+eval_app = make_app("eval", "Launch and monitor LLM behavior evaluation runs.")
 
 
-@eval_app.command("run", epilog=eval_epilog)
+@eval_app.command("run", epilog=hirundo_epilog)
 def eval_run(
     preset: Annotated[
         str,
@@ -72,13 +48,7 @@ def eval_run(
         console.print("[red]Error: only one of --model-id or --source-run-id may be provided.[/red]")
         raise typer.Exit(code=1)
 
-    try:
-        preset_type = PresetType(preset.upper())
-    except ValueError:
-        valid = ", ".join(p.value for p in PresetType)
-        console.print(f"[red]Invalid preset '{preset}'. Valid options: {valid}[/red]")
-        raise typer.Exit(code=1)
-
+    preset_type = validate_enum(preset, PresetType, "preset")
     model_or_run = ModelOrRun.MODEL if model_id is not None else ModelOrRun.RUN
     run_info = EvalRunInfo(
         model_id=model_id,
@@ -98,7 +68,7 @@ def eval_run(
         )
 
 
-@eval_app.command("list", epilog=eval_epilog)
+@eval_app.command("list", epilog=hirundo_epilog)
 def eval_list(
     archived: Annotated[
         bool,
@@ -126,7 +96,7 @@ def eval_list(
     console.print(table)
 
 
-@eval_app.command("check", epilog=eval_epilog)
+@eval_app.command("check", epilog=hirundo_epilog)
 def eval_check(
     run_id: Annotated[str, typer.Argument(help="The run ID to check.")],
 ):

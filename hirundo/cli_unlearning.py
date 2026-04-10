@@ -1,38 +1,14 @@
-"""
-CLI sub-app for LLM unlearning commands.
-
-Commands:
-    hirundo unlearning run    - Launch an LLM unlearning run
-    hirundo unlearning list   - List LLM unlearning runs
-    hirundo unlearning check  - Check the status of an LLM unlearning run
-"""
-
-import sys
 from typing import Annotated, Optional
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
-docs = "sphinx" in sys.modules
-unlearning_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
-)
+from hirundo._cli_common import console, hirundo_epilog, make_app, validate_enum
 
-console = Console()
-
-unlearning_app = typer.Typer(
-    name="unlearning",
-    no_args_is_help=True,
-    rich_markup_mode="rich",
-    epilog=unlearning_epilog,
-    help="Launch and monitor LLM unlearning runs.",
-)
+unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.")
 
 
-@unlearning_app.command("run", epilog=unlearning_epilog)
+@unlearning_app.command("run", epilog=hirundo_epilog)
 def unlearning_run(
     model_id: Annotated[int, typer.Argument(help="ID of the LLM model to unlearn.")],
     bias_type: Annotated[
@@ -85,25 +61,11 @@ def unlearning_run(
         raise typer.Exit(code=1)
 
     if bias_type is not None:
-        try:
-            bias_type_enum = BBQBiasType(bias_type.upper())
-        except ValueError:
-            valid = ", ".join(b.value for b in BBQBiasType)
-            console.print(
-                f"[red]Invalid bias type '{bias_type}'. Valid options: {valid}[/red]"
-            )
-            raise typer.Exit(code=1)
-        target_behavior = BiasBehavior(bias_type=bias_type_enum)
+        target_behavior = BiasBehavior(bias_type=validate_enum(bias_type, BBQBiasType, "bias type"))
     else:
-        try:
-            hallucination_type_enum = HallucinationType(hallucination_type.upper())
-        except ValueError:
-            valid = ", ".join(h.value for h in HallucinationType)
-            console.print(
-                f"[red]Invalid hallucination type '{hallucination_type}'. Valid options: {valid}[/red]"
-            )
-            raise typer.Exit(code=1)
-        target_behavior = HallucinationBehavior(hallucination_type=hallucination_type_enum)
+        target_behavior = HallucinationBehavior(
+            hallucination_type=validate_enum(hallucination_type, HallucinationType, "hallucination type")
+        )
 
     run_info = LlmRunInfo(
         name=name,
@@ -122,7 +84,7 @@ def unlearning_run(
         )
 
 
-@unlearning_app.command("list", epilog=unlearning_epilog)
+@unlearning_app.command("list", epilog=hirundo_epilog)
 def unlearning_list(
     archived: Annotated[
         bool,
@@ -149,7 +111,7 @@ def unlearning_list(
     console.print(table)
 
 
-@unlearning_app.command("check", epilog=unlearning_epilog)
+@unlearning_app.command("check", epilog=hirundo_epilog)
 def unlearning_check(
     run_id: Annotated[str, typer.Argument(help="The run ID to check.")],
 ):
