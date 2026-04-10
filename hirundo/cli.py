@@ -1,25 +1,17 @@
 import os
 import re
-import sys
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlparse
 
 import typer
-from rich.console import Console
 from rich.table import Table
 
+from hirundo._cli_common import console, docs, hirundo_epilog
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
 from hirundo.cli_unlearning import unlearning_app
-
-docs = "sphinx" in sys.modules
-hirundo_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
-)
 
 
 app = typer.Typer(
@@ -217,7 +209,6 @@ def list_runs():
 
     runs = QADataset.list_runs()
 
-    console = Console()
     table = Table(
         title="Runs:",
         expand=True,
