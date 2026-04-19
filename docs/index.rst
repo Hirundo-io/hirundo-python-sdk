@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 .. meta::
-   :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
+   :http-equiv=Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
 
 Hirundo Python SDK
 ==================
