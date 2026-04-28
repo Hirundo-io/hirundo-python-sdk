@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import TYPE_CHECKING, Literal, overload
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -198,15 +198,6 @@ class UnlearningLlmAdvancedOptions(BaseModel):
     max_tokens_for_model: dict[DatasetType, int] | int | None = None
 
 
-class UtilityType(str, Enum):
-    DEFAULT = "DEFAULT"
-    CUSTOM = "CUSTOM"
-
-
-class DefaultUtility(BaseModel):
-    utility_type: Literal[UtilityType.DEFAULT] = UtilityType.DEFAULT
-
-
 class HirundoCSVDataset(BaseModel):
     type: Literal["HirundoCSV"] = "HirundoCSV"
     csv_url: str
@@ -221,7 +212,6 @@ CustomDataset = HirundoCSVDataset | HuggingFaceDataset
 
 
 class CustomUtility(BaseModel):
-    utility_type: Literal[UtilityType.CUSTOM] = UtilityType.CUSTOM
     dataset: CustomDataset
 
 
@@ -256,8 +246,6 @@ TargetBehavior = (
     BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
 )
 
-TargetUtility = DefaultUtility | CustomUtility
-
 
 class LlmRunInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
@@ -265,7 +253,7 @@ class LlmRunInfo(BaseModel):
     organization_id: int | None = None
     name: str | None = None
     target_behaviors: list[TargetBehavior]
-    target_utilities: list[TargetUtility]
+    target_utilities: list[CustomUtility] = Field(default_factory=list)
     advanced_options: UnlearningLlmAdvancedOptions | None = None
 
 
@@ -273,27 +261,21 @@ class BiasRunInfo(BaseModel):
     bias_type: BBQBiasType
     organization_id: int | None = None
     name: str | None = None
-    target_utilities: list[TargetUtility] | None = None
+    target_utilities: list[CustomUtility] = Field(default_factory=list)
     advanced_options: UnlearningLlmAdvancedOptions | None = None
 
     def to_run_info(self) -> LlmRunInfo:
-        default_utilities: list[TargetUtility] = (
-            [DefaultUtility()]
-            if self.target_utilities is None
-            else list(self.target_utilities)
-        )
         return LlmRunInfo(
             organization_id=self.organization_id,
             name=self.name,
             target_behaviors=[BiasBehavior(bias_type=self.bias_type)],
-            target_utilities=default_utilities,
+            target_utilities=self.target_utilities,
             advanced_options=self.advanced_options,
         )
 
 
 OutputLlm = dict[str, object]
 BehaviorOptions = TargetBehavior
-UtilityOptions = TargetUtility
 CeleryTaskState = str
 
 
@@ -305,7 +287,7 @@ class OutputUnlearningLlmRun(BaseModel):
     model_id: int
     model: OutputLlm
     target_behaviors: list[BehaviorOptions]
-    target_utilities: list[UtilityOptions]
+    target_utilities: list[CustomUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None
     run_id: str
     mlflow_run_id: str | None
