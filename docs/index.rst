@@ -31,7 +31,7 @@ Configure API access:
 
    hirundo setup
 
-This writes ``API_KEY`` (and optionally ``API_HOST``) to a local ``.env`` file or
+This writes ``HIRUNDO_API_KEY`` (and optionally ``HIRUNDO_API_HOST``) to a local ``.env`` file or
 ``~/.hirundo.conf`` for subsequent SDK usage.
 
 LLM behavior unlearning
