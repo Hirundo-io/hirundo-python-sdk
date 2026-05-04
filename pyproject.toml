@@ -22,7 +22,8 @@ requires-python = ">= 3.10"
 dependencies = [
     "pyyaml>=6.0.1",
     "types-PyYAML>=6.0.12",
-    "pydantic>=2.7.1",
+    "pydantic>=2.13.0",
+    #  ⬆️ Required for Python 3.14 support
     "python-dotenv>=1.0.1",
     "types-requests>=2.31.0",
     "typer>=0.12.3",
