@@ -32,8 +32,8 @@ dependencies = [
     "httpx-sse>=0.4.0",
     "tqdm>=4.66.5",
     "h11>=0.16.0",
-    #  ⬆️ Required to fix vulnerability CVE-2026-25645
     "requests>=2.33.0",
+    #  ⬆️ Required to fix vulnerability CVE-2026-25645
     #  ⬆️ Required to fix vulnerability GHSA-9hjg-9r4m-mvj7
     "urllib3>=2.6.3",
     #  ⬆️ Required to fix vulnerability CVE-2026-21441
