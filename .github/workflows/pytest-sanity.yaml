@@ -9,10 +9,6 @@ on:
   merge_group:
     types: [checks_requested]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}
-  cancel-in-progress: true
-
 jobs:
   pytest_sanity:
     runs-on: ${{ matrix.os }}
@@ -23,6 +19,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ matrix.os }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
         with:
