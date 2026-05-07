@@ -209,10 +209,10 @@ def test_multimodal_pipeline_uses_image_text_loader_when_model_type_matches(
     monkeypatch.setattr(
         AutoModelForImageTextToText,
         "from_pretrained",
-        lambda *args, **kwargs: multimodal_calls.append(
-            {"args": args, "kwargs": kwargs}
-        )
-        or multimodal_base_model,
+        lambda *args, **kwargs: (
+            multimodal_calls.append({"args": args, "kwargs": kwargs})
+            or multimodal_base_model
+        ),
     )
     monkeypatch.setattr(PeftModel, "from_pretrained", lambda model, path: peft_model)
     monkeypatch.setattr(
