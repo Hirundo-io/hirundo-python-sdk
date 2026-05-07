@@ -212,4 +212,5 @@ exclude = [
     "private",
     "notebooks",
     ".venv",
+    "build",
 ]

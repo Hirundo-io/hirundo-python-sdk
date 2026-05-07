@@ -18,7 +18,7 @@ class FakeResponse:
     def __enter__(self) -> "FakeResponse":
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:
+    def __exit__(self, exception_type, exception_value, traceback_value) -> None:
         return None
 
     def raise_for_status(self) -> None:
