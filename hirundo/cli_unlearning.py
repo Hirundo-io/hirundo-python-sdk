@@ -1,14 +1,15 @@
 from typing import Annotated
 
 import typer
-from rich.table import Table
 
 from hirundo._cli_common import (
     console,
     hirundo_epilog,
     make_app,
+    print_runs_table,
     validate_enum,
     validate_run_id,
+    wait_or_notify,
 )
 
 unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.")
@@ -90,12 +91,7 @@ def unlearning_run(
     run_id = LlmUnlearningRun.launch(model_id, run_info)
     console.print(f"Unlearning run started. Run ID: [bold]{run_id}[/bold]")
 
-    if wait:
-        LlmUnlearningRun.check_run_by_id(run_id)
-    else:
-        console.print(
-            "Use [bold]hirundo unlearning check[/bold] [italic]<run_id>[/italic] to monitor progress."
-        )
+    wait_or_notify(run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait)
 
 
 @unlearning_app.command("list", epilog=hirundo_epilog)
@@ -111,18 +107,19 @@ def unlearning_list(
     from hirundo.unlearning_llm import LlmUnlearningRun
 
     runs = LlmUnlearningRun.list(archived=archived)
-
-    table = Table(title="Unlearning Runs:", expand=True)
-    for col in ("Name", "Run ID", "Status", "Created At"):
-        table.add_column(col, overflow="fold")
-    for run in runs:
-        table.add_row(
-            str(run.name),
-            str(run.run_id),
-            str(run.status),
-            run.created_at.isoformat(),
-        )
-    console.print(table)
+    print_runs_table(
+        "Unlearning Runs:",
+        ("Name", "Run ID", "Status", "Created At"),
+        [
+            (
+                str(run.name),
+                str(run.run_id),
+                str(run.status),
+                run.created_at.isoformat(),
+            )
+            for run in runs
+        ],
+    )
 
 
 @unlearning_app.command("check", epilog=hirundo_epilog)
