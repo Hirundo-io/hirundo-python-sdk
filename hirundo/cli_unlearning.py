@@ -31,7 +31,9 @@ def unlearning_run(
     ] = None,
     wait: Annotated[
         bool,
-        typer.Option("--wait/--no-wait", help="Wait for the run to complete and stream progress."),
+        typer.Option(
+            "--wait/--no-wait", help="Wait for the run to complete and stream progress."
+        ),
     ] = True,
 ):
     """
@@ -61,10 +63,14 @@ def unlearning_run(
         raise typer.Exit(code=1)
 
     if bias_type is not None:
-        target_behavior = BiasBehavior(bias_type=validate_enum(bias_type, BBQBiasType, "bias type"))
+        target_behavior = BiasBehavior(
+            bias_type=validate_enum(bias_type, BBQBiasType, "bias type")
+        )
     elif hallucination_type is not None:
         target_behavior = HallucinationBehavior(
-            hallucination_type=validate_enum(hallucination_type, HallucinationType, "hallucination type")
+            hallucination_type=validate_enum(
+                hallucination_type, HallucinationType, "hallucination type"
+            )
         )
     else:
         raise typer.Exit(code=1) from None

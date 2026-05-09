@@ -31,7 +31,9 @@ def eval_run(
     ] = None,
     wait: Annotated[
         bool,
-        typer.Option("--wait/--no-wait", help="Wait for the run to complete and stream progress."),
+        typer.Option(
+            "--wait/--no-wait", help="Wait for the run to complete and stream progress."
+        ),
     ] = True,
 ):
     """
@@ -47,10 +49,14 @@ def eval_run(
     )
 
     if model_id is None and source_run_id is None:
-        console.print("[red]Error: either --model-id or --source-run-id must be provided.[/red]")
+        console.print(
+            "[red]Error: either --model-id or --source-run-id must be provided.[/red]"
+        )
         raise typer.Exit(code=1)
     if model_id is not None and source_run_id is not None:
-        console.print("[red]Error: only one of --model-id or --source-run-id may be provided.[/red]")
+        console.print(
+            "[red]Error: only one of --model-id or --source-run-id may be provided.[/red]"
+        )
         raise typer.Exit(code=1)
 
     preset_type = validate_enum(preset, PresetType, "preset")
