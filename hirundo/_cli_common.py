@@ -1,6 +1,7 @@
 import re
 import sys
 from collections.abc import Callable
+from enum import Enum
 from typing import Any
 
 import typer
@@ -39,7 +40,7 @@ def validate_run_id(run_id: str) -> str:
     return run_id
 
 
-def validate_enum(value: str, enum_cls: type, label: str) -> Any:
+def validate_enum(value: str, enum_cls: type[Enum], label: str) -> Any:
     try:
         return enum_cls(value.upper())
     except ValueError:
