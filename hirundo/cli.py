@@ -5,9 +5,8 @@ from typing import Annotated
 from urllib.parse import urlparse
 
 import typer
-from rich.table import Table
 
-from hirundo._cli_common import console, docs, hirundo_epilog
+from hirundo._cli_common import docs, hirundo_epilog, print_runs_table
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
@@ -207,32 +206,20 @@ def list_runs():
     from hirundo.dataset_qa import QADataset
 
     runs = QADataset.list_runs()
-
-    table = Table(
-        title="Runs:",
-        expand=True,
+    print_runs_table(
+        "Runs:",
+        ("Dataset name", "Run ID", "Status", "Created At", "Run Args"),
+        [
+            (
+                str(run.name),
+                str(run.run_id),
+                str(run.status),
+                run.created_at.isoformat(),
+                run.run_args.model_dump_json() if run.run_args else None,
+            )
+            for run in runs
+        ],
     )
-    cols = (
-        "Dataset name",
-        "Run ID",
-        "Status",
-        "Created At",
-        "Run Args",
-    )
-    for col in cols:
-        table.add_column(
-            col,
-            overflow="fold",
-        )
-    for run in runs:
-        table.add_row(
-            str(run.name),
-            str(run.run_id),
-            str(run.status),
-            run.created_at.isoformat(),
-            run.run_args.model_dump_json() if run.run_args else None,
-        )
-    console.print(table)
 
 
 typer_click_object = typer.main.get_command(app)
