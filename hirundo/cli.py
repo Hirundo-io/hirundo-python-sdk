@@ -6,9 +6,8 @@ from typing import Annotated, cast
 from urllib.parse import urlparse
 
 import typer
-from rich.table import Table
 
-from hirundo._cli_common import console, docs, hirundo_epilog
+from hirundo._cli_common import docs, hirundo_epilog, print_runs_table
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
@@ -257,35 +256,28 @@ def list_runs(
             if run.framework is EvalFramework.INSPECT_EVALS
         ]
 
-    table = Table(
-        title="Runs:",
-        expand=True,
-    )
-    cols = ["Name", "Run ID", "Status", "Created At"]
-    if run_type is RunType.DATASET_QA:
-        cols.append("Run Args")
-    for col in cols:
-        table.add_column(
-            col,
-            overflow="fold",
+    columns = ("Name", "Run ID", "Status", "Created At")
+    rows = []
+    for run_record in runs:
+        row = (
+            str(run_record.name),
+            str(run_record.run_id),
+            str(run_record.status),
+            run_record.created_at.isoformat(),
         )
-    for run in runs:
-        row = [
-            str(run.name),
-            str(run.run_id),
-            str(run.status),
-            run.created_at.isoformat(),
-        ]
         if run_type is RunType.DATASET_QA:
             from hirundo.dataset_qa import DataQARunOut
 
-            dataset_qa_run = cast("DataQARunOut", run)
+            dataset_qa_run = cast("DataQARunOut", run_record)
             if hasattr(dataset_qa_run, "run_args") and dataset_qa_run.run_args:
-                row.append(dataset_qa_run.run_args.model_dump_json())
+                row += (dataset_qa_run.run_args.model_dump_json(),)
             else:
-                row.append("")
-        table.add_row(*row)
-    console.print(table)
+                row += ("",)
+        rows.append(row)
+
+    if run_type is RunType.DATASET_QA:
+        columns += ("Run Args",)
+    print_runs_table("Runs:", columns, rows)
 
 
 typer_click_object = typer.main.get_command(app)
