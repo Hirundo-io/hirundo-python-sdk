@@ -227,7 +227,7 @@ def list_runs():
     for run in runs:
         table.add_row(
             str(run.name),
-            str(run.id),
+            str(run.run_id),
             str(run.status),
             run.created_at.isoformat(),
             run.run_args.model_dump_json() if run.run_args else None,
