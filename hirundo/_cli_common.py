@@ -13,13 +13,13 @@ hirundo_epilog = (
 console = Console()
 
 
-def make_app(name: str, help: str) -> typer.Typer:
+def make_app(name: str, help_text: str) -> typer.Typer:
     return typer.Typer(
         name=name,
         no_args_is_help=True,
         rich_markup_mode="rich",
         epilog=hirundo_epilog,
-        help=help,
+        help=help_text,
     )
 
 
@@ -29,4 +29,4 @@ def validate_enum(value: str, enum_cls, label: str):
     except ValueError:
         valid = ", ".join(e.value for e in enum_cls)
         console.print(f"[red]Invalid {label} '{value}'. Valid options: {valid}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None

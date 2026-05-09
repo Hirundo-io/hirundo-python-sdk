@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.table import Table
@@ -18,15 +18,15 @@ def eval_run(
         ),
     ],
     model_id: Annotated[
-        Optional[int],
+        int | None,
         typer.Option("--model-id", help="ID of the LLM model to evaluate."),
     ] = None,
     source_run_id: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--source-run-id", help="ID of the unlearning run to evaluate."),
     ] = None,
     name: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--name", help="Optional name for this evaluation run."),
     ] = None,
     wait: Annotated[
@@ -39,7 +39,12 @@ def eval_run(
 
     Either --model-id or --source-run-id must be provided.
     """
-    from hirundo.llm_behavior_eval import EvalRunInfo, LlmBehaviorEval, ModelOrRun, PresetType
+    from hirundo.llm_behavior_eval import (
+        EvalRunInfo,
+        LlmBehaviorEval,
+        ModelOrRun,
+        PresetType,
+    )
 
     if model_id is None and source_run_id is None:
         console.print("[red]Error: either --model-id or --source-run-id must be provided.[/red]")
