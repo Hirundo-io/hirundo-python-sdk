@@ -30,7 +30,7 @@ def make_app(name: str, help_text: str) -> typer.Typer:
 
 
 def validate_run_id(run_id: str) -> str:
-    if not _RUN_ID_RE.match(run_id):
+    if not _RUN_ID_RE.fullmatch(run_id):
         console.print(
             f"[red]Invalid run ID '{run_id}'. "
             "Run IDs may only contain alphanumeric characters, hyphens, and underscores.[/red]"
