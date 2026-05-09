@@ -1,7 +1,10 @@
+import re
 import sys
 
 import typer
 from rich.console import Console
+
+_RUN_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 docs = "sphinx" in sys.modules
 hirundo_epilog = (
@@ -21,6 +24,16 @@ def make_app(name: str, help_text: str) -> typer.Typer:
         epilog=hirundo_epilog,
         help=help_text,
     )
+
+
+def validate_run_id(run_id: str) -> str:
+    if not _RUN_ID_RE.match(run_id):
+        console.print(
+            f"[red]Invalid run ID '{run_id}'. "
+            "Run IDs may only contain alphanumeric characters, hyphens, and underscores.[/red]"
+        )
+        raise typer.Exit(code=1) from None
+    return run_id
 
 
 def validate_enum(value: str, enum_cls, label: str):
