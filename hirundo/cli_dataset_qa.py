@@ -13,7 +13,9 @@ def dataset_qa_run(
     dataset_id: Annotated[int, typer.Argument(help="ID of the dataset to run QA on.")],
     wait: Annotated[
         bool,
-        typer.Option("--wait/--no-wait", help="Wait for the run to complete and stream progress."),
+        typer.Option(
+            "--wait/--no-wait", help="Wait for the run to complete and stream progress."
+        ),
     ] = True,
 ):
     """
