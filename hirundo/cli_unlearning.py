@@ -1,4 +1,4 @@
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.table import Table
@@ -12,21 +12,21 @@ unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.
 def unlearning_run(
     model_id: Annotated[int, typer.Argument(help="ID of the LLM model to unlearn.")],
     bias_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--bias-type",
             help="Bias type for unlearning. One of: ALL, RACE, NATIONALITY, GENDER, PHYSICAL_APPEARANCE, RELIGION, AGE",
         ),
     ] = None,
     hallucination_type: Annotated[
-        Optional[str],
+        str | None,
         typer.Option(
             "--hallucination-type",
             help="Hallucination type for unlearning. One of: GENERAL, MEDICAL, LEGAL, DEFENSE",
         ),
     ] = None,
     name: Annotated[
-        Optional[str],
+        str | None,
         typer.Option("--name", help="Optional name for this unlearning run."),
     ] = None,
     wait: Annotated[
@@ -62,10 +62,12 @@ def unlearning_run(
 
     if bias_type is not None:
         target_behavior = BiasBehavior(bias_type=validate_enum(bias_type, BBQBiasType, "bias type"))
-    else:
+    elif hallucination_type is not None:
         target_behavior = HallucinationBehavior(
             hallucination_type=validate_enum(hallucination_type, HallucinationType, "hallucination type")
         )
+    else:
+        raise typer.Exit(code=1) from None
 
     run_info = LlmRunInfo(
         name=name,
