@@ -3,7 +3,7 @@ from typing import Annotated
 import typer
 from rich.table import Table
 
-from hirundo._cli_common import console, hirundo_epilog, make_app
+from hirundo._cli_common import console, hirundo_epilog, make_app, validate_run_id
 
 dataset_qa_app = make_app("dataset-qa", "Launch and monitor Dataset QA runs.")
 
@@ -71,4 +71,4 @@ def dataset_qa_check(
     """
     from hirundo.dataset_qa import QADataset
 
-    QADataset.check_run_by_id(run_id)
+    QADataset.check_run_by_id(validate_run_id(run_id))

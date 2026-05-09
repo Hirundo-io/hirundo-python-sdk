@@ -3,7 +3,13 @@ from typing import Annotated
 import typer
 from rich.table import Table
 
-from hirundo._cli_common import console, hirundo_epilog, make_app, validate_enum
+from hirundo._cli_common import (
+    console,
+    hirundo_epilog,
+    make_app,
+    validate_enum,
+    validate_run_id,
+)
 
 eval_app = make_app("eval", "Launch and monitor LLM behavior evaluation runs.")
 
@@ -116,4 +122,4 @@ def eval_check(
     """
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-    LlmBehaviorEval.check_run_by_id(run_id)
+    LlmBehaviorEval.check_run_by_id(validate_run_id(run_id))
