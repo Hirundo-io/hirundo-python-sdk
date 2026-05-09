@@ -13,7 +13,6 @@ from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
 from hirundo.cli_unlearning import unlearning_app
 
-
 app = typer.Typer(
     name="hirundo",
     no_args_is_help=True,
