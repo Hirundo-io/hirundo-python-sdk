@@ -66,6 +66,9 @@ def eval_run(
         )
         raise typer.Exit(code=1)
 
+    if source_run_id is not None:
+        source_run_id = validate_run_id(source_run_id)
+
     preset_type = validate_enum(preset, PresetType, "preset")
     model_or_run = ModelOrRun.MODEL if model_id is not None else ModelOrRun.RUN
     run_info = EvalRunInfo(
