@@ -1,14 +1,15 @@
 from typing import Annotated
 
 import typer
-from rich.table import Table
 
 from hirundo._cli_common import (
     console,
     hirundo_epilog,
     make_app,
+    print_runs_table,
     validate_enum,
     validate_run_id,
+    wait_or_notify,
 )
 
 eval_app = make_app("eval", "Launch and monitor LLM behavior evaluation runs.")
@@ -77,12 +78,9 @@ def eval_run(
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
     console.print(f"Eval run started. Run ID: [bold]{run_id}[/bold]")
 
-    if wait:
-        LlmBehaviorEval.check_run_by_id(run_id)
-    else:
-        console.print(
-            "Use [bold]hirundo eval check[/bold] [italic]<run_id>[/italic] to monitor progress."
-        )
+    results = wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")
 
 
 @eval_app.command("list", epilog=hirundo_epilog)
@@ -98,19 +96,20 @@ def eval_list(
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
     runs = LlmBehaviorEval.list_runs(archived=archived)
-
-    table = Table(title="Eval Runs:", expand=True)
-    for col in ("Run ID", "Name", "Status", "Preset", "Created At"):
-        table.add_column(col, overflow="fold")
-    for run in runs:
-        table.add_row(
-            str(run.run_id),
-            str(run.name),
-            str(run.status),
-            run.preset_type.value if run.preset_type else None,
-            run.created_at.isoformat(),
-        )
-    console.print(table)
+    print_runs_table(
+        "Eval Runs:",
+        ("Run ID", "Name", "Status", "Preset", "Created At"),
+        [
+            (
+                str(run.run_id),
+                str(run.name),
+                str(run.status),
+                run.preset_type.value if run.preset_type else None,
+                run.created_at.isoformat(),
+            )
+            for run in runs
+        ],
+    )
 
 
 @eval_app.command("check", epilog=hirundo_epilog)
@@ -122,4 +121,6 @@ def eval_check(
     """
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-    LlmBehaviorEval.check_run_by_id(validate_run_id(run_id))
+    results = LlmBehaviorEval.check_run_by_id(validate_run_id(run_id))
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")

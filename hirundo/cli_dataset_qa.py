@@ -1,9 +1,15 @@
 from typing import Annotated
 
 import typer
-from rich.table import Table
 
-from hirundo._cli_common import console, hirundo_epilog, make_app, validate_run_id
+from hirundo._cli_common import (
+    console,
+    hirundo_epilog,
+    make_app,
+    print_runs_table,
+    validate_run_id,
+    wait_or_notify,
+)
 
 dataset_qa_app = make_app("dataset-qa", "Launch and monitor Dataset QA runs.")
 
@@ -26,12 +32,9 @@ def dataset_qa_run(
     run_id = QADataset.launch_qa_run(dataset_id)
     console.print(f"Dataset QA run started. Run ID: [bold]{run_id}[/bold]")
 
-    if wait:
-        QADataset.check_run_by_id(run_id)
-    else:
-        console.print(
-            "Use [bold]hirundo dataset-qa check[/bold] [italic]<run_id>[/italic] to monitor progress."
-        )
+    results = wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")
 
 
 @dataset_qa_app.command("list", epilog=hirundo_epilog)
@@ -47,19 +50,20 @@ def dataset_qa_list(
     from hirundo.dataset_qa import QADataset
 
     runs = QADataset.list_runs(archived=archived)
-
-    table = Table(title="Dataset QA Runs:", expand=True)
-    for col in ("Dataset Name", "Run ID", "Status", "Created At", "Run Args"):
-        table.add_column(col, overflow="fold")
-    for run in runs:
-        table.add_row(
-            str(run.name),
-            str(run.run_id),
-            str(run.status),
-            run.created_at.isoformat(),
-            run.run_args.model_dump_json() if run.run_args else None,
-        )
-    console.print(table)
+    print_runs_table(
+        "Dataset QA Runs:",
+        ("Dataset Name", "Run ID", "Status", "Created At", "Run Args"),
+        [
+            (
+                str(run.name),
+                str(run.run_id),
+                str(run.status),
+                run.created_at.isoformat(),
+                run.run_args.model_dump_json() if run.run_args else None,
+            )
+            for run in runs
+        ],
+    )
 
 
 @dataset_qa_app.command("check", epilog=hirundo_epilog)
@@ -71,4 +75,6 @@ def dataset_qa_check(
     """
     from hirundo.dataset_qa import QADataset
 
-    QADataset.check_run_by_id(validate_run_id(run_id))
+    results = QADataset.check_run_by_id(validate_run_id(run_id))
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")
