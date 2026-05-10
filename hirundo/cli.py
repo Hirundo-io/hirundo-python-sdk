@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import docs, hirundo_epilog, print_runs_table
+from hirundo._cli_common import docs, hirundo_epilog, print_runs_table, validate_run_id
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
@@ -204,25 +204,29 @@ def check_run(
     """
     Check the status of a run.
     """
+    validated_run_id = validate_run_id(run_id)
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
-        print(LlmUnlearningRun.check_run_by_id(run_id))
+        print(LlmUnlearningRun.check_run_by_id(validated_run_id))
     elif run_type is RunType.LLM_EVALUATION:
         from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-        results = LlmBehaviorEval.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = LlmBehaviorEval.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
     elif run_type is RunType.EXTERNAL_EVALUATION:
         from hirundo.external_eval import ExternalEval
 
-        results = ExternalEval.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = ExternalEval.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
     else:
         from hirundo.dataset_qa import QADataset
 
-        results = QADataset.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = QADataset.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
 
 
 @app.command("list-runs", epilog=hirundo_epilog)
