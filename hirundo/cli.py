@@ -6,9 +6,9 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import docs, hirundo_epilog, print_runs_table
+from hirundo._cli_common import docs, hirundo_epilog, validate_run_id
 from hirundo._env import API_HOST, EnvLocation
-from hirundo.cli_dataset_qa import dataset_qa_app
+from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_list
 from hirundo.cli_eval import eval_app
 from hirundo.cli_unlearning import unlearning_app
 
@@ -194,8 +194,9 @@ def check_run(
     """
     from hirundo.dataset_qa import QADataset
 
-    results = QADataset.check_run_by_id(run_id)
-    print(f"Run results saved to {results.cached_zip_path}")
+    results = QADataset.check_run_by_id(validate_run_id(run_id))
+    if results is not None:
+        print(f"Run results saved to {results.cached_zip_path}")
 
 
 @app.command("list-runs", epilog=hirundo_epilog)
@@ -203,23 +204,7 @@ def list_runs():
     """
     List all runs available.
     """
-    from hirundo.dataset_qa import QADataset
-
-    runs = QADataset.list_runs()
-    print_runs_table(
-        "Runs:",
-        ("Dataset name", "Run ID", "Status", "Created At", "Run Args"),
-        [
-            (
-                str(run.name),
-                str(run.run_id),
-                str(run.status),
-                run.created_at.isoformat(),
-                run.run_args.model_dump_json() if run.run_args else None,
-            )
-            for run in runs
-        ],
-    )
+    dataset_qa_list(archived=False)
 
 
 typer_click_object = typer.main.get_command(app)

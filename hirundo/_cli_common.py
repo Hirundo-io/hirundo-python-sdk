@@ -44,7 +44,7 @@ def validate_enum(value: str, enum_cls: type[Enum], label: str) -> Any:
     try:
         return enum_cls(value.upper())
     except ValueError:
-        valid = ", ".join(e.value for e in enum_cls)
+        valid = ", ".join(member.value for member in enum_cls)
         console.print(f"[red]Invalid {label} '{value}'. Valid options: {valid}[/red]")
         raise typer.Exit(code=1) from None
 
