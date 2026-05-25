@@ -92,8 +92,6 @@ def test_iter_sse_retrying_retries_read_timeout(monkeypatch: pytest.MonkeyPatch)
         _url: str,
         headers: dict[str, str],
     ) -> SyncEventSource:
-        unused_headers = headers
-        del unused_headers
         nonlocal connect_call_count
         connect_call_count += 1
         return event_sources.pop(0)
@@ -125,8 +123,6 @@ def test_iter_sse_retrying_raises_after_read_timeout_retries(
         _url: str,
         headers: dict[str, str],
     ) -> SyncEventSource:
-        unused_headers = headers
-        del unused_headers
         nonlocal connect_call_count
         connect_call_count += 1
         return SyncEventSource(exception=_read_timeout_error())
@@ -164,8 +160,6 @@ async def test_aiter_sse_retrying_retries_read_timeout(
         _url: str,
         headers: dict[str, str],
     ) -> AsyncEventSource:
-        unused_headers = headers
-        del unused_headers
         nonlocal connect_call_count
         connect_call_count += 1
         return event_sources.pop(0)
@@ -198,8 +192,6 @@ async def test_aiter_sse_retrying_raises_after_read_timeout_retries(
         _url: str,
         headers: dict[str, str],
     ) -> AsyncEventSource:
-        unused_headers = headers
-        del unused_headers
         nonlocal connect_call_count
         connect_call_count += 1
         return AsyncEventSource(exception=_read_timeout_error())
