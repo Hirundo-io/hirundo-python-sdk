@@ -9,6 +9,7 @@ from hirundo import (
     LlmUnlearningRun,
 )
 from tests.testing_utils import get_unique_id
+from transformers.pipelines.base import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +17,14 @@ unique_id = get_unique_id()
 
 
 def test_unlearn_llm_behavior():
+    # Qwen3-0.6B is a small dense (non-MoE) model (~751M params, ~3 GB fp32 /
+    # ~1.5 GB fp16) chosen so the full integration test — server-side
+    # unlearning plus local pipeline loading — fits in the ~7 GB RAM of the
+    # GitHub Actions ubuntu-latest runner.
     llm = LlmModel(
-        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-Granite-4-micro-{unique_id}",
+        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-Qwen3-0_6B-{unique_id}",
         model_source=HuggingFaceTransformersModel(
-            model_name="ibm-granite/granite-4.0-micro",
+            model_name="Qwen/Qwen3-0.6B",
         ),
     )
     llm_id = llm.create()
@@ -32,10 +37,5 @@ def test_unlearn_llm_behavior():
             llm_id,
             run_info,
         )
-        # Verify the server-side unlearning job completes. Loading the full
-        # ibm-granite/granite-4.0-micro (granitemoehybrid MoE) into the ~7 GB
-        # RAM available on a GitHub Actions runner causes OOM. The pipeline-
-        # loading path is already covered by the mock-based tests in
-        # llm_pipeline_transformers_test.py.
-        result = LlmUnlearningRun.check_run_by_id(run_id)
-        assert result is not None
+        new_adapter = llm.get_hf_pipeline_for_run(run_id, device_map="auto")
+        assert isinstance(new_adapter, Pipeline)
