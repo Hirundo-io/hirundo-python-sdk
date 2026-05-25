@@ -131,12 +131,14 @@ def get_hf_pipeline_for_run_given_model(
                 base_model_name,
                 token=token,
                 trust_remote_code=trust_remote_code,
+                device_map=device_map,
             )
         else:
             base_model = AutoModelForCausalLM.from_pretrained(
                 base_model_name,
                 token=token,
                 trust_remote_code=trust_remote_code,
+                device_map=device_map,
             )
         model = cast(
             "PreTrainedModel",

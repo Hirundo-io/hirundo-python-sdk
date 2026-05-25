@@ -155,6 +155,7 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
             "kwargs": {
                 "token": "-".join(["hf", "token"]),
                 "trust_remote_code": True,
+                "device_map": "auto",
             },
         }
     ]
@@ -236,6 +237,6 @@ def test_multimodal_pipeline_uses_image_text_loader_when_model_type_matches(
     assert multimodal_calls == [
         {
             "args": ("org/demo-model",),
-            "kwargs": {"token": None, "trust_remote_code": False},
+            "kwargs": {"token": None, "trust_remote_code": False, "device_map": None},
         }
     ]
