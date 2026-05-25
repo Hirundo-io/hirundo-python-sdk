@@ -1,5 +1,6 @@
 import io
 import zipfile
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -158,7 +159,7 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
         }
     ]
     assert peft_calls and peft_calls[0][0] is base_model
-    assert peft_calls[0][1].endswith("/unlearned_model_folder")
+    assert Path(peft_calls[0][1]).name == "unlearned_model_folder"
     assert pipeline_calls == [
         {
             "task": "text-generation",
