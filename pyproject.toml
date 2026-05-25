@@ -35,8 +35,10 @@ dependencies = [
     "requests>=2.33.0",
     #  ⬆️ Required to fix vulnerability CVE-2026-25645
     #  ⬆️ Required to fix vulnerability GHSA-9hjg-9r4m-mvj7
-    "urllib3>=2.6.3",
-    #  ⬆️ Required to fix vulnerability CVE-2026-21441
+    "urllib3>=2.7.0",
+    #  ⬆️ Required to fix vulnerabilities CVE-2026-21441, PYSEC-2026-141, and PYSEC-2026-142
+    "idna>=3.15",
+    #  ⬆️ Required to fix vulnerability CVE-2026-45409
     "setuptools>=78.1.1",
     #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
     "docutils<0.22.0",
@@ -104,8 +106,8 @@ docs = [
     "furo",
     "sphinx-multiversion",
     "esbonio",
-    "starlette>=0.49.1",
-    #  ⬆️ Required to fix vulnerability GHSA-2c2j-9gv5-cj73
+    "starlette>=1.0.1",
+    #  ⬆️ Required to fix vulnerabilities GHSA-2c2j-9gv5-cj73 and PYSEC-2026-161
     "markupsafe>=3.0.2",
     #  Force `starlette` and `markupsafe` to versions compatible with `dev` dependencies.
     "jinja2>=3.1.6",
@@ -212,4 +214,5 @@ exclude = [
     "private",
     "notebooks",
     ".venv",
+    "build",
 ]
