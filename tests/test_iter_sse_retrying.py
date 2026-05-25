@@ -10,6 +10,9 @@ if TYPE_CHECKING:
     from urllib3.connectionpool import ConnectionPool
 
 
+SSE_URL = "https://example.test/events"
+
+
 class SyncEventSource:
     def __init__(
         self,
@@ -59,29 +62,39 @@ class AsyncEventSource:
 def _read_timeout_error() -> ReadTimeoutError:
     return ReadTimeoutError(
         cast("ConnectionPool", None),
-        "https://example.test/events",
+        SSE_URL,
         "timed out",
     )
 
 
-def test_iter_sse_retrying_retries_read_timeout(monkeypatch: pytest.MonkeyPatch):
+def _disable_retry_delays(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(sse_retrying, "MAX_RETRIES", 2)
     monkeypatch.setattr(sse_retrying.time, "sleep", lambda _seconds: None)
 
+    async def fake_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(sse_retrying.asyncio, "sleep", fake_sleep)
+
+
+def test_iter_sse_retrying_retries_read_timeout(monkeypatch: pytest.MonkeyPatch):
+    _disable_retry_delays(monkeypatch)
     expected_event = ServerSentEvent(data="done", event="message", id="event-1")
     event_sources = [
         SyncEventSource(exception=_read_timeout_error()),
         SyncEventSource(event=expected_event),
     ]
-    connect_calls = []
+    connect_call_count = 0
 
     def fake_connect_sse(
-        client: httpx.Client,
-        method_name: str,
-        url: str,
+        _client: httpx.Client,
+        _method_name: str,
+        _url: str,
         headers: dict[str, str],
     ) -> SyncEventSource:
-        connect_calls.append((client, method_name, url, headers))
+        _ = headers
+        nonlocal connect_call_count
+        connect_call_count += 1
         return event_sources.pop(0)
 
     monkeypatch.setattr(sse_retrying, "connect_sse", fake_connect_sse)
@@ -91,28 +104,29 @@ def test_iter_sse_retrying_retries_read_timeout(monkeypatch: pytest.MonkeyPatch)
             sse_retrying.iter_sse_retrying(
                 client,
                 "GET",
-                "https://example.test/events",
+                SSE_URL,
             )
         )
 
     assert events == [expected_event]
-    assert len(connect_calls) == 2
+    assert connect_call_count == 2
 
 
 def test_iter_sse_retrying_raises_after_read_timeout_retries(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(sse_retrying, "MAX_RETRIES", 2)
-    monkeypatch.setattr(sse_retrying.time, "sleep", lambda _seconds: None)
-    connect_calls = []
+    _disable_retry_delays(monkeypatch)
+    connect_call_count = 0
 
     def fake_connect_sse(
-        client: httpx.Client,
-        method_name: str,
-        url: str,
+        _client: httpx.Client,
+        _method_name: str,
+        _url: str,
         headers: dict[str, str],
     ) -> SyncEventSource:
-        connect_calls.append((client, method_name, url, headers))
+        _ = headers
+        nonlocal connect_call_count
+        connect_call_count += 1
         return SyncEventSource(exception=_read_timeout_error())
 
     monkeypatch.setattr(sse_retrying, "connect_sse", fake_connect_sse)
@@ -123,38 +137,34 @@ def test_iter_sse_retrying_raises_after_read_timeout_retries(
                 sse_retrying.iter_sse_retrying(
                     client,
                     "GET",
-                    "https://example.test/events",
+                    SSE_URL,
                 )
             )
 
-    assert len(connect_calls) == 2
+    assert connect_call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_aiter_sse_retrying_retries_read_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(sse_retrying, "MAX_RETRIES", 2)
-
-    async def fake_sleep(_seconds: float) -> None:
-        return None
-
-    monkeypatch.setattr(sse_retrying.asyncio, "sleep", fake_sleep)
-
+    _disable_retry_delays(monkeypatch)
     expected_event = ServerSentEvent(data="done", event="message", id="event-1")
     event_sources = [
         AsyncEventSource(exception=_read_timeout_error()),
         AsyncEventSource(event=expected_event),
     ]
-    connect_calls = []
+    connect_call_count = 0
 
     def fake_aconnect_sse(
-        client: httpx.AsyncClient,
-        method_name: str,
-        url: str,
+        _client: httpx.AsyncClient,
+        _method_name: str,
+        _url: str,
         headers: dict[str, str],
     ) -> AsyncEventSource:
-        connect_calls.append((client, method_name, url, headers))
+        _ = headers
+        nonlocal connect_call_count
+        connect_call_count += 1
         return event_sources.pop(0)
 
     monkeypatch.setattr(sse_retrying, "aconnect_sse", fake_aconnect_sse)
@@ -163,34 +173,31 @@ async def test_aiter_sse_retrying_retries_read_timeout(
         event_iterator = await sse_retrying.aiter_sse_retrying(
             client,
             "GET",
-            "https://example.test/events",
+            SSE_URL,
             headers={},
         )
         events = [event async for event in event_iterator]
 
     assert events == [expected_event]
-    assert len(connect_calls) == 2
+    assert connect_call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_aiter_sse_retrying_raises_after_read_timeout_retries(
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(sse_retrying, "MAX_RETRIES", 2)
-
-    async def fake_sleep(_seconds: float) -> None:
-        return None
-
-    monkeypatch.setattr(sse_retrying.asyncio, "sleep", fake_sleep)
-    connect_calls = []
+    _disable_retry_delays(monkeypatch)
+    connect_call_count = 0
 
     def fake_aconnect_sse(
-        client: httpx.AsyncClient,
-        method_name: str,
-        url: str,
+        _client: httpx.AsyncClient,
+        _method_name: str,
+        _url: str,
         headers: dict[str, str],
     ) -> AsyncEventSource:
-        connect_calls.append((client, method_name, url, headers))
+        _ = headers
+        nonlocal connect_call_count
+        connect_call_count += 1
         return AsyncEventSource(exception=_read_timeout_error())
 
     monkeypatch.setattr(sse_retrying, "aconnect_sse", fake_aconnect_sse)
@@ -199,10 +206,10 @@ async def test_aiter_sse_retrying_raises_after_read_timeout_retries(
         event_iterator = await sse_retrying.aiter_sse_retrying(
             client,
             "GET",
-            "https://example.test/events",
+            SSE_URL,
             headers={},
         )
         with pytest.raises(ReadTimeoutError):
             [event async for event in event_iterator]
 
-    assert len(connect_calls) == 2
+    assert connect_call_count == 2

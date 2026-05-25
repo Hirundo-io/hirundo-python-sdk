@@ -15,6 +15,11 @@ from hirundo.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_RETRIES = 50
+RETRYABLE_SSE_EXCEPTIONS = (
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+    ReadTimeoutError,
+)
 
 
 # Credit: https://github.com/florimondmanca/httpx-sse/blob/master/README.md#handling-reconnections
@@ -37,16 +42,13 @@ def iter_sse_retrying(
     #  This may happen when the server is overloaded and closes the connection or
     #  when Kubernetes restarts / replaces a pod.
     #  Likewise, this will likely be temporary, hence the retries.
-    retryable_exceptions = (
-        httpx.ReadError,
-        httpx.RemoteProtocolError,
-        ReadTimeoutError,
-    )
-
     def _iter_sse() -> Generator[ServerSentEvent, None, None]:
         nonlocal last_event_id, reconnection_delay
 
-        for attempt in retry_context(on=retryable_exceptions, attempts=MAX_RETRIES):
+        for attempt in retry_context(
+            on=RETRYABLE_SSE_EXCEPTIONS,
+            attempts=MAX_RETRIES,
+        ):
             with attempt:
                 time.sleep(reconnection_delay)
 
@@ -104,17 +106,12 @@ async def aiter_sse_retrying(
     #  This may happen when the server is overloaded and closes the connection or
     #  when Kubernetes restarts / replaces a pod.
     #  Likewise, this will likely be temporary, hence the retries.
-    retryable_exceptions = (
-        httpx.ReadError,
-        httpx.RemoteProtocolError,
-        ReadTimeoutError,
-    )
-
     async def _iter_sse() -> AsyncGenerator[ServerSentEvent, None]:
         nonlocal last_event_id, reconnection_delay
 
         async for attempt in retry_context(
-            on=retryable_exceptions, attempts=MAX_RETRIES
+            on=RETRYABLE_SSE_EXCEPTIONS,
+            attempts=MAX_RETRIES,
         ):
             with attempt:
                 await asyncio.sleep(reconnection_delay)
