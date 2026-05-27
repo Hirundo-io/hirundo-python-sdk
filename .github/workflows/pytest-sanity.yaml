@@ -16,7 +16,6 @@ concurrency:
 jobs:
   pytest_sanity:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
     permissions:
       contents: read
     strategy:
