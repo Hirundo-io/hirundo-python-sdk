@@ -5,6 +5,7 @@ from hirundo import (
     BBQBiasType,
     EvalRunInfo,
     HuggingFaceTransformersModel,
+    JudgeModel,
     LlmBehaviorEval,
     LlmModel,
     ModelOrRun,
@@ -30,6 +31,9 @@ def test_llm_behavior_eval():
         model_id=llm_id,
         preset_type=PresetType.BBQ_BIAS,
         bias_type=BBQBiasType.ALL,
+        # Use a small judge so the sanity eval run stays fast; grading quality
+        # is irrelevant here, we only verify the pipeline runs end-to-end.
+        judge_model=JudgeModel(path_or_repo_id="Qwen/Qwen3-0.6B"),
     )
     assert llm_id is not None
     if os.getenv("FULL_TEST", "false") == "true":
