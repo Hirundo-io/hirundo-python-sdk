@@ -18,9 +18,9 @@ unique_id = get_unique_id()
 
 def test_unlearn_llm_behavior():
     llm = LlmModel(
-        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-Granite-4-micro-{unique_id}",
+        model_name=f"TEST-UNLEARN-LLM-BEHAVIOR-SmolLM2-135M-{unique_id}",
         model_source=HuggingFaceTransformersModel(
-            model_name="ibm-granite/granite-4.0-micro",
+            model_name="HuggingFaceTB/SmolLM2-135M-Instruct",
         ),
     )
     llm_id = llm.create()
