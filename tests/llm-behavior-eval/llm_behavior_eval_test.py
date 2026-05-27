@@ -19,9 +19,9 @@ unique_id = get_unique_id()
 
 def test_llm_behavior_eval():
     llm = LlmModel(
-        model_name=f"TEST-LLM-BEHAVIOR-EVAL-SmolLM2-135M-{unique_id}",
+        model_name=f"TEST-LLM-BEHAVIOR-EVAL-Qwen3-0.6B-{unique_id}",
         model_source=HuggingFaceTransformersModel(
-            model_name="HuggingFaceTB/SmolLM2-135M-Instruct",
+            model_name="Qwen/Qwen3-0.6B",
         ),
     )
     llm_id = llm.create()
