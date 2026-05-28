@@ -66,7 +66,9 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
-@pytest.mark.skip(reason="SDK-97: OD sanity run takes 70+ min; skipped until dataset is reduced or moved to a nightly workflow")
+@pytest.mark.skip(
+    reason="SDK-97: OD sanity run takes 70+ min; skipped until dataset is reduced or moved to a nightly workflow"
+)
 def test_dataset_qa():
     full_run = dataset_qa_sync_test(
         test_dataset,
