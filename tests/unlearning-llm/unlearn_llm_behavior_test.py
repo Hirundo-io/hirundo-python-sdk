@@ -25,9 +25,6 @@ def test_unlearn_llm_behavior():
     )
     llm_id = llm.create()
     run_info = BiasRunInfo(
-        # Use a single bias type to keep the sanity run fast and avoid a
-        # multiprocessing deadlock that occurs in the backend when ALL is used
-        # (6 bias types with num_proc=6 workers deadlocks during data prep).
         bias_type=BBQBiasType.RACE,
     )
     assert llm_id is not None
