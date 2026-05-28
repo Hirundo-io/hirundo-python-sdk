@@ -57,6 +57,9 @@ def cleanup_tests():
     cleanup(test_dataset)
 
 
+@pytest.mark.skip(
+    reason="SDK-97: STT runs are rejected in the test environment; skipped until backend worker is available"
+)
 def test_dataset_qa():
     full_run = dataset_qa_sync_test(
         test_dataset, sanity=True, alternative_env="RUN_STT_GIT_DATA_QA"

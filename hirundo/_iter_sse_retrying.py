@@ -4,9 +4,9 @@ import uuid
 from collections.abc import AsyncGenerator, Generator
 
 import httpx
-import urllib3
 from httpx_sse import ServerSentEvent, SSEError, aconnect_sse, connect_sse
 from stamina import retry
+from urllib3.exceptions import ReadTimeoutError
 
 from hirundo._http import requests
 from hirundo._timeouts import READ_TIMEOUT
@@ -41,7 +41,7 @@ def iter_sse_retrying(
         on=(
             httpx.ReadError,
             httpx.RemoteProtocolError,
-            urllib3.exceptions.ReadTimeoutError,
+            ReadTimeoutError,
         ),
         attempts=MAX_RETRIES,
     )
@@ -106,7 +106,7 @@ async def aiter_sse_retrying(
         on=(
             httpx.ReadError,
             httpx.RemoteProtocolError,
-            urllib3.exceptions.ReadTimeoutError,
+            ReadTimeoutError,
         ),
         attempts=MAX_RETRIES,
     )
