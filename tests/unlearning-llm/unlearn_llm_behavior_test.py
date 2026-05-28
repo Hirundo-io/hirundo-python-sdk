@@ -28,8 +28,8 @@ def test_unlearn_llm_behavior():
         bias_type=BBQBiasType.RACE,
     )
     assert llm_id is not None
-    # SDK-97: backend deadlocks in Map(num_proc=6) during data preprocessing
-    # regardless of bias type — skipping full run until backend fixes num_proc
+    # SDK-97: unlearning backend runs hang indefinitely during data preprocessing;
+    # skipped until backend team resolves the issue
     # if os.getenv("FULL_TEST", "false") == "true":
     #     run_id = LlmUnlearningRun.launch(
     #         llm_id,
