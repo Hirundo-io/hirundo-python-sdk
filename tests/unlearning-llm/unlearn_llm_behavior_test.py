@@ -1,15 +1,12 @@
 import logging
-import os
 
 from hirundo import (
     BBQBiasType,
     BiasRunInfo,
     HuggingFaceTransformersModel,
     LlmModel,
-    LlmUnlearningRun,
 )
 from tests.testing_utils import get_unique_id
-from transformers.pipelines.base import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +21,16 @@ def test_unlearn_llm_behavior():
         ),
     )
     llm_id = llm.create()
-    run_info = BiasRunInfo(
-        bias_type=BBQBiasType.RACE,
-    )
+    # Instantiate run_info to validate the BiasRunInfo constructor is importable
+    # and BBQBiasType works; the actual backend run is skipped (SDK-97: backend
+    # runs hang indefinitely during data preprocessing).
+    BiasRunInfo(bias_type=BBQBiasType.RACE)
     assert llm_id is not None
-    # SDK-97: unlearning backend runs hang indefinitely during data preprocessing;
-    # skipped until backend team resolves the issue
+    # TODO SDK-97: re-enable once backend team resolves the preprocessing hang
+    # import os
+    # from hirundo import LlmUnlearningRun
+    # from transformers.pipelines.base import Pipeline
     # if os.getenv("FULL_TEST", "false") == "true":
-    #     run_id = LlmUnlearningRun.launch(
-    #         llm_id,
-    #         run_info,
-    #     )
+    #     run_id = LlmUnlearningRun.launch(llm_id, run_info)
     #     new_adapter = llm.get_hf_pipeline_for_run(run_id)
     #     assert isinstance(new_adapter, Pipeline)
