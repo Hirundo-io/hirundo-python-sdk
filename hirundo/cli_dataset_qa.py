@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 
 from hirundo._cli_common import (
+    check_run_and_print,
     console,
     hirundo_epilog,
     make_app,
@@ -75,6 +76,4 @@ def dataset_qa_check(
     """
     from hirundo.dataset_qa import QADataset
 
-    results = QADataset.check_run_by_id(validate_run_id(run_id))
-    if results is not None:
-        console.print(f"Run results saved to {results.cached_zip_path}")
+    check_run_and_print(run_id, QADataset.check_run_by_id)

@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 
 from hirundo._cli_common import (
+    check_run_and_print,
     console,
     hirundo_epilog,
     make_app,
@@ -129,4 +130,4 @@ def unlearning_check(
     """
     from hirundo.unlearning_llm import LlmUnlearningRun
 
-    LlmUnlearningRun.check_run_by_id(validate_run_id(run_id))
+    check_run_and_print(run_id, LlmUnlearningRun.check_run_by_id)
