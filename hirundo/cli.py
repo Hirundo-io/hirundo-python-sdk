@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import docs, hirundo_epilog, validate_run_id
+from hirundo._cli_common import check_run_and_print, docs, hirundo_epilog
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_list
 from hirundo.cli_eval import eval_app
@@ -194,9 +194,7 @@ def check_run(
     """
     from hirundo.dataset_qa import QADataset
 
-    results = QADataset.check_run_by_id(validate_run_id(run_id))
-    if results is not None:
-        print(f"Run results saved to {results.cached_zip_path}")
+    check_run_and_print(run_id, QADataset.check_run_by_id)
 
 
 @app.command("list-runs", epilog=hirundo_epilog)
