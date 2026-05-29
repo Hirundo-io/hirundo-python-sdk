@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator, Generator
 
 import httpx
 from httpx_sse import ServerSentEvent, SSEError, aconnect_sse, connect_sse
-from stamina import retry
+from stamina import retry_context
 from urllib3.exceptions import ReadTimeoutError
 
 from hirundo._http import requests
@@ -15,6 +15,11 @@ from hirundo.logger import get_logger
 logger = get_logger(__name__)
 
 MAX_RETRIES = 50
+RETRYABLE_SSE_EXCEPTIONS = (
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+    ReadTimeoutError,
+)
 
 
 # Credit: https://github.com/florimondmanca/httpx-sse/blob/master/README.md#handling-reconnections
@@ -37,50 +42,49 @@ def iter_sse_retrying(
     #  This may happen when the server is overloaded and closes the connection or
     #  when Kubernetes restarts / replaces a pod.
     #  Likewise, this will likely be temporary, hence the retries.
-    @retry(
-        on=(
-            httpx.ReadError,
-            httpx.RemoteProtocolError,
-            ReadTimeoutError,
-        ),
-        attempts=MAX_RETRIES,
-    )
-    def _iter_sse():
+    def _iter_sse() -> Generator[ServerSentEvent, None, None]:
         nonlocal last_event_id, reconnection_delay
 
-        time.sleep(reconnection_delay)
+        for attempt in retry_context(
+            on=RETRYABLE_SSE_EXCEPTIONS,
+            attempts=MAX_RETRIES,
+        ):
+            with attempt:
+                time.sleep(reconnection_delay)
 
-        connect_headers = {
-            **headers,
-            "Accept": "text/event-stream",
-            "X-Accel-Buffering": "no",
-        }
+                connect_headers = {
+                    **headers,
+                    "Accept": "text/event-stream",
+                    "X-Accel-Buffering": "no",
+                }
 
-        if last_event_id:
-            connect_headers["Last-Event-ID"] = last_event_id
+                if last_event_id:
+                    connect_headers["Last-Event-ID"] = last_event_id
 
-        with connect_sse(client, method, url, headers=connect_headers) as event_source:
-            try:
-                for sse in event_source.iter_sse():
-                    last_event_id = sse.id
+                with connect_sse(
+                    client, method, url, headers=connect_headers
+                ) as event_source:
+                    try:
+                        for sse in event_source.iter_sse():
+                            last_event_id = sse.id
 
-                    if sse.retry is not None:
-                        reconnection_delay = sse.retry / 1000
+                            if sse.retry is not None:
+                                reconnection_delay = sse.retry / 1000
 
-                    yield sse
-            except SSEError:
-                logger.error("SSE error occurred. Trying regular request")
-                response = requests.get(
-                    url,
-                    headers=connect_headers,
-                    timeout=READ_TIMEOUT,
-                )
-                yield ServerSentEvent(
-                    event="",
-                    data=response.text,
-                    id=uuid.uuid4().hex,
-                    retry=None,
-                )
+                            yield sse
+                    except SSEError:
+                        logger.error("SSE error occurred. Trying regular request")
+                        response = requests.get(
+                            url,
+                            headers=connect_headers,
+                            timeout=READ_TIMEOUT,
+                        )
+                        yield ServerSentEvent(
+                            event="",
+                            data=response.text,
+                            id=uuid.uuid4().hex,
+                            retry=None,
+                        )
 
     return _iter_sse()
 
@@ -102,43 +106,40 @@ async def aiter_sse_retrying(
     #  This may happen when the server is overloaded and closes the connection or
     #  when Kubernetes restarts / replaces a pod.
     #  Likewise, this will likely be temporary, hence the retries.
-    @retry(
-        on=(
-            httpx.ReadError,
-            httpx.RemoteProtocolError,
-            ReadTimeoutError,
-        ),
-        attempts=MAX_RETRIES,
-    )
     async def _iter_sse() -> AsyncGenerator[ServerSentEvent, None]:
         nonlocal last_event_id, reconnection_delay
 
-        await asyncio.sleep(reconnection_delay)
+        async for attempt in retry_context(
+            on=RETRYABLE_SSE_EXCEPTIONS,
+            attempts=MAX_RETRIES,
+        ):
+            with attempt:
+                await asyncio.sleep(reconnection_delay)
 
-        connect_headers = {**headers, "Accept": "text/event-stream"}
+                connect_headers = {**headers, "Accept": "text/event-stream"}
 
-        if last_event_id:
-            connect_headers["Last-Event-ID"] = last_event_id
+                if last_event_id:
+                    connect_headers["Last-Event-ID"] = last_event_id
 
-        async with aconnect_sse(
-            client, method, url, headers=connect_headers
-        ) as event_source:
-            try:
-                async for sse in event_source.aiter_sse():
-                    last_event_id = sse.id
+                async with aconnect_sse(
+                    client, method, url, headers=connect_headers
+                ) as event_source:
+                    try:
+                        async for sse in event_source.aiter_sse():
+                            last_event_id = sse.id
 
-                    if sse.retry is not None:
-                        reconnection_delay = sse.retry / 1000
+                            if sse.retry is not None:
+                                reconnection_delay = sse.retry / 1000
 
-                    yield sse
-            except SSEError:
-                logger.error("SSE error occurred. Trying regular request")
-                response = await client.get(url, headers=connect_headers)
-                yield ServerSentEvent(
-                    event="",
-                    data=response.text,
-                    id=uuid.uuid4().hex,
-                    retry=None,
-                )
+                            yield sse
+                    except SSEError:
+                        logger.error("SSE error occurred. Trying regular request")
+                        response = await client.get(url, headers=connect_headers)
+                        yield ServerSentEvent(
+                            event="",
+                            data=response.text,
+                            id=uuid.uuid4().hex,
+                            retry=None,
+                        )
 
     return _iter_sse()
