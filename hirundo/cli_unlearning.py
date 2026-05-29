@@ -51,7 +51,6 @@ def unlearning_run(
     from hirundo.llm_bias_type import BBQBiasType
     from hirundo.unlearning_llm import (
         BiasBehavior,
-        DefaultUtility,
         HallucinationBehavior,
         HallucinationType,
         LlmRunInfo,
@@ -85,7 +84,6 @@ def unlearning_run(
     run_info = LlmRunInfo(
         name=name,
         target_behaviors=[target_behavior],
-        target_utilities=[DefaultUtility()],
     )
 
     run_id = LlmUnlearningRun.launch(model_id, run_info)
