@@ -9,7 +9,6 @@ from hirundo._cli_common import (
     make_app,
     print_runs_table,
     validate_enum,
-    validate_run_id,
     wait_or_notify,
 )
 

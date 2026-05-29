@@ -8,7 +8,6 @@ from hirundo._cli_common import (
     hirundo_epilog,
     make_app,
     print_runs_table,
-    validate_run_id,
     wait_or_notify,
 )
 
