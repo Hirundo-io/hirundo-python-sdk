@@ -60,6 +60,12 @@ def wait_or_notify(
     return None
 
 
+def check_run_and_print(run_id: str, check_fn: Callable[[str], Any]) -> None:
+    results = check_fn(validate_run_id(run_id))
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")
+
+
 def print_runs_table(
     title: str,
     columns: tuple[str, ...],
