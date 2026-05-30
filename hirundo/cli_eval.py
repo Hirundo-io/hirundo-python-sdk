@@ -8,6 +8,7 @@ from hirundo._cli_common import (
     hirundo_epilog,
     make_app,
     print_runs_table,
+    require_exactly_one,
     validate_enum,
     validate_run_id,
     wait_or_notify,
@@ -56,16 +57,7 @@ def eval_run(
         PresetType,
     )
 
-    if model_id is None and source_run_id is None:
-        console.print(
-            "[red]Error: either --model-id or --source-run-id must be provided.[/red]"
-        )
-        raise typer.Exit(code=1)
-    if model_id is not None and source_run_id is not None:
-        console.print(
-            "[red]Error: only one of --model-id or --source-run-id may be provided.[/red]"
-        )
-        raise typer.Exit(code=1)
+    require_exactly_one(("--model-id", model_id), ("--source-run-id", source_run_id))
 
     if source_run_id is not None:
         source_run_id = validate_run_id(source_run_id)

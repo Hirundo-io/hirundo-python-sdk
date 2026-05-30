@@ -3,7 +3,37 @@ from unittest.mock import MagicMock, patch
 import hirundo._cli_common as cli_common  # noqa: E402
 import pytest
 import typer
-from hirundo._cli_common import validate_run_id, wait_or_notify
+from hirundo._cli_common import (
+    require_exactly_one,
+    validate_run_id,
+    wait_or_notify,
+)
+
+
+class TestRequireExactlyOne:
+    def test_exactly_one_set_is_ok(self):
+        require_exactly_one(("--a", "x"), ("--b", None))
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            ((("--a", None), ("--b", None))),
+            ((("--a", "x"), ("--b", "y"))),
+        ],
+    )
+    def test_zero_or_many_exits(self, options):
+        with pytest.raises(typer.Exit) as exc:
+            require_exactly_one(*options)
+        assert exc.value.exit_code == 1
+
+    def test_error_message_lists_option_names(self):
+        with (
+            patch.object(cli_common.console, "print") as mock_print,
+            pytest.raises(typer.Exit),
+        ):
+            require_exactly_one(("--a", None), ("--b", None))
+        output = mock_print.call_args[0][0]
+        assert "--a or --b" in output
 
 
 class TestValidateRunId:
@@ -38,12 +68,12 @@ class TestWaitOrNotify:
         check_fn.assert_called_once_with("run-1")
 
     def test_wait_true_prints_results_path_when_present(self):
-        result = MagicMock(cached_zip_path="/tmp/run-1.zip")
+        result = MagicMock(cached_zip_path="cache/run-1.zip")
         check_fn = MagicMock(return_value=result)
         with patch.object(cli_common.console, "print") as mock_print:
             wait_or_notify("run-1", check_fn, "dataset-qa", wait=True)
         printed = " ".join(str(call) for call in mock_print.call_args_list)
-        assert "/tmp/run-1.zip" in printed
+        assert "cache/run-1.zip" in printed
 
     def test_wait_true_no_print_when_results_none(self):
         check_fn = MagicMock(return_value=None)
