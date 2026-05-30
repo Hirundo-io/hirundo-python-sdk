@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 
 from hirundo._cli_common import (
+    ArchivedOption,
     check_run_and_print,
     hirundo_epilog,
     make_app,
@@ -36,12 +37,7 @@ def dataset_qa_run(
 
 
 @dataset_qa_app.command("list", epilog=hirundo_epilog)
-def dataset_qa_list(
-    archived: Annotated[
-        bool,
-        typer.Option("--archived/--no-archived", help="Include archived runs."),
-    ] = False,
-):
+def dataset_qa_list(archived: ArchivedOption = False):
     """
     List Dataset QA runs.
     """
