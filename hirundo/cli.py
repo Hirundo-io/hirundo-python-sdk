@@ -94,8 +94,10 @@ def setup_api_key(
     ],
 ):
     """
-    Setup the API key for the Hirundo Python SDK.
-    Values are saved to a .env file in the current directory for use by the library in requests.
+    Save the API key for the Hirundo SDK.
+
+    The key is written to a local .env file (or ~/.hirundo.conf if no .env
+    exists) and picked up automatically on subsequent commands.
     """
     location = _location_label(upsert_env("API_KEY", api_key))
     success(f"API key saved to [bold]{location}[/bold].")
@@ -115,8 +117,7 @@ def change_api_remote(
     ],
 ):
     """
-    Change the API server address for the Hirundo Python SDK.
-    This is the same address where you access the Hirundo web interface.
+    Change the API server address (same URL as the Hirundo web interface).
     """
     api_host = fix_api_host(api_host)
 
