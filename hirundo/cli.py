@@ -7,22 +7,38 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import docs, hirundo_epilog, print_runs_table, validate_run_id
+from hirundo._cli_common import (
+    docs,
+    hirundo_epilog,
+    print_runs_table,
+    success,
+    validate_run_id,
+    warn,
+)
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
 from hirundo.cli_unlearning import unlearning_app
+
+_CONFIG_PANEL = "Configuration"
+_RUNS_PANEL = "Runs"
+_PIPELINES_PANEL = "Pipelines"
 
 app = typer.Typer(
     name="hirundo",
     no_args_is_help=True,
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
+    help=(
+        "Launch and monitor Hirundo data-quality, unlearning, and evaluation "
+        "runs. Run `hirundo setup` once to store your API key, then use the "
+        "eval, dataset-qa, and unlearning command groups."
+    ),
 )
 
-app.add_typer(eval_app, name="eval")
-app.add_typer(dataset_qa_app, name="dataset-qa")
-app.add_typer(unlearning_app, name="unlearning")
+app.add_typer(eval_app, name="eval", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(dataset_qa_app, name="dataset-qa", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(unlearning_app, name="unlearning", rich_help_panel=_PIPELINES_PANEL)
 
 
 class RunType(str, Enum):
@@ -30,6 +46,11 @@ class RunType(str, Enum):
     LLM_EVALUATION = "llm-evaluation"
     DATASET_QA = "dataset-qa"
     EXTERNAL_EVALUATION = "external-evaluation"
+
+
+def _location_label(saved_to: str) -> str:
+    """Return the display name for an environment-file location."""
+    return "~/.hirundo.conf" if saved_to == EnvLocation.HOME.name else ".env"
 
 
 def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
@@ -68,16 +89,14 @@ def upsert_env(var_name: str, var_value: str):
 def fix_api_host(api_host: str):
     if not api_host.startswith("http") and not api_host.startswith("https"):
         api_host = f"https://{api_host}"
-        print(
-            "API host must start with 'http://' or 'https://'. Automatically added 'https://'."
-        )
+        warn("API host must start with 'http://' or 'https://'. Added 'https://'.")
     if (url := urlparse(api_host)) and url.path != "":
-        print("API host should not contain a path. Removing path.")
+        warn("API host should not contain a path. Removing it.")
         api_host = f"{url.scheme}://{url.hostname}"
     return api_host
 
 
-@app.command("set-api-key", epilog=hirundo_epilog)
+@app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup_api_key(
     api_key: Annotated[
         str,
@@ -93,18 +112,12 @@ def setup_api_key(
     Setup the API key for the Hirundo Python SDK.
     Values are saved to a .env file in the current directory for use by the library in requests.
     """
-    saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-        )
+    location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key))
+    success(f"API key saved to [bold]{location}[/bold].")
+    warn(f"Keep [bold]{location}[/bold] private, it contains your secret API key.")
 
 
-@app.command("change-remote", epilog=hirundo_epilog)
+@app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def change_api_remote(
     api_host: Annotated[
         str,  # TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
@@ -122,16 +135,11 @@ def change_api_remote(
     """
     api_host = fix_api_host(api_host)
 
-    saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print("API host saved to .env for future use. Please do not share this file")
+    location = _location_label(upsert_env("HIRUNDO_API_HOST", api_host))
+    success(f"API host saved to [bold]{location}[/bold].")
 
 
-@app.command("setup", epilog=hirundo_epilog)
+@app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup(
     api_key: Annotated[
         str,
@@ -155,45 +163,16 @@ def setup(
     """
     Setup the Hirundo Python SDK.
     """
-    api_host = fix_api_host(api_host)
-    api_host_saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
-    api_key_saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
-    if api_host_saved_to != api_key_saved_to:
-        print(
-            "API host and API key saved to different locations. This should not happen. Please report this issue."
-        )
-        if (
-            api_host_saved_to == EnvLocation.HOME.name
-            and api_key_saved_to == EnvLocation.DOTENV.name
-        ):
-            print(
-                "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-            )
-            print(
-                "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-            )
-        elif (
-            api_host_saved_to == EnvLocation.DOTENV.name
-            and api_key_saved_to == EnvLocation.HOME.name
-        ):
-            print(
-                "API host saved to .env for future use. Please do not share this file"
-            )
-            print(
-                "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-            )
-        return
-    if api_host_saved_to == EnvLocation.HOME.name:
-        print(
-            "API host and API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif api_host_saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API host and API key saved to .env for future use. Please do not share this file since it contains your secret API key."
-        )
+    host_location = _location_label(
+        upsert_env("HIRUNDO_API_HOST", fix_api_host(api_host))
+    )
+    key_location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key))
+    success(f"API host saved to [bold]{host_location}[/bold].")
+    success(f"API key saved to [bold]{key_location}[/bold].")
+    warn(f"Keep [bold]{key_location}[/bold] private, it contains your secret API key.")
 
 
-@app.command("check-run", epilog=hirundo_epilog)
+@app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def check_run(
     run_id: str,
     run_type: Annotated[
@@ -229,7 +208,7 @@ def check_run(
             print(f"Run results saved to {results.cached_zip_path}")
 
 
-@app.command("list-runs", epilog=hirundo_epilog)
+@app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def list_runs(
     run_type: Annotated[
         RunType,

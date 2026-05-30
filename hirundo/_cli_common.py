@@ -20,6 +20,26 @@ hirundo_epilog = (
 console = Console()
 
 
+def success(message: str) -> None:
+    """Print a success message with a green check icon."""
+    console.print(f"[bold green]✓[/bold green] {message}")
+
+
+def info(message: str) -> None:
+    """Print an informational message with a cyan info icon."""
+    console.print(f"[bold cyan]ℹ[/bold cyan] {message}")
+
+
+def warn(message: str) -> None:
+    """Print a warning message with a yellow icon."""
+    console.print(f"[bold yellow]![/bold yellow] {message}")
+
+
+def error(message: str) -> None:
+    """Print an error message with a red cross icon."""
+    console.print(f"[bold red]✗[/bold red] {message}")
+
+
 def make_app(name: str, help_text: str) -> typer.Typer:
     return typer.Typer(
         name=name,
@@ -32,9 +52,9 @@ def make_app(name: str, help_text: str) -> typer.Typer:
 
 def validate_run_id(run_id: str) -> str:
     if not _RUN_ID_RE.fullmatch(run_id):
-        console.print(
-            f"[red]Invalid run ID '{run_id}'. "
-            "Run IDs may only contain alphanumeric characters, hyphens, and underscores.[/red]"
+        error(
+            f"Invalid run ID '{run_id}'. Run IDs may only contain "
+            "alphanumeric characters, hyphens, and underscores."
         )
         raise typer.Exit(code=1) from None
     return run_id
@@ -45,7 +65,7 @@ def validate_enum(value: str, enum_cls: type[Enum], label: str) -> Any:
         return enum_cls(value.upper())
     except ValueError:
         valid = ", ".join(member.value for member in enum_cls)
-        console.print(f"[red]Invalid {label} '{value}'. Valid options: {valid}[/red]")
+        error(f"Invalid {label} '{value}'. Valid options: {valid}.")
         raise typer.Exit(code=1) from None
 
 
@@ -54,13 +74,18 @@ def require_exactly_one(*options: tuple[str, Any]) -> None:
     provided = [name for name, value in options if value is not None]
     if len(provided) != 1:
         names = " or ".join(name for name, _ in options)
-        console.print(f"[red]Error: exactly one of {names} must be provided.[/red]")
+        error(f"Exactly one of {names} must be provided.")
         raise typer.Exit(code=1) from None
+
+
+def report_run_started(label: str, run_id: str) -> None:
+    """Announce a freshly launched run in a consistent style."""
+    success(f"{label} run started — Run ID: [bold]{run_id}[/bold]")
 
 
 def _report_results(results: Any) -> Any:
     if results is not None:
-        console.print(f"Run results saved to {results.cached_zip_path}")
+        success(f"Run results saved to [bold]{results.cached_zip_path}[/bold]")
     return results
 
 
@@ -68,8 +93,9 @@ def wait_or_notify(
     run_id: str, check_fn: Callable[[str], Any], cmd_name: str, wait: bool
 ) -> Any:
     if not wait:
-        console.print(
-            f"Use [bold]hirundo {cmd_name} check[/bold] [italic]<run_id>[/italic] to monitor progress."
+        info(
+            f"Use [bold]hirundo {cmd_name} check[/bold] [italic]<run_id>[/italic] "
+            "to monitor progress."
         )
         return None
     return _report_results(check_fn(run_id))

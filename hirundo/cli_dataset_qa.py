@@ -4,10 +4,10 @@ import typer
 
 from hirundo._cli_common import (
     check_run_and_print,
-    console,
     hirundo_epilog,
     make_app,
     print_runs_table,
+    report_run_started,
     wait_or_notify,
 )
 
@@ -30,7 +30,7 @@ def dataset_qa_run(
     from hirundo.dataset_qa import QADataset
 
     run_id = QADataset.launch_qa_run(dataset_id)
-    console.print(f"Dataset QA run started. Run ID: [bold]{run_id}[/bold]")
+    report_run_started("Dataset QA", run_id)
 
     wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
 

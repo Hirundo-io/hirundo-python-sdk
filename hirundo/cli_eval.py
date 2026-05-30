@@ -4,10 +4,10 @@ import typer
 
 from hirundo._cli_common import (
     check_run_and_print,
-    console,
     hirundo_epilog,
     make_app,
     print_runs_table,
+    report_run_started,
     require_exactly_one,
     validate_enum,
     validate_run_id,
@@ -72,7 +72,7 @@ def eval_run(
     )
 
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
-    console.print(f"Eval run started. Run ID: [bold]{run_id}[/bold]")
+    report_run_started("Eval", run_id)
 
     wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
 

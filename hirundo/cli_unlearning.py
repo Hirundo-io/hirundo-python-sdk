@@ -4,10 +4,10 @@ import typer
 
 from hirundo._cli_common import (
     check_run_and_print,
-    console,
     hirundo_epilog,
     make_app,
     print_runs_table,
+    report_run_started,
     require_exactly_one,
     validate_enum,
     wait_or_notify,
@@ -81,7 +81,7 @@ def unlearning_run(
     )
 
     run_id = LlmUnlearningRun.launch(model_id, run_info)
-    console.print(f"Unlearning run started. Run ID: [bold]{run_id}[/bold]")
+    report_run_started("Unlearning", run_id)
 
     wait_or_notify(run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait)
 
