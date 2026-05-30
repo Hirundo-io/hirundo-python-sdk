@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Any
 
 import typer
+from rich import box
 from rich.console import Console
 from rich.table import Table
 
@@ -21,23 +22,23 @@ console = Console()
 
 
 def success(message: str) -> None:
-    """Print a success message with a green check icon."""
-    console.print(f"[bold green]✓[/bold green] {message}")
+    """Print a success message in green."""
+    console.print(f"[green]{message}[/green]")
 
 
 def info(message: str) -> None:
-    """Print an informational message with a cyan info icon."""
-    console.print(f"[bold cyan]ℹ[/bold cyan] {message}")
+    """Print a plain informational message."""
+    console.print(message)
 
 
 def warn(message: str) -> None:
-    """Print a warning message with a yellow icon."""
-    console.print(f"[bold yellow]![/bold yellow] {message}")
+    """Print a warning message in yellow."""
+    console.print(f"[yellow]{message}[/yellow]")
 
 
 def error(message: str) -> None:
-    """Print an error message with a red cross icon."""
-    console.print(f"[bold red]✗[/bold red] {message}")
+    """Print an error message in red."""
+    console.print(f"[red]{message}[/red]")
 
 
 def make_app(name: str, help_text: str) -> typer.Typer:
@@ -110,7 +111,13 @@ def print_runs_table(
     columns: tuple[str, ...],
     rows: list[tuple[str | None, ...]],
 ) -> None:
-    table = Table(title=title, expand=True)
+    table = Table(
+        title=title,
+        box=box.SIMPLE,
+        show_lines=False,
+        show_edge=True,
+        header_style="bold",
+    )
     for col in columns:
         table.add_column(col, overflow="fold")
     for row in rows:
