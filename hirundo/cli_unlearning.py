@@ -8,12 +8,10 @@ from hirundo._cli_common import (
     OutputOption,
     WaitOption,
     check_run_and_print,
-    emit,
-    emit_json,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
-    is_json,
     make_app,
-    print_runs_table,
     report_run_started,
     require_exactly_one,
     run_payload,
@@ -92,8 +90,7 @@ def unlearning_run(
     results = wait_or_notify(
         run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait
     )
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))
 
 
 @unlearning_app.command("list", epilog=hirundo_epilog)
@@ -117,16 +114,15 @@ def unlearning_list(
         }
         for run in runs
     ]
-    emit(
+    emit_rows(
+        "Unlearning Runs:",
+        [
+            ("Name", "name"),
+            ("Run ID", "run_id"),
+            ("Status", "status"),
+            ("Created At", "created_at"),
+        ],
         items,
-        lambda: print_runs_table(
-            "Unlearning Runs:",
-            ("Name", "Run ID", "Status", "Created At"),
-            [
-                (item["name"], item["run_id"], item["status"], item["created_at"])
-                for item in items
-            ],
-        ),
     )
 
 
@@ -142,5 +138,4 @@ def unlearning_check(
     from hirundo.unlearning_llm import LlmUnlearningRun
 
     results = check_run_and_print(run_id, LlmUnlearningRun.check_run_by_id)
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))

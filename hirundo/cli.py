@@ -11,9 +11,8 @@ from hirundo._cli_common import (
     OutputFormat,
     OutputOption,
     docs,
-    emit_json,
+    emit_if_json,
     hirundo_epilog,
-    is_json,
     set_output_format,
     success,
     warn,
@@ -143,8 +142,7 @@ def setup_api_key(
     """
     set_output_format(output)
     location = _save_api_key(api_key)
-    if is_json():
-        emit_json({"api_key_saved_to": location})
+    emit_if_json({"api_key_saved_to": location})
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -157,8 +155,7 @@ def change_api_remote(
     """
     set_output_format(output)
     location = _save_api_host(api_host)
-    if is_json():
-        emit_json({"api_host_saved_to": location})
+    emit_if_json({"api_host_saved_to": location})
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -173,10 +170,7 @@ def setup(
     set_output_format(output)
     host_location = _save_api_host(api_host)
     key_location = _save_api_key(api_key)
-    if is_json():
-        emit_json(
-            {"api_host_saved_to": host_location, "api_key_saved_to": key_location}
-        )
+    emit_if_json({"api_host_saved_to": host_location, "api_key_saved_to": key_location})
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)

@@ -8,12 +8,10 @@ from hirundo._cli_common import (
     OutputOption,
     WaitOption,
     check_run_and_print,
-    emit,
-    emit_json,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
-    is_json,
     make_app,
-    print_runs_table,
     report_run_started,
     require_exactly_one,
     run_payload,
@@ -81,8 +79,7 @@ def eval_run(
     report_run_started("Eval", run_id)
 
     results = wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))
 
 
 @eval_app.command("list", epilog=hirundo_epilog)
@@ -107,22 +104,16 @@ def eval_list(
         }
         for run in runs
     ]
-    emit(
+    emit_rows(
+        "Eval Runs:",
+        [
+            ("Run ID", "run_id"),
+            ("Name", "name"),
+            ("Status", "status"),
+            ("Preset", "preset"),
+            ("Created At", "created_at"),
+        ],
         items,
-        lambda: print_runs_table(
-            "Eval Runs:",
-            ("Run ID", "Name", "Status", "Preset", "Created At"),
-            [
-                (
-                    item["run_id"],
-                    item["name"],
-                    item["status"],
-                    item["preset"],
-                    item["created_at"],
-                )
-                for item in items
-            ],
-        ),
     )
 
 
@@ -138,5 +129,4 @@ def eval_check(
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
     results = check_run_and_print(run_id, LlmBehaviorEval.check_run_by_id)
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))

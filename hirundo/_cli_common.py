@@ -67,12 +67,10 @@ def emit_json(data: Any) -> None:
     sys.stdout.write("\n")
 
 
-def emit(data: Any, render_text: Callable[[], None]) -> None:
-    """Emit ``data`` as JSON in JSON mode, otherwise call ``render_text``."""
+def emit_if_json(data: Any) -> None:
+    """Emit ``data`` as JSON only in JSON mode (no-op in text mode)."""
     if is_json():
         emit_json(data)
-    else:
-        render_text()
 
 
 def success(message: str) -> None:
@@ -206,11 +204,24 @@ def check_run_and_print(run_id: str, check_fn: Callable[[str], Any]) -> Any:
     return _report_results(check_fn(validate_run_id(run_id)))
 
 
-def print_runs_table(
-    title: str,
-    columns: tuple[str, ...],
-    rows: list[tuple[str | None, ...]],
+def _cell(value: Any) -> str | None:
+    """Render a value for a table cell (objects become compact JSON)."""
+    if value is None or isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
+def emit_rows(
+    title: str, columns: list[tuple[str, str]], items: list[dict[str, Any]]
 ) -> None:
+    """List output: a JSON array in JSON mode, else a Rich table.
+
+    ``columns`` maps each table header to the item key it renders.
+    """
+    if is_json():
+        emit_json(items)
+        return
+
     table = Table(
         title=title,
         box=box.SIMPLE,
@@ -218,8 +229,8 @@ def print_runs_table(
         show_edge=True,
         header_style="bold",
     )
-    for col in columns:
-        table.add_column(col, overflow="fold")
-    for row in rows:
-        table.add_row(*row)
+    for header, _ in columns:
+        table.add_column(header, overflow="fold")
+    for item in items:
+        table.add_row(*(_cell(item[key]) for _, key in columns))
     console.print(table)

@@ -1,4 +1,3 @@
-import json
 from typing import Annotated
 
 import typer
@@ -9,12 +8,10 @@ from hirundo._cli_common import (
     OutputOption,
     WaitOption,
     check_run_and_print,
-    emit,
-    emit_json,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
-    is_json,
     make_app,
-    print_runs_table,
     report_run_started,
     run_payload,
     set_output_format,
@@ -40,8 +37,7 @@ def dataset_qa_run(
     report_run_started("Dataset QA", run_id)
 
     results = wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))
 
 
 @dataset_qa_app.command("list", epilog=hirundo_epilog)
@@ -66,22 +62,16 @@ def dataset_qa_list(
         }
         for run in runs
     ]
-    emit(
+    emit_rows(
+        "Dataset QA Runs:",
+        [
+            ("Dataset Name", "dataset_name"),
+            ("Run ID", "run_id"),
+            ("Status", "status"),
+            ("Created At", "created_at"),
+            ("Run Args", "run_args"),
+        ],
         items,
-        lambda: print_runs_table(
-            "Dataset QA Runs:",
-            ("Dataset Name", "Run ID", "Status", "Created At", "Run Args"),
-            [
-                (
-                    item["dataset_name"],
-                    item["run_id"],
-                    item["status"],
-                    item["created_at"],
-                    json.dumps(item["run_args"]) if item["run_args"] else None,
-                )
-                for item in items
-            ],
-        ),
     )
 
 
@@ -97,5 +87,4 @@ def dataset_qa_check(
     from hirundo.dataset_qa import QADataset
 
     results = check_run_and_print(run_id, QADataset.check_run_by_id)
-    if is_json():
-        emit_json(run_payload(run_id, results))
+    emit_if_json(run_payload(run_id, results))
