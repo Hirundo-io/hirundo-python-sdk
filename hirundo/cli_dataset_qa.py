@@ -4,6 +4,7 @@ import typer
 
 from hirundo._cli_common import (
     ArchivedOption,
+    WaitOption,
     check_run_and_print,
     hirundo_epilog,
     make_app,
@@ -18,12 +19,7 @@ dataset_qa_app = make_app("dataset-qa", "Launch and monitor Dataset QA runs.")
 @dataset_qa_app.command("run", epilog=hirundo_epilog)
 def dataset_qa_run(
     dataset_id: Annotated[int, typer.Argument(help="ID of the dataset to run QA on.")],
-    wait: Annotated[
-        bool,
-        typer.Option(
-            "--wait/--no-wait", help="Wait for the run to complete and stream progress."
-        ),
-    ] = True,
+    wait: WaitOption = True,
 ):
     """
     Launch a Dataset QA run on the dataset with the given ID.
