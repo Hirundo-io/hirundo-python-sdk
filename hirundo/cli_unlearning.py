@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 
 from hirundo._cli_common import (
+    ArchivedOption,
     check_run_and_print,
     hirundo_epilog,
     make_app,
@@ -87,12 +88,7 @@ def unlearning_run(
 
 
 @unlearning_app.command("list", epilog=hirundo_epilog)
-def unlearning_list(
-    archived: Annotated[
-        bool,
-        typer.Option("--archived/--no-archived", help="Include archived runs."),
-    ] = False,
-):
+def unlearning_list(archived: ArchivedOption = False):
     """
     List LLM unlearning runs.
     """

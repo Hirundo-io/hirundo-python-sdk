@@ -2,7 +2,7 @@ import re
 import sys
 from collections.abc import Callable
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any, TypeAlias
 
 import typer
 from rich import box
@@ -39,6 +39,12 @@ def warn(message: str) -> None:
 def error(message: str) -> None:
     """Print an error message in red."""
     console.print(f"[red]{message}[/red]")
+
+
+ArchivedOption: TypeAlias = Annotated[
+    bool,
+    typer.Option("--archived/--no-archived", help="Include archived runs."),
+]
 
 
 def make_app(name: str, help_text: str) -> typer.Typer:

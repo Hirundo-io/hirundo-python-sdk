@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 
 from hirundo._cli_common import (
+    ArchivedOption,
     check_run_and_print,
     hirundo_epilog,
     make_app,
@@ -78,12 +79,7 @@ def eval_run(
 
 
 @eval_app.command("list", epilog=hirundo_epilog)
-def eval_list(
-    archived: Annotated[
-        bool,
-        typer.Option("--archived/--no-archived", help="Include archived runs."),
-    ] = False,
-):
+def eval_list(archived: ArchivedOption = False):
     """
     List LLM behavior evaluation runs.
     """

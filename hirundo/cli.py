@@ -57,7 +57,9 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
         f.writelines(line for line in lines if not regex.search(line) and line != "\n")
 
     with open(dotenv_filepath, "a") as f:
-        f.writelines(f"\n{var_name}={var_value}")  # lgtm[py/clear-text-storage-sensitive-data]
+        f.writelines(
+            f"\n{var_name}={var_value}"
+        )  # lgtm[py/clear-text-storage-sensitive-data]
 
 
 def upsert_env(var_name: str, var_value: str):
@@ -105,6 +107,17 @@ def fix_api_host(api_host: str):
     return api_host
 
 
+def _save_api_key(api_key: str) -> None:
+    location = _location_label(upsert_env("API_KEY", api_key))
+    success(f"API key saved to [bold]{location}[/bold].")
+    warn(f"Keep [bold]{location}[/bold] private — it contains your secret API key.")
+
+
+def _save_api_host(api_host: str) -> None:
+    location = _location_label(upsert_env("API_HOST", fix_api_host(api_host)))
+    success(f"API host saved to [bold]{location}[/bold].")
+
+
 @app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup_api_key(api_key: _API_KEY_OPTION):
     """
@@ -113,9 +126,7 @@ def setup_api_key(api_key: _API_KEY_OPTION):
     The key is written to a local .env file (or ~/.hirundo.conf if no .env
     exists) and picked up automatically on subsequent commands.
     """
-    location = _location_label(upsert_env("API_KEY", api_key))
-    success(f"API key saved to [bold]{location}[/bold].")
-    warn(f"Keep [bold]{location}[/bold] private — it contains your secret API key.")
+    _save_api_key(api_key)
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -123,10 +134,7 @@ def change_api_remote(api_host: _API_HOST_OPTION):
     """
     Change the API server address (same URL as the Hirundo web interface).
     """
-    api_host = fix_api_host(api_host)
-
-    location = _location_label(upsert_env("API_HOST", api_host))
-    success(f"API host saved to [bold]{location}[/bold].")
+    _save_api_host(api_host)
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -134,13 +142,8 @@ def setup(api_key: _API_KEY_OPTION, api_host: _API_HOST_OPTION):
     """
     Setup the Hirundo Python SDK.
     """
-    api_host = fix_api_host(api_host)
-    host_location = _location_label(upsert_env("API_HOST", api_host))
-    key_location = _location_label(upsert_env("API_KEY", api_key))
-
-    success(f"API host saved to [bold]{host_location}[/bold].")
-    success(f"API key saved to [bold]{key_location}[/bold].")
-    warn(f"Keep [bold]{key_location}[/bold] private — it contains your secret API key.")
+    _save_api_host(api_host)
+    _save_api_key(api_key)
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
