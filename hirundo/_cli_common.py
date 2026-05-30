@@ -85,7 +85,7 @@ def report_run_started(label: str, run_id: str) -> None:
 
 
 def _report_results(results: Any) -> Any:
-    if results is not None:
+    if results is not None and hasattr(results, "cached_zip_path"):
         success(f"Run results saved to [bold]{results.cached_zip_path}[/bold]")
     return results
 
