@@ -31,9 +31,25 @@ class TestValidateRunId:
 
 class TestWaitOrNotify:
     def test_wait_true_calls_check_fn_and_returns_result(self):
-        check_fn = MagicMock(return_value="result")
-        assert wait_or_notify("run-1", check_fn, "dataset-qa", wait=True) == "result"
+        result = MagicMock(cached_zip_path=None)
+        result.__bool__ = lambda self: True
+        check_fn = MagicMock(return_value=result)
+        assert wait_or_notify("run-1", check_fn, "dataset-qa", wait=True) is result
         check_fn.assert_called_once_with("run-1")
+
+    def test_wait_true_prints_results_path_when_present(self):
+        result = MagicMock(cached_zip_path="/tmp/run-1.zip")
+        check_fn = MagicMock(return_value=result)
+        with patch.object(cli_common.console, "print") as mock_print:
+            wait_or_notify("run-1", check_fn, "dataset-qa", wait=True)
+        printed = " ".join(str(call) for call in mock_print.call_args_list)
+        assert "/tmp/run-1.zip" in printed
+
+    def test_wait_true_no_print_when_results_none(self):
+        check_fn = MagicMock(return_value=None)
+        with patch.object(cli_common.console, "print") as mock_print:
+            wait_or_notify("run-1", check_fn, "dataset-qa", wait=True)
+        mock_print.assert_not_called()
 
     def test_wait_false_returns_none_without_calling_check_fn(self):
         check_fn = MagicMock()

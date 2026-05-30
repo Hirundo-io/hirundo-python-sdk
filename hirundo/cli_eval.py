@@ -82,9 +82,7 @@ def eval_run(
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
     console.print(f"Eval run started. Run ID: [bold]{run_id}[/bold]")
 
-    results = wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
-    if results is not None:
-        console.print(f"Run results saved to {results.cached_zip_path}")
+    wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
 
 
 @eval_app.command("list", epilog=hirundo_epilog)

@@ -32,9 +32,7 @@ def dataset_qa_run(
     run_id = QADataset.launch_qa_run(dataset_id)
     console.print(f"Dataset QA run started. Run ID: [bold]{run_id}[/bold]")
 
-    results = wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
-    if results is not None:
-        console.print(f"Run results saved to {results.cached_zip_path}")
+    wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
 
 
 @dataset_qa_app.command("list", epilog=hirundo_epilog)
