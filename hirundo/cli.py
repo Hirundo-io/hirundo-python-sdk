@@ -1,7 +1,7 @@
 import os
 import re
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TypeAlias
 from urllib.parse import urlparse
 
 import typer
@@ -71,6 +71,30 @@ def upsert_env(var_name: str, var_value: str):
         return EnvLocation.HOME.name
 
 
+# Shared option definitions reused across set-api-key, change-remote, and setup.
+_API_KEY_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API key value",
+        help="" if docs else f"Visit '{API_HOST}/api-key' to generate your API key.",
+    ),
+]
+
+# TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
+_API_HOST_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API server address",
+        help=""
+        if docs
+        else (
+            f"Current API server address: '{API_HOST}'. "
+            "This is the same address where you access the Hirundo web interface."
+        ),
+    ),
+]
+
+
 def fix_api_host(api_host: str):
     if not api_host.startswith("http") and not api_host.startswith("https"):
         api_host = f"https://{api_host}"
@@ -82,17 +106,7 @@ def fix_api_host(api_host: str):
 
 
 @app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def setup_api_key(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
-):
+def setup_api_key(api_key: _API_KEY_OPTION):
     """
     Save the API key for the Hirundo SDK.
 
@@ -105,17 +119,7 @@ def setup_api_key(
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def change_api_remote(
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
-):
+def change_api_remote(api_host: _API_HOST_OPTION):
     """
     Change the API server address (same URL as the Hirundo web interface).
     """
@@ -126,26 +130,7 @@ def change_api_remote(
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def setup(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl as above
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
-):
+def setup(api_key: _API_KEY_OPTION, api_host: _API_HOST_OPTION):
     """
     Setup the Hirundo Python SDK.
     """
