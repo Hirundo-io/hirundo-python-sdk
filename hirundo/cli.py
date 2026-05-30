@@ -57,9 +57,7 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
         f.writelines(line for line in lines if not regex.search(line) and line != "\n")
 
     with open(dotenv_filepath, "a") as f:
-        f.writelines(
-            f"\n{var_name}={var_value}"
-        )  # lgtm[py/clear-text-storage-sensitive-data]
+        f.writelines(f"\n{var_name}={var_value}")
 
 
 def upsert_env(var_name: str, var_value: str):
