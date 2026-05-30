@@ -6,7 +6,17 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import docs, hirundo_epilog, success, warn
+from hirundo._cli_common import (
+    HirundoCliGroup,
+    OutputFormat,
+    OutputOption,
+    docs,
+    emit_if_json,
+    hirundo_epilog,
+    set_output_format,
+    success,
+    warn,
+)
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_check, dataset_qa_list
 from hirundo.cli_eval import eval_app
@@ -18,6 +28,7 @@ _PIPELINES_PANEL = "Pipelines"
 
 app = typer.Typer(
     name="hirundo",
+    cls=HirundoCliGroup,
     no_args_is_help=True,
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
@@ -105,61 +116,80 @@ def fix_api_host(api_host: str):
     return api_host
 
 
-def _save_api_key(api_key: str) -> None:
+def _save_api_key(api_key: str) -> str:
     location = _location_label(upsert_env("API_KEY", api_key))
     success(f"API key saved to [bold]{location}[/bold].")
     warn(f"Keep [bold]{location}[/bold] private — it contains your secret API key.")
+    return location
 
 
-def _save_api_host(api_host: str) -> None:
+def _save_api_host(api_host: str) -> str:
     location = _location_label(upsert_env("API_HOST", fix_api_host(api_host)))
     success(f"API host saved to [bold]{location}[/bold].")
+    return location
 
 
 @app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def setup_api_key(api_key: _API_KEY_OPTION):
+def setup_api_key(
+    api_key: _API_KEY_OPTION,
+    output: OutputOption = OutputFormat.text,
+):
     """
     Save the API key for the Hirundo SDK.
 
     The key is written to a local .env file (or ~/.hirundo.conf if no .env
     exists) and picked up automatically on subsequent commands.
     """
-    _save_api_key(api_key)
+    set_output_format(output)
+    location = _save_api_key(api_key)
+    emit_if_json({"api_key_saved_to": location})
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def change_api_remote(api_host: _API_HOST_OPTION):
+def change_api_remote(
+    api_host: _API_HOST_OPTION,
+    output: OutputOption = OutputFormat.text,
+):
     """
     Change the API server address (same URL as the Hirundo web interface).
     """
-    _save_api_host(api_host)
+    set_output_format(output)
+    location = _save_api_host(api_host)
+    emit_if_json({"api_host_saved_to": location})
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def setup(api_key: _API_KEY_OPTION, api_host: _API_HOST_OPTION):
+def setup(
+    api_key: _API_KEY_OPTION,
+    api_host: _API_HOST_OPTION,
+    output: OutputOption = OutputFormat.text,
+):
     """
     Setup the Hirundo Python SDK.
     """
-    _save_api_host(api_host)
-    _save_api_key(api_key)
+    set_output_format(output)
+    host_location = _save_api_host(api_host)
+    key_location = _save_api_key(api_key)
+    emit_if_json({"api_host_saved_to": host_location, "api_key_saved_to": key_location})
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def check_run(
     run_id: str,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Check the status of a run.
     """
-    dataset_qa_check(run_id)
+    dataset_qa_check(run_id, output)
 
 
 @app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
-def list_runs():
+def list_runs(output: OutputOption = OutputFormat.text):
     """
     List all runs available.
     """
-    dataset_qa_list(archived=False)
+    dataset_qa_list(archived=False, output=output)
 
 
 typer_click_object = typer.main.get_command(app)

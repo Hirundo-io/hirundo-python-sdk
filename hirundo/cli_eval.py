@@ -4,13 +4,18 @@ import typer
 
 from hirundo._cli_common import (
     ArchivedOption,
+    OutputFormat,
+    OutputOption,
     WaitOption,
     check_run_and_print,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
     make_app,
-    print_runs_table,
     report_run_started,
     require_exactly_one,
+    run_payload,
+    set_output_format,
     validate_enum,
     validate_run_id,
     wait_or_notify,
@@ -41,12 +46,14 @@ def eval_run(
         typer.Option("--name", help="Optional name for this evaluation run."),
     ] = None,
     wait: WaitOption = True,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Launch an LLM behavior evaluation run.
 
     Either --model-id or --source-run-id must be provided.
     """
+    set_output_format(output)
     from hirundo.llm_behavior_eval import (
         EvalRunInfo,
         LlmBehaviorEval,
@@ -71,40 +78,55 @@ def eval_run(
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
     report_run_started("Eval", run_id)
 
-    wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
+    results = wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
+    emit_if_json(run_payload(run_id, results))
 
 
 @eval_app.command("list", epilog=hirundo_epilog)
-def eval_list(archived: ArchivedOption = False):
+def eval_list(
+    archived: ArchivedOption = False,
+    output: OutputOption = OutputFormat.text,
+):
     """
     List LLM behavior evaluation runs.
     """
+    set_output_format(output)
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
     runs = LlmBehaviorEval.list_runs(archived=archived)
-    print_runs_table(
+    items = [
+        {
+            "run_id": str(run.run_id),
+            "name": str(run.name),
+            "status": str(run.status),
+            "preset": run.preset_type.value if run.preset_type else None,
+            "created_at": run.created_at.isoformat(),
+        }
+        for run in runs
+    ]
+    emit_rows(
         "Eval Runs:",
-        ("Run ID", "Name", "Status", "Preset", "Created At"),
         [
-            (
-                str(run.run_id),
-                str(run.name),
-                str(run.status),
-                run.preset_type.value if run.preset_type else None,
-                run.created_at.isoformat(),
-            )
-            for run in runs
+            ("Run ID", "run_id"),
+            ("Name", "name"),
+            ("Status", "status"),
+            ("Preset", "preset"),
+            ("Created At", "created_at"),
         ],
+        items,
     )
 
 
 @eval_app.command("check", epilog=hirundo_epilog)
 def eval_check(
     run_id: Annotated[str, typer.Argument(help="The run ID to check.")],
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Check the status of an LLM behavior evaluation run and stream progress.
     """
+    set_output_format(output)
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-    check_run_and_print(run_id, LlmBehaviorEval.check_run_by_id)
+    results = check_run_and_print(run_id, LlmBehaviorEval.check_run_by_id)
+    emit_if_json(run_payload(run_id, results))
