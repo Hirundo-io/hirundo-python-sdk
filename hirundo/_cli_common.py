@@ -53,7 +53,10 @@ def wait_or_notify(
     run_id: str, check_fn: Callable[[str], Any], cmd_name: str, wait: bool
 ) -> Any:
     if wait:
-        return check_fn(run_id)
+        results = check_fn(run_id)
+        if results is not None:
+            console.print(f"Run results saved to {results.cached_zip_path}")
+        return results
     console.print(
         f"Use [bold]hirundo {cmd_name} check[/bold] [italic]<run_id>[/italic] to monitor progress."
     )
