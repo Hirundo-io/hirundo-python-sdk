@@ -6,9 +6,9 @@ from urllib.parse import urlparse
 
 import typer
 
-from hirundo._cli_common import check_run_and_print, docs, hirundo_epilog
+from hirundo._cli_common import docs, hirundo_epilog
 from hirundo._env import API_HOST, EnvLocation
-from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_list
+from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_check, dataset_qa_list
 from hirundo.cli_eval import eval_app
 from hirundo.cli_unlearning import unlearning_app
 
@@ -192,9 +192,7 @@ def check_run(
     """
     Check the status of a run.
     """
-    from hirundo.dataset_qa import QADataset
-
-    check_run_and_print(run_id, QADataset.check_run_by_id)
+    dataset_qa_check(run_id)
 
 
 @app.command("list-runs", epilog=hirundo_epilog)
