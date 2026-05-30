@@ -22,11 +22,9 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
     help=(
-        "[bold]Hirundo[/bold] — launch and monitor data-quality, "
-        "unlearning, and evaluation runs from your terminal.\n\n"
-        "Run [bold]hirundo setup[/bold] once to store your API key, then use the "
-        "[bold]eval[/bold], [bold]dataset-qa[/bold], and [bold]unlearning[/bold] "
-        "command groups to launch work."
+        "Launch and monitor Hirundo data-quality, unlearning, and evaluation "
+        "runs. Run `hirundo setup` once to store your API key, then use the "
+        "eval, dataset-qa, and unlearning command groups."
     ),
 )
 
