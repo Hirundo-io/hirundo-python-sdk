@@ -8,6 +8,7 @@ from hirundo._cli_common import (
     hirundo_epilog,
     make_app,
     print_runs_table,
+    require_exactly_one,
     validate_enum,
     wait_or_notify,
 )
@@ -57,16 +58,9 @@ def unlearning_run(
         LlmUnlearningRun,
     )
 
-    if bias_type is None and hallucination_type is None:
-        console.print(
-            "[red]Error: either --bias-type or --hallucination-type must be provided.[/red]"
-        )
-        raise typer.Exit(code=1)
-    if bias_type is not None and hallucination_type is not None:
-        console.print(
-            "[red]Error: only one of --bias-type or --hallucination-type may be provided.[/red]"
-        )
-        raise typer.Exit(code=1)
+    require_exactly_one(
+        ("--bias-type", bias_type), ("--hallucination-type", hallucination_type)
+    )
 
     if bias_type is not None:
         target_behavior = BiasBehavior(
@@ -78,7 +72,7 @@ def unlearning_run(
                 hallucination_type, HallucinationType, "hallucination type"
             )
         )
-    else:
+    else:  # unreachable: require_exactly_one guarantees one is set
         raise typer.Exit(code=1) from None
 
     run_info = LlmRunInfo(

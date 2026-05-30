@@ -49,24 +49,34 @@ def validate_enum(value: str, enum_cls: type[Enum], label: str) -> Any:
         raise typer.Exit(code=1) from None
 
 
+def require_exactly_one(*options: tuple[str, Any]) -> None:
+    """Exit with an error unless exactly one of the named options is set."""
+    provided = [name for name, value in options if value is not None]
+    if len(provided) != 1:
+        names = " or ".join(name for name, _ in options)
+        console.print(f"[red]Error: exactly one of {names} must be provided.[/red]")
+        raise typer.Exit(code=1) from None
+
+
+def _report_results(results: Any) -> Any:
+    if results is not None:
+        console.print(f"Run results saved to {results.cached_zip_path}")
+    return results
+
+
 def wait_or_notify(
     run_id: str, check_fn: Callable[[str], Any], cmd_name: str, wait: bool
 ) -> Any:
-    if wait:
-        results = check_fn(run_id)
-        if results is not None:
-            console.print(f"Run results saved to {results.cached_zip_path}")
-        return results
-    console.print(
-        f"Use [bold]hirundo {cmd_name} check[/bold] [italic]<run_id>[/italic] to monitor progress."
-    )
-    return None
+    if not wait:
+        console.print(
+            f"Use [bold]hirundo {cmd_name} check[/bold] [italic]<run_id>[/italic] to monitor progress."
+        )
+        return None
+    return _report_results(check_fn(run_id))
 
 
 def check_run_and_print(run_id: str, check_fn: Callable[[str], Any]) -> None:
-    results = check_fn(validate_run_id(run_id))
-    if results is not None:
-        console.print(f"Run results saved to {results.cached_zip_path}")
+    _report_results(check_fn(validate_run_id(run_id)))
 
 
 def print_runs_table(
