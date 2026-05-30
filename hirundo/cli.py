@@ -16,14 +16,14 @@ from hirundo._cli_common import (
     HirundoCliGroup,
     OutputFormat,
     OutputOption,
+    check_run_and_print,
     docs,
-    emit_json,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
-    is_json,
-    print_runs_table,
+    run_payload,
     set_output_format,
     success,
-    validate_run_id,
     warn,
 )
 from hirundo._credentials import (
@@ -314,8 +314,7 @@ def setup_api_key(
     """
     set_output_format(output)
     location = _save_api_key(api_key, API_HOST, key_storage)
-    if is_json():
-        emit_json({"api_key_saved_to": location})
+    emit_if_json({"api_key_saved_to": location})
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -328,8 +327,7 @@ def change_api_remote(
     """
     set_output_format(output)
     location = _save_api_host(api_host)
-    if is_json():
-        emit_json({"api_host_saved_to": location})
+    emit_if_json({"api_host_saved_to": location})
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -351,10 +349,7 @@ def setup(
     key_location = _save_api_key(
         api_key, normalized_api_host, key_storage, env_location
     )
-    if is_json():
-        emit_json(
-            {"api_host_saved_to": host_location, "api_key_saved_to": key_location}
-        )
+    emit_if_json({"api_host_saved_to": host_location, "api_key_saved_to": key_location})
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -370,31 +365,31 @@ def check_run(
     Check the status of a run.
     """
     set_output_format(output)
-    validated_run_id = (
-        run_id if run_type is RunType.EXTERNAL_EVALUATION else validate_run_id(run_id)
-    )
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
-        print(LlmUnlearningRun.check_run_by_id(validated_run_id))
+        check_function = LlmUnlearningRun.check_run_by_id
     elif run_type is RunType.LLM_EVALUATION:
         from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-        results = LlmBehaviorEval.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = LlmBehaviorEval.check_run_by_id
     elif run_type is RunType.EXTERNAL_EVALUATION:
         from hirundo.external_eval import ExternalEval
 
-        results = ExternalEval.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = ExternalEval.check_run_by_id
     else:
         from hirundo.dataset_qa import QADataset
 
-        results = QADataset.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = QADataset.check_run_by_id
+
+    results = check_run_and_print(
+        run_id,
+        check_function,
+        validate=run_type is not RunType.EXTERNAL_EVALUATION,
+    )
+    if run_type is RunType.LLM_UNLEARNING and output is OutputFormat.text:
+        print(results)
+    emit_if_json(run_payload(run_id, results))
 
 
 @app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -425,33 +420,39 @@ def list_runs(
         from hirundo.llm_behavior_eval import EvalFramework, LlmBehaviorEval
 
         runs = [
-            run
-            for run in LlmBehaviorEval.list_runs()
-            if run.framework is EvalFramework.INSPECT_EVALS
+            run_record
+            for run_record in LlmBehaviorEval.list_runs()
+            if run_record.framework is EvalFramework.INSPECT_EVALS
         ]
 
-    columns = ("Name", "Run ID", "Status", "Created At")
-    rows = []
+    columns = [
+        ("Name", "name"),
+        ("Run ID", "run_id"),
+        ("Status", "status"),
+        ("Created At", "created_at"),
+    ]
+    items = []
     for run_record in runs:
-        row = (
-            str(run_record.name),
-            str(run_record.run_id),
-            str(run_record.status),
-            run_record.created_at.isoformat(),
-        )
+        item = {
+            "name": str(run_record.name),
+            "run_id": str(run_record.run_id),
+            "status": str(run_record.status),
+            "created_at": run_record.created_at.isoformat(),
+        }
         if run_type is RunType.DATASET_QA:
             from hirundo.dataset_qa import DataQARunOut
 
             dataset_qa_run = cast("DataQARunOut", run_record)
-            if hasattr(dataset_qa_run, "run_args") and dataset_qa_run.run_args:
-                row += (dataset_qa_run.run_args.model_dump_json(),)
-            else:
-                row += ("",)
-        rows.append(row)
+            item["run_args"] = (
+                dataset_qa_run.run_args.model_dump(mode="json")
+                if dataset_qa_run.run_args
+                else None
+            )
+        items.append(item)
 
     if run_type is RunType.DATASET_QA:
-        columns += ("Run Args",)
-    print_runs_table("Runs:", columns, rows)
+        columns.append(("Run Args", "run_args"))
+    emit_rows("Runs:", columns, items)
 
 
 typer_click_object = typer.main.get_command(app)
