@@ -4,6 +4,7 @@ import typer
 
 from hirundo._cli_common import (
     ArchivedOption,
+    WaitOption,
     check_run_and_print,
     hirundo_epilog,
     make_app,
@@ -39,12 +40,7 @@ def eval_run(
         str | None,
         typer.Option("--name", help="Optional name for this evaluation run."),
     ] = None,
-    wait: Annotated[
-        bool,
-        typer.Option(
-            "--wait/--no-wait", help="Wait for the run to complete and stream progress."
-        ),
-    ] = True,
+    wait: WaitOption = True,
 ):
     """
     Launch an LLM behavior evaluation run.

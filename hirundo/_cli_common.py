@@ -46,6 +46,13 @@ ArchivedOption: TypeAlias = Annotated[
     typer.Option("--archived/--no-archived", help="Include archived runs."),
 ]
 
+WaitOption: TypeAlias = Annotated[
+    bool,
+    typer.Option(
+        "--wait/--no-wait", help="Wait for the run to complete and stream progress."
+    ),
+]
+
 
 def make_app(name: str, help_text: str) -> typer.Typer:
     return typer.Typer(
