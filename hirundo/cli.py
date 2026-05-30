@@ -61,14 +61,14 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
 
 
 def upsert_env(var_name: str, var_value: str):
-    if os.path.exists(EnvLocation.DOTENV.value):
-        # If a `.env` file exists, re-use it
-        _upsert_env(EnvLocation.DOTENV.value, var_name, var_value)
-        return EnvLocation.DOTENV.name
-    else:
-        # Create a `.hirundo.conf` file with environment variables in the home directory
-        _upsert_env(EnvLocation.HOME.value, var_name, var_value)
-        return EnvLocation.HOME.name
+    # Re-use a local `.env` if present, otherwise fall back to `~/.hirundo.conf`.
+    location = (
+        EnvLocation.DOTENV
+        if os.path.exists(EnvLocation.DOTENV.value)
+        else EnvLocation.HOME
+    )
+    _upsert_env(location.value, var_name, var_value)
+    return location.name
 
 
 # Shared option definitions reused across set-api-key, change-remote, and setup.
@@ -96,7 +96,7 @@ _API_HOST_OPTION: TypeAlias = Annotated[
 
 
 def fix_api_host(api_host: str):
-    if not api_host.startswith("http") and not api_host.startswith("https"):
+    if not api_host.startswith(("http://", "https://")):
         api_host = f"https://{api_host}"
         warn("API host must start with 'http://' or 'https://'. Added 'https://'.")
     if (url := urlparse(api_host)) and url.path != "":
