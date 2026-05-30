@@ -28,7 +28,7 @@ class TestRequireExactlyOne:
 
     def test_error_message_lists_option_names(self):
         with (
-            patch.object(cli_common.console, "print") as mock_print,
+            patch.object(cli_common.err_console, "print") as mock_print,
             pytest.raises(typer.Exit),
         ):
             require_exactly_one(("--a", None), ("--b", None))
@@ -50,7 +50,7 @@ class TestValidateRunId:
 
     def test_invalid_id_prints_message(self, bad_id="bad id"):
         with (
-            patch.object(cli_common.console, "print") as mock_print,
+            patch.object(cli_common.err_console, "print") as mock_print,
             pytest.raises(typer.Exit),
         ):
             validate_run_id(bad_id)
