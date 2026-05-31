@@ -162,53 +162,36 @@ def download_and_extract_zip(
             zip_file_path,
         )
 
-        with zipfile.ZipFile(zip_file_path, "r") as z:
-            filenames = []
-            try:
-                filenames = [file.filename for file in z.filelist]
-            except Exception as e:
-                logger.error("Failed to get filenames from ZIP", exc_info=e)
+        filenames = []
+        try:
+            with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+                filenames = zip_file.namelist()
+        except Exception as exc:
+            logger.error("Failed to get filenames from ZIP", exc_info=exc)
 
-            def _load(filename: str, label: str) -> DataFrameType:
-                try:
-                    with z.open(filename) as zip_member:
-                        dataframe = load_df(zip_member)
-                    logger.debug("Loaded %s for run ID %s", label, run_id)
-                    return dataframe
-                except Exception as exc:
-                    logger.error("Failed to load %s", label, exc_info=exc)
-                    return None
-
-            try:
-                mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
-                suspects_df = _load(mislabel_suspect_filename, "mislabel suspects")
-            except ValueError as exc:
-                logger.error("Failed to find mislabel suspects file", exc_info=exc)
-                suspects_df = None
-
-            object_suspects_df = (
-                _load("object_mislabel_suspects.csv", "object mislabel suspects")
-                if "object_mislabel_suspects.csv" in filenames
+        def _load_optional(filename: str) -> DataFrameType:
+            # Only attempt to load files that are present, to avoid noisy error
+            # logs for legitimately-absent optional files (e.g. object suspects).
+            return (
+                load_from_zip(zip_file_path, filename)
+                if filename in filenames
                 else None
             )
 
-            suspect_level_counts_df = (
-                _load("mislabel_suspect_level_counts.csv", "suspect level counts")
-                if "mislabel_suspect_level_counts.csv" in filenames
-                else None
-            )
+        try:
+            mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
+            suspects_df = load_from_zip(zip_file_path, mislabel_suspect_filename)
+        except ValueError as exc:
+            logger.error("Failed to find mislabel suspects file", exc_info=exc)
+            suspects_df = None
 
-            warnings_and_errors_df = _load(
-                "warnings_and_errors.csv", "warnings and errors"
-            )
-
-            return DatasetQAResults[DataFrameType](
-                cached_zip_path=zip_file_path,
-                suspects=suspects_df,
-                object_suspects=object_suspects_df,
-                suspect_level_counts=suspect_level_counts_df,
-                warnings_and_errors=warnings_and_errors_df,
-            )
+        return DatasetQAResults[DataFrameType](
+            cached_zip_path=zip_file_path,
+            suspects=suspects_df,
+            object_suspects=_load_optional("object_mislabel_suspects.csv"),
+            suspect_level_counts=_load_optional("mislabel_suspect_level_counts.csv"),
+            warnings_and_errors=load_from_zip(zip_file_path, "warnings_and_errors.csv"),
+        )
 
 
 def download_and_extract_llm_behavior_eval_zip(
@@ -284,9 +267,7 @@ def download_and_extract_llm_behavior_eval_zip(
         )
 
 
-def load_from_zip(
-    zip_path: Path, file_name: str
-) -> "pd.DataFrame | pl.DataFrame | None":
+def load_from_zip(zip_path: Path, file_name: str) -> "DataFrameType":
     """
     Load a given file from a given zip file.
 
