@@ -40,3 +40,7 @@ class DatasetQAResults(BaseModel, typing.Generic[T]):
     """
     A polars/pandas DataFrame containing the warnings and errors of the data QA run
     """
+    suspect_level_counts: T | None = None
+    """
+    A polars/pandas DataFrame containing the suspect level count statistics of the data QA run
+    """
