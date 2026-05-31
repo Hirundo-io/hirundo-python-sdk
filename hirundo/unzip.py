@@ -171,16 +171,20 @@ def download_and_extract_zip(
 
             def _load(filename: str, label: str) -> DataFrameType:
                 try:
-                    with z.open(filename) as f:
-                        df = load_df(f)
+                    with z.open(filename) as zip_member:
+                        dataframe = load_df(zip_member)
                     logger.debug("Loaded %s for run ID %s", label, run_id)
-                    return df
-                except Exception as e:
-                    logger.error("Failed to load %s", label, exc_info=e)
+                    return dataframe
+                except Exception as exc:
+                    logger.error("Failed to load %s", label, exc_info=exc)
                     return None
 
-            mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
-            suspects_df = _load(mislabel_suspect_filename, "mislabel suspects")
+            try:
+                mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
+                suspects_df = _load(mislabel_suspect_filename, "mislabel suspects")
+            except ValueError as exc:
+                logger.error("Failed to find mislabel suspects file", exc_info=exc)
+                suspects_df = None
 
             object_suspects_df = (
                 _load("object_mislabel_suspects.csv", "object mislabel suspects")
@@ -194,7 +198,9 @@ def download_and_extract_zip(
                 else None
             )
 
-            warnings_and_errors_df = _load("warnings_and_errors.csv", "warnings and errors")
+            warnings_and_errors_df = _load(
+                "warnings_and_errors.csv", "warnings and errors"
+            )
 
             return DatasetQAResults[DataFrameType](
                 cached_zip_path=zip_file_path,
