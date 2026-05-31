@@ -69,13 +69,13 @@ dev = [
     "pytest>=9.0.3",
     #  ⬆️ Required to fix vulnerability CVE-2025-71176
     "pytest-asyncio>=0.23.6",
-    "uv>=0.11.6",
-    #  ⬆️ Required to fix vulnerability GHSA-pjjw-68hj-v9mw
+    "uv>=0.11.15",
+    #  ⬆️ Required to fix vulnerability GHSA-4gg8-gxpx-9rph
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
     "virtualenv>=20.36.1",
-    "authlib>=1.6.11",
-    #  ⬆️ Required to fix vulnerability GHSA-jj8c-mmj3-mmgv
+    "authlib>=1.7.2",
+    #  ⬆️ Required to fix vulnerability GHSA-r95x-qfjj-fjj2
     "ruff>=0.12.0",
     "bumpver>=2025.1131",
     "platformdirs>=4.3.6",
