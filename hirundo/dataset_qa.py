@@ -183,6 +183,17 @@ class QADataset(BaseModel):
     Used to define the modality of the dataset.
     Defaults to Image.
     """
+    extra_non_feature_cols: list[str] | None = None
+    """
+    Tabular classification metadata columns to preserve in compact result exports.
+    These columns are passed to core as `learning.dataset.extra_non_feature_cols`
+    and are not used as model features.
+    """
+    feature_cols: list[str] | None = None
+    """
+    Tabular classification columns to use as model features.
+    Cannot be provided together with `extra_non_feature_cols`.
+    """
 
     run_id: str | None = Field(default=None, init=False)
     """
@@ -190,6 +201,20 @@ class QADataset(BaseModel):
     """
 
     status: RunStatus | None = None
+
+    def _validate_tabular_column_options(self) -> None:
+        has_extra_non_feature_cols = self.extra_non_feature_cols is not None
+        has_feature_cols = self.feature_cols is not None
+        if not has_extra_non_feature_cols and not has_feature_cols:
+            return
+        if has_extra_non_feature_cols and has_feature_cols:
+            raise ValueError(
+                "Only one of `extra_non_feature_cols` or `feature_cols` can be provided"
+            )
+        if self.modality != ModalityType.TABULAR:
+            raise ValueError(
+                "`extra_non_feature_cols` and `feature_cols` are only supported for tabular datasets"
+            )
 
     @model_validator(mode="after")
     def validate_dataset(self):
@@ -204,6 +229,7 @@ class QADataset(BaseModel):
             raise ValueError(
                 f"Labeling type {self.labeling_type} is not supported for modality {self.modality}. Supported labeling types are: {MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]}"
             )
+        self._validate_tabular_column_options()
         if self.storage_config is None and self.storage_config_id is None:
             raise ValueError(
                 "No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`"
@@ -408,12 +434,15 @@ class QADataset(BaseModel):
             raise ValueError(
                 "Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match."
             )
-        model_dict = self.model_dump(mode="json")
+        model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
+        for optional_key in ("extra_non_feature_cols", "feature_cols"):
+            if model_dict[optional_key] is None:
+                model_dict.pop(optional_key)
         dataset_response = requests.post(
             f"{API_HOST}/dataset-qa/dataset/",
             json={
-                **{k: model_dict[k] for k in model_dict.keys() - {"storage_config"}},
+                **model_dict,
                 "organization_id": organization_id,
                 "replace_if_exists": replace_if_exists,
             },
