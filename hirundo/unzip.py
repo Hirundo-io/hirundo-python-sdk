@@ -163,64 +163,44 @@ def download_and_extract_zip(
         )
 
         with zipfile.ZipFile(zip_file_path, "r") as z:
-            # Extract suspects file
-            suspects_df = None
-            object_suspects_df = None
-            warnings_and_errors_df = None
-
             filenames = []
             try:
                 filenames = [file.filename for file in z.filelist]
             except Exception as e:
                 logger.error("Failed to get filenames from ZIP", exc_info=e)
 
-            try:
-                mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
-                with z.open(mislabel_suspect_filename) as suspects_file:
-                    suspects_df = load_df(suspects_file)
-                logger.debug(
-                    "Successfully loaded mislabel suspects into DataFrame for run ID %s",
-                    run_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to load mislabel suspects into DataFrame", exc_info=e
-                )
-
-            object_mislabel_suspects_filename = "object_mislabel_suspects.csv"
-            if object_mislabel_suspects_filename in filenames:
+            def _load(filename: str, label: str) -> DataFrameType:
                 try:
-                    with z.open(
-                        object_mislabel_suspects_filename
-                    ) as object_suspects_file:
-                        object_suspects_df = load_df(object_suspects_file)
-                    logger.debug(
-                        "Successfully loaded object mislabel suspects into DataFrame for run ID %s",
-                        run_id,
-                    )
+                    with z.open(filename) as f:
+                        df = load_df(f)
+                    logger.debug("Loaded %s for run ID %s", label, run_id)
+                    return df
                 except Exception as e:
-                    logger.error(
-                        "Failed to load object mislabel suspects into DataFrame",
-                        exc_info=e,
-                    )
+                    logger.error("Failed to load %s", label, exc_info=e)
+                    return None
 
-            try:
-                # Extract warnings_and_errors file
-                with z.open("warnings_and_errors.csv") as warnings_file:
-                    warnings_and_errors_df = load_df(warnings_file)
-                logger.debug(
-                    "Successfully loaded warnings and errors into DataFrame for run ID %s",
-                    run_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to load warnings and errors into DataFrame", exc_info=e
-                )
+            mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
+            suspects_df = _load(mislabel_suspect_filename, "mislabel suspects")
+
+            object_suspects_df = (
+                _load("object_mislabel_suspects.csv", "object mislabel suspects")
+                if "object_mislabel_suspects.csv" in filenames
+                else None
+            )
+
+            suspect_level_counts_df = (
+                _load("mislabel_suspect_level_counts.csv", "suspect level counts")
+                if "mislabel_suspect_level_counts.csv" in filenames
+                else None
+            )
+
+            warnings_and_errors_df = _load("warnings_and_errors.csv", "warnings and errors")
 
             return DatasetQAResults[DataFrameType](
                 cached_zip_path=zip_file_path,
                 suspects=suspects_df,
                 object_suspects=object_suspects_df,
+                suspect_level_counts=suspect_level_counts_df,
                 warnings_and_errors=warnings_and_errors_df,
             )
 
