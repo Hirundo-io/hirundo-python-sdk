@@ -247,38 +247,32 @@ def download_and_extract_llm_behavior_eval_zip(
         with open(zip_file_path, "wb") as output_file:
             for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
                 output_file.write(chunk)
-        logger.info(
-            "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
-            run_id,
-            zip_file_path,
-        )
+    logger.info(
+        "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
+        run_id,
+        zip_file_path,
+    )
 
-        if model_name:
-            model_folder = model_name.split("/")[-1]
-            summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
-            summary_full_name = f"responses/{model_folder}/summary_full.csv"
+    summary_brief_df = None
+    summary_full_df = None
+    if model_name:
+        model_folder = model_name.split("/")[-1]
+        summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
+        summary_full_name = f"responses/{model_folder}/summary_full.csv"
 
-            with zipfile.ZipFile(zip_file_path, "r") as zip_file:
-                filenames = [file.filename for file in zip_file.filelist]
-                if summary_brief_name not in filenames:
-                    raise ValueError(
-                        f"Missing {summary_brief_name} in LLM behavior eval zip for run {run_id}"
-                    )
-                if summary_full_name not in filenames:
-                    raise ValueError(
-                        f"Missing {summary_full_name} in LLM behavior eval zip for run {run_id}"
-                    )
-                with zip_file.open(summary_brief_name) as summary_brief_file:
-                    summary_brief_df = load_df(summary_brief_file)
-                with zip_file.open(summary_full_name) as summary_full_file:
-                    summary_full_df = load_df(summary_full_file)
-        else:
-            summary_brief_df = None
-            summary_full_df = None
+        with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+            filenames = zip_file.namelist()
+        for required_name in (summary_brief_name, summary_full_name):
+            if required_name not in filenames:
+                raise ValueError(
+                    f"Missing {required_name} in LLM behavior eval zip for run {run_id}"
+                )
+        summary_brief_df = load_from_zip(zip_file_path, summary_brief_name)
+        summary_full_df = load_from_zip(zip_file_path, summary_full_name)
 
-        return LlmBehaviorEvalResults[DataFrameType](
-            cached_zip_path=zip_file_path,
-            model_name=model_name,
-            summary_brief=summary_brief_df,
-            summary_full=summary_full_df,
-        )
+    return LlmBehaviorEvalResults[DataFrameType](
+        cached_zip_path=zip_file_path,
+        model_name=model_name,
+        summary_brief=summary_brief_df,
+        summary_full=summary_full_df,
+    )
