@@ -3,6 +3,7 @@ import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, cast
+from urllib.parse import quote, unquote
 
 from pydantic_core import Url
 
@@ -51,6 +52,19 @@ CUSTOMER_INTERCHANGE_DTYPES: Mapping[str, Dtype] = {
 }
 
 logger = get_logger(__name__)
+
+
+def _download_request(
+    zip_url: str, route_prefix: str
+) -> tuple[str, dict[str, str] | None]:
+    if Url(zip_url).scheme != "file":
+        return zip_url, None
+
+    local_path = unquote(zip_url.removeprefix("file://"))
+    local_download_url = (
+        f"{API_HOST}/{route_prefix}/run/local-download/?path={quote(local_path)}"
+    )
+    return local_download_url, _get_auth_headers()
 
 
 def _clean_df_index(df: "pd.DataFrame") -> "pd.DataFrame":
@@ -160,12 +174,7 @@ def download_and_extract_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
     zip_file_path = cache_dir / f"{run_id}.zip"
 
-    headers = None
-    if Url(zip_url).scheme == "file":
-        zip_url = f"{API_HOST}/dataset-qa/run/local-download" + zip_url.replace(
-            "file://", ""
-        )
-        headers = _get_auth_headers()
+    zip_url, headers = _download_request(zip_url, "dataset-qa")
     # Stream the zip file download
     with requests.get(
         zip_url,
@@ -231,12 +240,7 @@ def download_and_extract_llm_behavior_eval_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
     zip_file_path = cache_dir / f"{run_id}.zip"
 
-    headers = None
-    if Url(zip_url).scheme == "file":
-        zip_url = f"{API_HOST}/llm-behavior-eval/run/local-download" + zip_url.replace(
-            "file://", ""
-        )
-        headers = _get_auth_headers()
+    zip_url, headers = _download_request(zip_url, "llm-behavior-eval")
     with requests.get(
         zip_url,
         headers=headers,
