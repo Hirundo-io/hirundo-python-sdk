@@ -1,30 +1,41 @@
 import os
 import re
-import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, TypeAlias
 from urllib.parse import urlparse
 
 import typer
-from rich.console import Console
-from rich.table import Table
 
+from hirundo._cli_common import docs, hirundo_epilog, success, warn
 from hirundo._env import API_HOST, EnvLocation
+from hirundo.cli_dataset_qa import dataset_qa_app, dataset_qa_check, dataset_qa_list
+from hirundo.cli_eval import eval_app
+from hirundo.cli_unlearning import unlearning_app
 
-docs = "sphinx" in sys.modules
-hirundo_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
-)
-
+_CONFIG_PANEL = "Configuration"
+_RUNS_PANEL = "Runs"
+_PIPELINES_PANEL = "Pipelines"
 
 app = typer.Typer(
     name="hirundo",
     no_args_is_help=True,
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
+    help=(
+        "Launch and monitor Hirundo data-quality, unlearning, and evaluation "
+        "runs. Run `hirundo setup` once to store your API key, then use the "
+        "eval, dataset-qa, and unlearning command groups."
+    ),
 )
+
+app.add_typer(eval_app, name="eval", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(dataset_qa_app, name="dataset-qa", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(unlearning_app, name="unlearning", rich_help_panel=_PIPELINES_PANEL)
+
+
+def _location_label(saved_to: str) -> str:
+    """Human-friendly name of the file an env var was written to."""
+    return "~/.hirundo.conf" if saved_to == EnvLocation.HOME.name else ".env"
 
 
 def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
@@ -50,192 +61,105 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
 
 
 def upsert_env(var_name: str, var_value: str):
-    if os.path.exists(EnvLocation.DOTENV.value):
-        # If a `.env` file exists, re-use it
-        _upsert_env(EnvLocation.DOTENV.value, var_name, var_value)
-        return EnvLocation.DOTENV.name
-    else:
-        # Create a `.hirundo.conf` file with environment variables in the home directory
-        _upsert_env(EnvLocation.HOME.value, var_name, var_value)
-        return EnvLocation.HOME.name
+    # Re-use a local `.env` if present, otherwise fall back to `~/.hirundo.conf`.
+    location = (
+        EnvLocation.DOTENV
+        if os.path.exists(EnvLocation.DOTENV.value)
+        else EnvLocation.HOME
+    )
+    _upsert_env(location.value, var_name, var_value)
+    return location.name
+
+
+# Shared option definitions reused across set-api-key, change-remote, and setup.
+_API_KEY_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API key value",
+        help="" if docs else f"Visit '{API_HOST}/api-key' to generate your API key.",
+    ),
+]
+
+# TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
+_API_HOST_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API server address",
+        help=""
+        if docs
+        else (
+            f"Current API server address: '{API_HOST}'. "
+            "This is the same address where you access the Hirundo web interface."
+        ),
+    ),
+]
 
 
 def fix_api_host(api_host: str):
-    if not api_host.startswith("http") and not api_host.startswith("https"):
+    if not api_host.startswith(("http://", "https://")):
         api_host = f"https://{api_host}"
-        print(
-            "API host must start with 'http://' or 'https://'. Automatically added 'https://'."
-        )
+        warn("API host must start with 'http://' or 'https://'. Added 'https://'.")
     if (url := urlparse(api_host)) and url.path != "":
-        print("API host should not contain a path. Removing path.")
+        warn("API host should not contain a path. Removing it.")
         api_host = f"{url.scheme}://{url.hostname}"
     return api_host
 
 
-@app.command("set-api-key", epilog=hirundo_epilog)
-def setup_api_key(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
-):
+def _save_api_key(api_key: str) -> None:
+    location = _location_label(upsert_env("API_KEY", api_key))
+    success(f"API key saved to [bold]{location}[/bold].")
+    warn(f"Keep [bold]{location}[/bold] private — it contains your secret API key.")
+
+
+def _save_api_host(api_host: str) -> None:
+    location = _location_label(upsert_env("API_HOST", fix_api_host(api_host)))
+    success(f"API host saved to [bold]{location}[/bold].")
+
+
+@app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
+def setup_api_key(api_key: _API_KEY_OPTION):
     """
-    Setup the API key for the Hirundo Python SDK.
-    Values are saved to a .env file in the current directory for use by the library in requests.
+    Save the API key for the Hirundo SDK.
+
+    The key is written to a local .env file (or ~/.hirundo.conf if no .env
+    exists) and picked up automatically on subsequent commands.
     """
-    saved_to = upsert_env("API_KEY", api_key)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-        )
+    _save_api_key(api_key)
 
 
-@app.command("change-remote", epilog=hirundo_epilog)
-def change_api_remote(
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
-):
+@app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
+def change_api_remote(api_host: _API_HOST_OPTION):
     """
-    Change the API server address for the Hirundo Python SDK.
-    This is the same address where you access the Hirundo web interface.
+    Change the API server address (same URL as the Hirundo web interface).
     """
-    api_host = fix_api_host(api_host)
-
-    saved_to = upsert_env("API_HOST", api_host)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print("API host saved to .env for future use. Please do not share this file")
+    _save_api_host(api_host)
 
 
-@app.command("setup", epilog=hirundo_epilog)
-def setup(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl as above
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
-):
+@app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
+def setup(api_key: _API_KEY_OPTION, api_host: _API_HOST_OPTION):
     """
     Setup the Hirundo Python SDK.
     """
-    api_host = fix_api_host(api_host)
-    api_host_saved_to = upsert_env("API_HOST", api_host)
-    api_key_saved_to = upsert_env("API_KEY", api_key)
-    if api_host_saved_to != api_key_saved_to:
-        print(
-            "API host and API key saved to different locations. This should not happen. Please report this issue."
-        )
-        if (
-            api_host_saved_to == EnvLocation.HOME.name
-            and api_key_saved_to == EnvLocation.DOTENV.name
-        ):
-            print(
-                "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-            )
-            print(
-                "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-            )
-        elif (
-            api_host_saved_to == EnvLocation.DOTENV.name
-            and api_key_saved_to == EnvLocation.HOME.name
-        ):
-            print(
-                "API host saved to .env for future use. Please do not share this file"
-            )
-            print(
-                "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-            )
-        return
-    if api_host_saved_to == EnvLocation.HOME.name:
-        print(
-            "API host and API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif api_host_saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API host and API key saved to .env for future use. Please do not share this file since it contains your secret API key."
-        )
+    _save_api_host(api_host)
+    _save_api_key(api_key)
 
 
-@app.command("check-run", epilog=hirundo_epilog)
+@app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def check_run(
     run_id: str,
 ):
     """
     Check the status of a run.
     """
-    from hirundo.dataset_qa import QADataset
-
-    results = QADataset.check_run_by_id(run_id)
-    print(f"Run results saved to {results.cached_zip_path}")
+    dataset_qa_check(run_id)
 
 
-@app.command("list-runs", epilog=hirundo_epilog)
+@app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def list_runs():
     """
     List all runs available.
     """
-    from hirundo.dataset_qa import QADataset
-
-    runs = QADataset.list_runs()
-
-    console = Console()
-    table = Table(
-        title="Runs:",
-        expand=True,
-    )
-    cols = (
-        "Dataset name",
-        "Run ID",
-        "Status",
-        "Created At",
-        "Run Args",
-    )
-    for col in cols:
-        table.add_column(
-            col,
-            overflow="fold",
-        )
-    for run in runs:
-        table.add_row(
-            str(run.name),
-            str(run.id),
-            str(run.status),
-            run.created_at.isoformat(),
-            run.run_args.model_dump_json() if run.run_args else None,
-        )
-    console.print(table)
+    dataset_qa_list(archived=False)
 
 
 typer_click_object = typer.main.get_command(app)
