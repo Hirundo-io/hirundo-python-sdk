@@ -1,8 +1,17 @@
+import pytest
 from hirundo import unzip
 
 
+@pytest.mark.parametrize(
+    "file_url",
+    [
+        "file:///datasets/results/statlog local/run-1/results.zip",
+        "file:///datasets/results/statlog%20local/run-1/results.zip",
+    ],
+)
 def test_download_request_converts_dataset_qa_file_url_to_local_download_query(
     monkeypatch,
+    file_url: str,
 ) -> None:
     monkeypatch.setattr(unzip, "API_HOST", "http://localhost:8000")
     monkeypatch.setattr(
@@ -12,7 +21,7 @@ def test_download_request_converts_dataset_qa_file_url_to_local_download_query(
     )
 
     zip_url, headers = unzip._download_request(
-        "file:///datasets/results/statlog local/run-1/results.zip",
+        file_url,
         "dataset-qa",
     )
 
