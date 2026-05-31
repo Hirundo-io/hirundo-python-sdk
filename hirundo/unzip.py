@@ -116,6 +116,26 @@ def get_mislabel_suspect_filename(filenames: list[str]):
     return mislabel_suspect_filename
 
 
+def load_from_zip(zip_path: Path, file_name: str) -> "DataFrameType":
+    """
+    Load a given file from a given zip file.
+
+    Args:
+        zip_path: The path to the zip file.
+        file_name: The name of the file to load.
+
+    Returns:
+        The loaded DataFrame or `None` if neither Polars nor Pandas is available.
+    """
+    with zipfile.ZipFile(zip_path, "r") as z:
+        try:
+            with z.open(file_name) as file:
+                return load_df(file)
+        except Exception as e:
+            logger.error("Failed to load %s from zip file", file_name, exc_info=e)
+    return None
+
+
 def download_and_extract_zip(
     run_id: str, zip_url: str
 ) -> DatasetQAResults[DataFrameType]:
@@ -262,23 +282,3 @@ def download_and_extract_llm_behavior_eval_zip(
             summary_brief=summary_brief_df,
             summary_full=summary_full_df,
         )
-
-
-def load_from_zip(zip_path: Path, file_name: str) -> "DataFrameType":
-    """
-    Load a given file from a given zip file.
-
-    Args:
-        zip_path: The path to the zip file.
-        file_name: The name of the file to load.
-
-    Returns:
-        The loaded DataFrame or `None` if neither Polars nor Pandas is available.
-    """
-    with zipfile.ZipFile(zip_path, "r") as z:
-        try:
-            with z.open(file_name) as file:
-                return load_df(file)
-        except Exception as e:
-            logger.error("Failed to load %s from zip file", file_name, exc_info=e)
-    return None
