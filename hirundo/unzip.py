@@ -19,7 +19,7 @@ from hirundo._dataframe import (
 )
 from hirundo._env import API_HOST
 from hirundo._headers import _get_auth_headers
-from hirundo._http import requests
+from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._timeouts import DOWNLOAD_READ_TIMEOUT
 from hirundo.dataset_qa_results import (
     DataFrameType,
@@ -189,7 +189,7 @@ def download_and_extract_zip(
         timeout=DOWNLOAD_READ_TIMEOUT,
         stream=True,
     ) as response:
-        response.raise_for_status()
+        raise_for_status_with_reason(response)
         _stream_download_to_file(response, zip_file_path)
     logger.info(
         "Successfully downloaded the result zip file for run ID %s to %s",
@@ -252,7 +252,7 @@ def download_and_extract_llm_behavior_eval_zip(
         timeout=DOWNLOAD_READ_TIMEOUT,
         stream=True,
     ) as response:
-        response.raise_for_status()
+        raise_for_status_with_reason(response)
         _stream_download_to_file(response, zip_file_path)
     logger.info(
         "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
