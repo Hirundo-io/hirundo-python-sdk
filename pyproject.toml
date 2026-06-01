@@ -76,7 +76,6 @@ dev = [
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
     "virtualenv>=20.36.1",
-    #  ⬆️ Needed for `pre-commit` version fix for vulnerability GHSA-rqc4-2hc7-8c8v
     "authlib>=1.7.2",
     #  ⬆️ Required to fix vulnerability GHSA-jj8c-mmj3-mmgv
     #  ⬆️ Required to fix vulnerability GHSA-r95x-qfjj-fjj2
