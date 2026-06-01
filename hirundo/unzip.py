@@ -3,6 +3,7 @@ import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import IO, cast
+from urllib.parse import quote, unquote
 
 from pydantic_core import Url
 
@@ -51,6 +52,19 @@ CUSTOMER_INTERCHANGE_DTYPES: Mapping[str, Dtype] = {
 }
 
 logger = get_logger(__name__)
+
+
+def _download_request(
+    zip_url: str, route_prefix: str
+) -> tuple[str, dict[str, str] | None]:
+    if Url(zip_url).scheme != "file":
+        return zip_url, None
+
+    local_path = unquote(zip_url.removeprefix("file://"))
+    local_download_url = (
+        f"{API_HOST}/{route_prefix}/run/local-download/?path={quote(local_path)}"
+    )
+    return local_download_url, _get_auth_headers()
 
 
 def _clean_df_index(df: "pd.DataFrame") -> "pd.DataFrame":
@@ -116,6 +130,26 @@ def get_mislabel_suspect_filename(filenames: list[str]):
     return mislabel_suspect_filename
 
 
+def load_from_zip(zip_path: Path, file_name: str) -> "DataFrameType":
+    """
+    Load a given file from a given zip file.
+
+    Args:
+        zip_path: The path to the zip file.
+        file_name: The name of the file to load.
+
+    Returns:
+        The loaded DataFrame or `None` if neither Polars nor Pandas is available.
+    """
+    with zipfile.ZipFile(zip_path, "r") as z:
+        try:
+            with z.open(file_name) as file:
+                return load_df(file)
+        except Exception as e:
+            logger.error("Failed to load %s from zip file", file_name, exc_info=e)
+    return None
+
+
 def download_and_extract_zip(
     run_id: str, zip_url: str
 ) -> DatasetQAResults[DataFrameType]:
@@ -124,8 +158,9 @@ def download_and_extract_zip(
 
     Note: It will only extract the `mislabel_suspects.csv` (vision - classification)
     or `image_mislabel_suspects.csv` & `object_mislabel_suspects.csv` (vision - OD)
-    or `suspects.csv` (STT)
-    and `warnings_and_errors.csv` files from the zip file.
+    or `suspects.csv` (STT),
+    plus `mislabel_suspect_level_counts.csv` and `warnings_and_errors.csv`
+    files from the zip file.
 
     Args:
         run_id: The ID of the dataset QA run.
@@ -139,12 +174,7 @@ def download_and_extract_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
     zip_file_path = cache_dir / f"{run_id}.zip"
 
-    headers = None
-    if Url(zip_url).scheme == "file":
-        zip_url = f"{API_HOST}/dataset-qa/run/local-download" + zip_url.replace(
-            "file://", ""
-        )
-        headers = _get_auth_headers()
+    zip_url, headers = _download_request(zip_url, "dataset-qa")
     # Stream the zip file download
     with requests.get(
         zip_url,
@@ -156,73 +186,38 @@ def download_and_extract_zip(
         with open(zip_file_path, "wb") as output_file:
             for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
                 output_file.write(chunk)
-        logger.info(
-            "Successfully downloaded the result zip file for run ID %s to %s",
-            run_id,
-            zip_file_path,
-        )
+    logger.info(
+        "Successfully downloaded the result zip file for run ID %s to %s",
+        run_id,
+        zip_file_path,
+    )
 
-        with zipfile.ZipFile(zip_file_path, "r") as z:
-            # Extract suspects file
-            suspects_df = None
-            object_suspects_df = None
-            warnings_and_errors_df = None
+    filenames = []
+    try:
+        with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+            filenames = zip_file.namelist()
+    except Exception as exc:
+        logger.error("Failed to get filenames from ZIP", exc_info=exc)
 
-            filenames = []
-            try:
-                filenames = [file.filename for file in z.filelist]
-            except Exception as e:
-                logger.error("Failed to get filenames from ZIP", exc_info=e)
+    def _load_optional(filename: str) -> DataFrameType:
+        # Only attempt to load files that are present, to avoid noisy error
+        # logs for legitimately-absent optional files (e.g. object suspects).
+        return load_from_zip(zip_file_path, filename) if filename in filenames else None
 
-            try:
-                mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
-                with z.open(mislabel_suspect_filename) as suspects_file:
-                    suspects_df = load_df(suspects_file)
-                logger.debug(
-                    "Successfully loaded mislabel suspects into DataFrame for run ID %s",
-                    run_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to load mislabel suspects into DataFrame", exc_info=e
-                )
+    try:
+        mislabel_suspect_filename = get_mislabel_suspect_filename(filenames)
+        suspects_df = load_from_zip(zip_file_path, mislabel_suspect_filename)
+    except ValueError as exc:
+        logger.error("Failed to find mislabel suspects file", exc_info=exc)
+        suspects_df = None
 
-            object_mislabel_suspects_filename = "object_mislabel_suspects.csv"
-            if object_mislabel_suspects_filename in filenames:
-                try:
-                    with z.open(
-                        object_mislabel_suspects_filename
-                    ) as object_suspects_file:
-                        object_suspects_df = load_df(object_suspects_file)
-                    logger.debug(
-                        "Successfully loaded object mislabel suspects into DataFrame for run ID %s",
-                        run_id,
-                    )
-                except Exception as e:
-                    logger.error(
-                        "Failed to load object mislabel suspects into DataFrame",
-                        exc_info=e,
-                    )
-
-            try:
-                # Extract warnings_and_errors file
-                with z.open("warnings_and_errors.csv") as warnings_file:
-                    warnings_and_errors_df = load_df(warnings_file)
-                logger.debug(
-                    "Successfully loaded warnings and errors into DataFrame for run ID %s",
-                    run_id,
-                )
-            except Exception as e:
-                logger.error(
-                    "Failed to load warnings and errors into DataFrame", exc_info=e
-                )
-
-            return DatasetQAResults[DataFrameType](
-                cached_zip_path=zip_file_path,
-                suspects=suspects_df,
-                object_suspects=object_suspects_df,
-                warnings_and_errors=warnings_and_errors_df,
-            )
+    return DatasetQAResults[DataFrameType](
+        cached_zip_path=zip_file_path,
+        suspects=suspects_df,
+        object_suspects=_load_optional("object_mislabel_suspects.csv"),
+        suspect_level_counts=_load_optional("mislabel_suspect_level_counts.csv"),
+        warnings_and_errors=load_from_zip(zip_file_path, "warnings_and_errors.csv"),
+    )
 
 
 def download_and_extract_llm_behavior_eval_zip(
@@ -245,12 +240,7 @@ def download_and_extract_llm_behavior_eval_zip(
     cache_dir.mkdir(parents=True, exist_ok=True)
     zip_file_path = cache_dir / f"{run_id}.zip"
 
-    headers = None
-    if Url(zip_url).scheme == "file":
-        zip_url = f"{API_HOST}/llm-behavior-eval/run/local-download" + zip_url.replace(
-            "file://", ""
-        )
-        headers = _get_auth_headers()
+    zip_url, headers = _download_request(zip_url, "llm-behavior-eval")
     with requests.get(
         zip_url,
         headers=headers,
@@ -261,60 +251,32 @@ def download_and_extract_llm_behavior_eval_zip(
         with open(zip_file_path, "wb") as output_file:
             for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
                 output_file.write(chunk)
-        logger.info(
-            "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
-            run_id,
-            zip_file_path,
-        )
+    logger.info(
+        "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
+        run_id,
+        zip_file_path,
+    )
 
-        if model_name:
-            model_folder = model_name.split("/")[-1]
-            summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
-            summary_full_name = f"responses/{model_folder}/summary_full.csv"
+    summary_brief_df = None
+    summary_full_df = None
+    if model_name:
+        model_folder = model_name.split("/")[-1]
+        summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
+        summary_full_name = f"responses/{model_folder}/summary_full.csv"
 
-            with zipfile.ZipFile(zip_file_path, "r") as zip_file:
-                filenames = [file.filename for file in zip_file.filelist]
-                if summary_brief_name not in filenames:
-                    raise ValueError(
-                        f"Missing {summary_brief_name} in LLM behavior eval zip for run {run_id}"
-                    )
-                if summary_full_name not in filenames:
-                    raise ValueError(
-                        f"Missing {summary_full_name} in LLM behavior eval zip for run {run_id}"
-                    )
-                with zip_file.open(summary_brief_name) as summary_brief_file:
-                    summary_brief_df = load_df(summary_brief_file)
-                with zip_file.open(summary_full_name) as summary_full_file:
-                    summary_full_df = load_df(summary_full_file)
-        else:
-            summary_brief_df = None
-            summary_full_df = None
+        with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+            filenames = zip_file.namelist()
+        for required_name in (summary_brief_name, summary_full_name):
+            if required_name not in filenames:
+                raise ValueError(
+                    f"Missing {required_name} in LLM behavior eval zip for run {run_id}"
+                )
+        summary_brief_df = load_from_zip(zip_file_path, summary_brief_name)
+        summary_full_df = load_from_zip(zip_file_path, summary_full_name)
 
-        return LlmBehaviorEvalResults[DataFrameType](
-            cached_zip_path=zip_file_path,
-            model_name=model_name,
-            summary_brief=summary_brief_df,
-            summary_full=summary_full_df,
-        )
-
-
-def load_from_zip(
-    zip_path: Path, file_name: str
-) -> "pd.DataFrame | pl.DataFrame | None":
-    """
-    Load a given file from a given zip file.
-
-    Args:
-        zip_path: The path to the zip file.
-        file_name: The name of the file to load.
-
-    Returns:
-        The loaded DataFrame or `None` if neither Polars nor Pandas is available.
-    """
-    with zipfile.ZipFile(zip_path, "r") as z:
-        try:
-            with z.open(file_name) as file:
-                return load_df(file)
-        except Exception as e:
-            logger.error("Failed to load %s from zip file", file_name, exc_info=e)
-    return None
+    return LlmBehaviorEvalResults[DataFrameType](
+        cached_zip_path=zip_file_path,
+        model_name=model_name,
+        summary_brief=summary_brief_df,
+        summary_full=summary_full_df,
+    )
