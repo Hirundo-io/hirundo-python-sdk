@@ -157,6 +157,24 @@ def _stream_download_to_file(response, zip_file_path: Path) -> None:
         copyfileobj(response.raw, output_file, length=ZIP_FILE_CHUNK_SIZE)
 
 
+def _download_zip_to_cache(run_id: str, zip_url: str, route_prefix: str) -> Path:
+    cache_dir = Path.home() / ".hirundo" / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    zip_file_path = cache_dir / f"{run_id}.zip"
+
+    zip_url, headers = _download_request(zip_url, route_prefix)
+    with requests.get(
+        zip_url,
+        headers=headers,
+        timeout=DOWNLOAD_READ_TIMEOUT,
+        stream=True,
+    ) as response:
+        raise_for_status_with_reason(response)
+        _stream_download_to_file(response, zip_file_path)
+
+    return zip_file_path
+
+
 def download_and_extract_zip(
     run_id: str, zip_url: str
 ) -> DatasetQAResults[DataFrameType]:
@@ -176,21 +194,7 @@ def download_and_extract_zip(
     Returns:
         The dataset QA results object.
     """
-    # Define the local file path
-    cache_dir = Path.home() / ".hirundo" / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    zip_file_path = cache_dir / f"{run_id}.zip"
-
-    zip_url, headers = _download_request(zip_url, "dataset-qa")
-    # Stream the zip file download
-    with requests.get(
-        zip_url,
-        headers=headers,
-        timeout=DOWNLOAD_READ_TIMEOUT,
-        stream=True,
-    ) as response:
-        raise_for_status_with_reason(response)
-        _stream_download_to_file(response, zip_file_path)
+    zip_file_path = _download_zip_to_cache(run_id, zip_url, "dataset-qa")
     logger.info(
         "Successfully downloaded the result zip file for run ID %s to %s",
         run_id,
@@ -241,19 +245,7 @@ def download_and_extract_llm_behavior_eval_zip(
     Returns:
         The LLM behavior eval results object.
     """
-    cache_dir = Path.home() / ".hirundo" / "cache"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    zip_file_path = cache_dir / f"{run_id}.zip"
-
-    zip_url, headers = _download_request(zip_url, "llm-behavior-eval")
-    with requests.get(
-        zip_url,
-        headers=headers,
-        timeout=DOWNLOAD_READ_TIMEOUT,
-        stream=True,
-    ) as response:
-        raise_for_status_with_reason(response)
-        _stream_download_to_file(response, zip_file_path)
+    zip_file_path = _download_zip_to_cache(run_id, zip_url, "llm-behavior-eval")
     logger.info(
         "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
         run_id,
