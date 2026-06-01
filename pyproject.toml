@@ -37,7 +37,9 @@ dependencies = [
     #  ⬆️ Required to fix vulnerability GHSA-vqfr-h8mv-ghfj
     #  ⬆️ Required to fix vulnerability CVE-2026-25645
     "urllib3>=2.7.0",
-    #  ⬆️ Required to fix vulnerability CVE-2026-21441
+    #  ⬆️ Required to fix vulnerabilities CVE-2026-21441, PYSEC-2026-141, and PYSEC-2026-142
+    "idna>=3.15",
+    #  ⬆️ Required to fix vulnerability CVE-2026-45409
     "setuptools>=78.1.1",
     #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
     "docutils<0.22.0",
@@ -54,7 +56,7 @@ Homepage = "https://github.com/Hirundo-io/hirundo-python-sdk"
 pandas = ["pandas>=2.2.3"]
 polars = ["polars>=1.0.0"]
 transformers = [
-    "transformers>=5.0.0rc3",
+    "transformers>=5.0.0",
     #  ⬆️ Required to fix vulnerability CVE-2026-1839
     "peft>=0.18.1",
     "accelerate>=1.12.0",
