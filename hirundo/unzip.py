@@ -2,6 +2,7 @@ import typing
 import zipfile
 from collections.abc import Mapping
 from pathlib import Path
+from shutil import copyfileobj
 from typing import IO, cast
 from urllib.parse import quote, unquote
 
@@ -150,6 +151,12 @@ def load_from_zip(zip_path: Path, file_name: str) -> "DataFrameType":
     return None
 
 
+def _stream_download_to_file(response, zip_file_path: Path) -> None:
+    response.raw.decode_content = True
+    with open(zip_file_path, "wb") as output_file:
+        copyfileobj(response.raw, output_file, length=ZIP_FILE_CHUNK_SIZE)
+
+
 def download_and_extract_zip(
     run_id: str, zip_url: str
 ) -> DatasetQAResults[DataFrameType]:
@@ -183,9 +190,7 @@ def download_and_extract_zip(
         stream=True,
     ) as response:
         response.raise_for_status()
-        with open(zip_file_path, "wb") as output_file:
-            for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
-                output_file.write(chunk)
+        _stream_download_to_file(response, zip_file_path)
     logger.info(
         "Successfully downloaded the result zip file for run ID %s to %s",
         run_id,
@@ -248,9 +253,7 @@ def download_and_extract_llm_behavior_eval_zip(
         stream=True,
     ) as response:
         response.raise_for_status()
-        with open(zip_file_path, "wb") as output_file:
-            for chunk in response.iter_content(chunk_size=ZIP_FILE_CHUNK_SIZE):
-                output_file.write(chunk)
+        _stream_download_to_file(response, zip_file_path)
     logger.info(
         "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
         run_id,

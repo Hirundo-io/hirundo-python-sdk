@@ -26,6 +26,7 @@ class _FakeStreamingResponse:
 
     def __init__(self, content: bytes):
         self._content = content
+        self.raw = io.BytesIO(content)
 
     def __enter__(self):
         return self
