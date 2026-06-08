@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import overload
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -201,6 +201,13 @@ class QADataset(BaseModel):
     """
 
     status: RunStatus | None = None
+
+    @field_validator("extra_non_feature_cols", "feature_cols", mode="before")
+    @classmethod
+    def _normalize_empty_tabular_column_options(cls, value):
+        if value == []:
+            return None
+        return value
 
     def _validate_tabular_column_options(self) -> None:
         has_extra_non_feature_cols = self.extra_non_feature_cols is not None
