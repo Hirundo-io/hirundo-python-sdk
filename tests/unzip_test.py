@@ -55,8 +55,11 @@ def test_download_request_converts_dataset_qa_file_url_to_local_download_query(
     monkeypatch.setattr(unzip, "API_HOST", "http://localhost:8000")
     monkeypatch.setattr(
         unzip,
-        "_get_auth_headers",
-        lambda: {"Authorization": "Bearer test-token"},
+        "get_auth_api_version_headers",
+        lambda: {
+            "Authorization": "Bearer test-token",
+            "HIRUNDO-API-VERSION": "0.3",
+        },
     )
 
     zip_url, headers = unzip._download_request(file_url, "dataset-qa")
@@ -65,7 +68,10 @@ def test_download_request_converts_dataset_qa_file_url_to_local_download_query(
         "http://localhost:8000/dataset-qa/run/local-download/"
         "?path=/datasets/results/statlog%20local/run-1/results.zip"
     )
-    assert headers == {"Authorization": "Bearer test-token"}
+    assert headers == {
+        "Authorization": "Bearer test-token",
+        "HIRUNDO-API-VERSION": "0.3",
+    }
 
 
 def test_download_request_leaves_remote_url_unchanged() -> None:
