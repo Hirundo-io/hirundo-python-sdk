@@ -36,9 +36,11 @@ jobs:
           ${{ github.event.pull_request.body }}
           EOF
 
-          # Use PR title as the tag name; quote to handle spaces
-          git tag -a "${{ github.event.pull_request.title }}" -F .tagmsg.txt
-          git push origin ${{ github.event.pull_request.title }}
+          VERSION=$(python -c "import re; content=open('hirundo/__init__.py').read(); print(re.search(r'__version__ = [\"\\'](.*?)[\"\\']', content).group(1))")
+          TAG_NAME="v${VERSION}"
+
+          git tag -a "${TAG_NAME}" -F .tagmsg.txt
+          git push origin "${TAG_NAME}"
       - name: Install dependencies & build package
         run: |
           uv venv
