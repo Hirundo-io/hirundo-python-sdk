@@ -27,7 +27,9 @@ autodoc_pydantic_field_show_constraints = False
 autodoc_pydantic_field_list_validators = False
 autodoc_pydantic_model_hide_reused_validator = True
 
-smv_tag_whitelist = r"^v.*$"
+# Tags v0.1.17+on-prem through v0.1.21 contain Pydantic models with
+# unresolved forward references that fail schema generation under Pydantic 2.13.
+smv_tag_whitelist = r"^v(?!0\.1\.(17|18|19(?:\.[12])?|21)(?:\+on-prem)?$).*$"
 smv_branch_whitelist = "None"
 
 templates_path = ["_templates"]
