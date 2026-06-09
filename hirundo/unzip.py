@@ -18,7 +18,7 @@ from hirundo._dataframe import (
     string,
 )
 from hirundo._env import API_HOST
-from hirundo._headers import _get_auth_headers
+from hirundo._headers import get_auth_api_version_headers
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._timeouts import DOWNLOAD_READ_TIMEOUT
 from hirundo.dataset_qa_results import (
@@ -65,7 +65,7 @@ def _download_request(
     local_download_url = (
         f"{API_HOST}/{route_prefix}/run/local-download/?path={quote(local_path)}"
     )
-    return local_download_url, _get_auth_headers()
+    return local_download_url, get_auth_api_version_headers()
 
 
 def _clean_df_index(df: "pd.DataFrame") -> "pd.DataFrame":
