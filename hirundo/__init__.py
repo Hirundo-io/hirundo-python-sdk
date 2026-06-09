@@ -110,4 +110,5 @@ __all__ = [
     "RunStatus",
 ]
 
+# Keep this literal in sync with pyproject.toml; release workflows read it.
 __version__ = "0.2.4"
