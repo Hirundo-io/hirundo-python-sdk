@@ -2,7 +2,7 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Annotated, Literal, overload
 
 from pydantic import BaseModel, ConfigDict, Field
 from tqdm import tqdm
@@ -243,9 +243,10 @@ class CustomBehavior(BaseModel):
     unbiased_dataset: CustomDataset
 
 
-TargetBehavior = (
-    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
-)
+TargetBehavior = Annotated[
+    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior,
+    Field(discriminator="type"),
+]
 
 
 class OutputBiasBehavior(BaseModel):
@@ -301,6 +302,17 @@ STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
 class LlmUnlearningRun:
     @staticmethod
     def _build_launch_payload(run_info: LlmRunInfo) -> dict[str, typing.Any]:
+        """
+        Build the JSON payload for an LLM unlearning launch request.
+
+        Args:
+            run_info: The `LlmRunInfo` request model to serialize.
+
+        Returns:
+            A JSON-serializable payload derived from
+            `run_info.model_dump(mode="json")`. Bias targets include the
+            backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
+        """
         payload = run_info.model_dump(mode="json")
         for target_behavior in payload["target_behaviors"]:
             if target_behavior["type"] == "BIAS":

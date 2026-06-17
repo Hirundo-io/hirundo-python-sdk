@@ -32,6 +32,13 @@ def test_bias_behavior_rejects_bias_type() -> None:
         BiasBehavior.model_validate({"type": "BIAS", "bias_type": BBQBiasType.ALL})
 
 
+def test_llm_run_info_rejects_legacy_bias_dict_without_type() -> None:
+    with pytest.raises(ValidationError):
+        LlmRunInfo.model_validate(
+            {"target_behaviors": [{"bias_type": BBQBiasType.RACE}]}
+        )
+
+
 def test_launch_payload_adds_backend_only_all_bias_type() -> None:
     payload = LlmUnlearningRun._build_launch_payload(
         LlmRunInfo(target_behaviors=[BiasBehavior()])
