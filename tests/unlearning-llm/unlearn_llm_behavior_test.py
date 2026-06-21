@@ -3,10 +3,10 @@ import os
 
 import pytest
 from hirundo import (
-    BBQBiasType,
-    BiasRunInfo,
+    BiasBehavior,
     HuggingFaceTransformersModel,
     LlmModel,
+    LlmRunInfo,
     LlmUnlearningRun,
 )
 from tests.testing_utils import get_unique_id
@@ -25,7 +25,7 @@ def test_unlearn_llm_behavior():
         ),
     )
     llm_id = llm.create()
-    BiasRunInfo(bias_type=BBQBiasType.RACE)
+    LlmRunInfo(target_behaviors=[BiasBehavior()])
     assert llm_id is not None
 
 
@@ -42,7 +42,7 @@ def test_unlearn_llm_behavior_full():
         ),
     )
     llm_id = llm.create()
-    run_info = BiasRunInfo(bias_type=BBQBiasType.RACE)
+    run_info = LlmRunInfo(target_behaviors=[BiasBehavior()])
     assert llm_id is not None
     run_id = LlmUnlearningRun.launch(llm_id, run_info)
     new_adapter = llm.get_hf_pipeline_for_run(run_id)

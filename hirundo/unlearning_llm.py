@@ -2,7 +2,7 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Annotated, Literal, overload
 
 from pydantic import BaseModel, ConfigDict, Field
 from tqdm import tqdm
@@ -216,8 +216,9 @@ class CustomUtility(BaseModel):
 
 
 class BiasBehavior(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     type: Literal["BIAS"] = "BIAS"
-    bias_type: BBQBiasType
 
 
 class HallucinationType(str, Enum):
@@ -242,8 +243,19 @@ class CustomBehavior(BaseModel):
     unbiased_dataset: CustomDataset
 
 
-TargetBehavior = (
-    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
+TargetBehavior = Annotated[
+    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior,
+    Field(discriminator="type"),
+]
+
+
+class OutputBiasBehavior(BaseModel):
+    type: Literal["BIAS"] = "BIAS"
+    bias_type: BBQBiasType
+
+
+OutputBehaviorOptions = (
+    OutputBiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
 )
 
 
@@ -257,25 +269,7 @@ class LlmRunInfo(BaseModel):
     advanced_options: UnlearningLlmAdvancedOptions | None = None
 
 
-class BiasRunInfo(BaseModel):
-    bias_type: BBQBiasType
-    organization_id: int | None = None
-    name: str | None = None
-    target_utilities: list[CustomUtility] = Field(default_factory=list)
-    advanced_options: UnlearningLlmAdvancedOptions | None = None
-
-    def to_run_info(self) -> LlmRunInfo:
-        return LlmRunInfo(
-            organization_id=self.organization_id,
-            name=self.name,
-            target_behaviors=[BiasBehavior(bias_type=self.bias_type)],
-            target_utilities=self.target_utilities,
-            advanced_options=self.advanced_options,
-        )
-
-
 OutputLlm = dict[str, object]
-BehaviorOptions = TargetBehavior
 CeleryTaskState = str
 
 
@@ -286,7 +280,7 @@ class OutputUnlearningLlmRun(BaseModel):
     name: str
     model_id: int
     model: OutputLlm
-    target_behaviors: list[BehaviorOptions]
+    target_behaviors: list[OutputBehaviorOptions]
     target_utilities: list[CustomUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None
     run_id: str
@@ -307,13 +301,29 @@ STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
 
 class LlmUnlearningRun:
     @staticmethod
-    def launch(model_id: int, run_info: LlmRunInfo | BiasRunInfo) -> str:
-        resolved_run_info = (
-            run_info.to_run_info() if isinstance(run_info, BiasRunInfo) else run_info
-        )
+    def _build_launch_payload(run_info: LlmRunInfo) -> dict[str, typing.Any]:
+        """
+        Build the JSON payload for an LLM unlearning launch request.
+
+        Args:
+            run_info: The `LlmRunInfo` request model to serialize.
+
+        Returns:
+            A JSON-serializable payload derived from
+            `run_info.model_dump(mode="json")`. Bias targets include the
+            backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
+        """
+        payload = run_info.model_dump(mode="json")
+        for target_behavior in payload["target_behaviors"]:
+            if target_behavior["type"] == "BIAS":
+                target_behavior["bias_type"] = BBQBiasType.ALL.value
+        return payload
+
+    @staticmethod
+    def launch(model_id: int, run_info: LlmRunInfo) -> str:
         run_response = requests.post(
             f"{API_HOST}/unlearning-llm/run/{model_id}",
-            json=resolved_run_info.model_dump(mode="json"),
+            json=LlmUnlearningRun._build_launch_payload(run_info),
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

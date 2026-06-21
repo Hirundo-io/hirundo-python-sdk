@@ -52,9 +52,13 @@ from .storage import (
     StorageS3,
 )
 from .unlearning_llm import (
-    BiasRunInfo,
+    BiasBehavior,
+    CustomBehavior,
+    HallucinationBehavior,
     LlmModel,
+    LlmRunInfo,
     LlmUnlearningRun,
+    SecurityBehavior,
 )
 from .unzip import load_df, load_from_zip
 
@@ -96,14 +100,18 @@ __all__ = [
     "StorageGit",
     "StorageConfig",
     "DatasetQAResults",
-    "BiasRunInfo",
+    "BiasBehavior",
+    "CustomBehavior",
+    "HallucinationBehavior",
     "HuggingFaceTransformersModel",
     "HuggingFaceTransformersModelOutput",
+    "LlmRunInfo",
     "LlmModel",
     "LlmSources",
     "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
+    "SecurityBehavior",
     "load_df",
     "load_from_zip",
     "ModelSourceType",
