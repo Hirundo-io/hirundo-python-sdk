@@ -113,7 +113,7 @@ docs = [
     "sphinx-multiversion",
     "esbonio",
     "starlette>=1.3.1",
-    #  ⬆️ Required to fix vulnerabilities GHSA-2c2j-9gv5-cj73 & PYSEC-2026-161
+    #  ⬆️ Required to fix vulnerability CVE-2026-54283
     "markupsafe>=3.0.2",
     #  Force `starlette` and `markupsafe` to versions compatible with `dev` dependencies.
     "jinja2>=3.1.6",
