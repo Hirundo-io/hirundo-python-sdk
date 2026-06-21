@@ -84,7 +84,7 @@ dev = [
     "bumpver>=2025.1131",
     "platformdirs>=4.3.6",
     "cryptography>=48.0.1",
-    #  ⬆️ Required to fix vulnerability CVE-2026-39892
+    #  ⬆️ Required to fix vulnerability GHSA-537c-gmf6-5ccf
     "jinja2>=3.1.6",
     #  ⬆️ Required to fix vulnerabilities GHSA-cpwx-vrp4-4pq7 , GHSA-gmj6-6f8f-6699 & GHSA-q2x7-8rv6-6q7h
     "filelock>=3.20.3",
