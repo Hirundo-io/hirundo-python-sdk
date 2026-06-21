@@ -893,7 +893,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.33.0" },
     { name = "setuptools", specifier = ">=78.1.1" },
     { name = "stamina", specifier = ">=24.2.0" },
-    { name = "torch", marker = "extra == 'transformers'", specifier = ">=2.12.1" },
+    { name = "torch", marker = "extra == 'transformers'", specifier = "==2.12.1" },
     { name = "tqdm", specifier = ">=4.66.5" },
     { name = "transformers", marker = "extra == 'transformers'", specifier = ">=5.0.0" },
     { name = "typer", specifier = ">=0.12.3" },
