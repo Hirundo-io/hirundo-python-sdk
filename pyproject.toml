@@ -59,7 +59,7 @@ transformers = [
     "transformers>=5.0.0",
     #  ⬆️ Required to fix vulnerability CVE-2026-1839
     "torch>=2.12.1",
-    #  ⬆️ Required to fix vulnerabilities PYSEC-2026-139 and CVE-2025-3000
+    #  ⬆️ Required to fix vulnerabilities CVE-2025-3000
     "peft>=0.18.1",
     "accelerate>=1.12.0",
 ]
