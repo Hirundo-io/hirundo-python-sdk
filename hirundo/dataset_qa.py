@@ -107,6 +107,7 @@ class ModalityType(str, Enum):
     VISION = "VISION"
     SPEECH = "SPEECH"
     TABULAR = "TABULAR"
+    TIMESERIES = "TIMESERIES"
 
 
 MODALITY_TO_SUPPORTED_LABELING_TYPES = {
@@ -123,7 +124,13 @@ MODALITY_TO_SUPPORTED_LABELING_TYPES = {
     ],
     ModalityType.SPEECH: [LabelingType.SPEECH_TO_TEXT],
     ModalityType.TABULAR: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
+    ModalityType.TIMESERIES: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
 }
+
+
+MODALITIES_WITHOUT_DATA_ROOT = frozenset(
+    (ModalityType.TABULAR, ModalityType.TIMESERIES)
+)
 
 
 class QADataset(BaseModel):
@@ -155,14 +162,19 @@ class QADataset(BaseModel):
     """
     The `StorageConfig` instance to link to.
     """
-    data_root_url: HirundoUrl
+    data_root_url: HirundoUrl | None = None
     """
-    URL for data (e.g. images) within the `StorageConfig` instance,
+    URL for file-backed data (e.g. images or audio) within the `StorageConfig` instance,
     e.g. `s3://my-bucket-name/my-images-folder`, `gs://my-bucket-name/my-images-folder`,
     or `ssh://my-username@my-repo-name/my-images-folder`
     (or `file:///datasets/my-images-folder` if using LOCAL storage type with on-premises installation)
 
-    Note: All CSV `image_path` entries in the metadata file should be relative to this folder.
+    Required for modalities whose metadata references external files. Not used for
+    tabular or timeseries datasets, where the CSV metadata is the dataset itself.
+
+    Note: CSV path columns for file-backed datasets should be relative to this folder.
+    For example, with `data_root_url="s3://my-bucket/images"`, a CSV `image_path`
+    value of `cats/001.jpg` resolves to `s3://my-bucket/images/cats/001.jpg`.
     """
 
     classes: list[str] | None = None
@@ -185,13 +197,13 @@ class QADataset(BaseModel):
     """
     extra_non_feature_cols: list[str] | None = None
     """
-    Tabular classification metadata columns to preserve in compact result exports.
+    Tabular or timeseries classification metadata columns to preserve in compact result exports.
     These columns are passed to core as `learning.dataset.extra_non_feature_cols`
     and are not used as model features.
     """
     feature_cols: list[str] | None = None
     """
-    Tabular classification columns to use as model features.
+    Tabular or timeseries classification columns to use as model features.
     Cannot be provided together with `extra_non_feature_cols`.
     """
 
@@ -204,12 +216,12 @@ class QADataset(BaseModel):
 
     @field_validator("extra_non_feature_cols", "feature_cols", mode="before")
     @classmethod
-    def _normalize_empty_tabular_column_options(cls, value):
+    def _normalize_empty_tabular_like_column_options(cls, value):
         if value == []:
             return None
         return value
 
-    def _validate_tabular_column_options(self) -> None:
+    def _validate_tabular_like_column_options(self) -> None:
         has_extra_non_feature_cols = self.extra_non_feature_cols is not None
         has_feature_cols = self.feature_cols is not None
         if not has_extra_non_feature_cols and not has_feature_cols:
@@ -218,10 +230,21 @@ class QADataset(BaseModel):
             raise ValueError(
                 "Only one of `extra_non_feature_cols` or `feature_cols` can be provided"
             )
-        if self.modality != ModalityType.TABULAR:
+        if self.modality not in MODALITIES_WITHOUT_DATA_ROOT:
             raise ValueError(
-                "`extra_non_feature_cols` and `feature_cols` are only supported for tabular datasets"
+                "`extra_non_feature_cols` and `feature_cols` are only supported for tabular or timeseries datasets"
             )
+
+    def _validate_data_root_url(self) -> None:
+        if (
+            self.data_root_url is None
+            and self.modality not in MODALITIES_WITHOUT_DATA_ROOT
+        ):
+            raise ValueError(
+                "`data_root_url` is required for non-tabular Dataset QA datasets"
+            )
+        if self.data_root_url and self.storage_config:
+            validate_url(self.data_root_url, self.storage_config)
 
     @model_validator(mode="after")
     def validate_dataset(self):
@@ -236,7 +259,7 @@ class QADataset(BaseModel):
             raise ValueError(
                 f"Labeling type {self.labeling_type} is not supported for modality {self.modality}. Supported labeling types are: {MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]}"
             )
-        self._validate_tabular_column_options()
+        self._validate_tabular_like_column_options()
         if self.storage_config is None and self.storage_config_id is None:
             raise ValueError(
                 "No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`"
@@ -275,8 +298,7 @@ class QADataset(BaseModel):
             validate_labeling_info(
                 self.labeling_type, self.labeling_info, self.storage_config
             )
-        if self.data_root_url and self.storage_config:
-            validate_url(self.data_root_url, self.storage_config)
+        self._validate_data_root_url()
         return self
 
     @staticmethod
@@ -443,7 +465,7 @@ class QADataset(BaseModel):
             )
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
-        for optional_key in ("extra_non_feature_cols", "feature_cols"):
+        for optional_key in ("data_root_url", "extra_non_feature_cols", "feature_cols"):
             if model_dict[optional_key] is None:
                 model_dict.pop(optional_key)
         dataset_response = requests.post(
@@ -788,10 +810,12 @@ class QADatasetOut(BaseModel):
 
     name: str
     labeling_type: LabelingType
+    modality: ModalityType = ModalityType.VISION
 
     storage_config: ResponseStorageConfig
+    storage_config_id: int | None = None
 
-    data_root_url: HirundoUrl
+    data_root_url: HirundoUrl | None = None
 
     classes: list[str] | None = None
     labeling_info: LabelingInfo | list[LabelingInfo]
@@ -807,6 +831,7 @@ class DataQARunOut(BaseModel):
     name: str
     dataset_id: int
     run_id: str
+    modality: ModalityType | None = None
     status: RunStatus
     approved: bool
     created_at: datetime.datetime
