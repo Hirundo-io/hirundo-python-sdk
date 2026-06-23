@@ -68,6 +68,7 @@ multiple labeling types, including:
 - Object/semantic/panoptic segmentation
 - Speech-to-text
 - Tabular classification
+- Timeseries classification
 
 Supported storage backends include:
 
@@ -83,6 +84,11 @@ Classification example:
 Object detection example:
 
 .. literalinclude:: dataset_qa_object_detection_example.py
+   :language: python
+
+Timeseries example:
+
+.. literalinclude:: dataset_qa_timeseries_example.py
    :language: python
 
 API reference
