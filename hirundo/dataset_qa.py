@@ -246,6 +246,28 @@ class QADataset(BaseModel):
         if self.data_root_url and self.storage_config:
             validate_url(self.data_root_url, self.storage_config)
 
+    def _storage_config_id_matches_response_storage_config(self) -> bool:
+        return (
+            self.storage_config is not None
+            and self.storage_config_id is not None
+            and isinstance(self.storage_config, ResponseStorageConfig)
+            and self.storage_config.id == self.storage_config_id
+        )
+
+    def _ensure_storage_config_consistency(
+        self,
+        missing_message: str,
+        mismatch_message: str,
+    ) -> None:
+        if self.storage_config is None and self.storage_config_id is None:
+            raise ValueError(missing_message)
+        if (
+            self.storage_config is not None
+            and self.storage_config_id is not None
+            and not self._storage_config_id_matches_response_storage_config()
+        ):
+            raise ValueError(mismatch_message)
+
     @model_validator(mode="after")
     def validate_dataset(self):
         if self.modality not in MODALITY_TO_SUPPORTED_LABELING_TYPES:
@@ -260,21 +282,10 @@ class QADataset(BaseModel):
                 f"Labeling type {self.labeling_type} is not supported for modality {self.modality}. Supported labeling types are: {MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]}"
             )
         self._validate_tabular_like_column_options()
-        if self.storage_config is None and self.storage_config_id is None:
-            raise ValueError(
-                "No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`"
-            )
-        elif (
-            self.storage_config is not None
-            and self.storage_config_id is not None
-            and (
-                not isinstance(self.storage_config, ResponseStorageConfig)
-                or self.storage_config.id != self.storage_config_id
-            )
-        ):
-            raise ValueError(
-                "Both `storage_config` and `storage_config_id` have been provided. Pick one."
-            )
+        self._ensure_storage_config_consistency(
+            missing_message="No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`",
+            mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Pick one.",
+        )
         if self.labeling_type == LabelingType.SPEECH_TO_TEXT and self.language is None:
             raise ValueError("Language is required for Speech-to-Text datasets.")
         elif (
@@ -450,26 +461,17 @@ class QADataset(BaseModel):
         Returns:
             The ID of the created `QADataset` instance
         """
-        if self.storage_config is None and self.storage_config_id is None:
-            raise ValueError("No dataset storage has been provided")
-        elif self.storage_config and self.storage_config_id is None:
+        self._ensure_storage_config_consistency(
+            missing_message="No dataset storage has been provided",
+            mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match.",
+        )
+        if self.storage_config and self.storage_config_id is None:
             if isinstance(self.storage_config, ResponseStorageConfig):
                 self.storage_config_id = self.storage_config.id
             elif isinstance(self.storage_config, StorageConfig):
                 self.storage_config_id = self.storage_config.create(
                     replace_if_exists=replace_if_exists,
                 )
-        elif (
-            self.storage_config is not None
-            and self.storage_config_id is not None
-            and (
-                not isinstance(self.storage_config, ResponseStorageConfig)
-                or self.storage_config.id != self.storage_config_id
-            )
-        ):
-            raise ValueError(
-                "Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match."
-            )
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
         for optional_key in ("data_root_url", "extra_non_feature_cols", "feature_cols"):
