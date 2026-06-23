@@ -39,6 +39,23 @@ def _build_dataset_payload(**overrides: Any) -> dict[str, Any]:
     return dataset_payload
 
 
+def _build_storage_config_payload(**overrides: Any) -> dict[str, Any]:
+    storage_config_payload = {
+        "id": 456,
+        "name": "dataset-storage",
+        "type": "GCP",
+        "organization_name": "org",
+        "creator_name": "creator",
+        "s3": None,
+        "gcp": {"bucket_name": "bucket", "project": "project"},
+        "git": None,
+        "created_at": "2026-06-22T14:20:31.663Z",
+        "updated_at": "2026-06-22T14:20:31.663Z",
+    }
+    storage_config_payload.update(overrides)
+    return storage_config_payload
+
+
 def _build_dataset(**overrides: Any) -> QADataset:
     dataset_payload = _build_dataset_payload(
         data_root_url=Url("gs://bucket/data"),
@@ -221,6 +238,25 @@ def test_get_by_id_accepts_empty_tabular_column_options(
     assert dataset.feature_cols is None
 
 
+def test_get_by_name_accepts_matching_storage_config_and_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+        return _Response(
+            _build_dataset_payload(
+                id=123,
+                storage_config_id=456,
+                storage_config=_build_storage_config_payload(id=456),
+            )
+        )
+
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
+
+    dataset = QADataset.get_by_name("tabular dataset")
+
+    assert dataset.storage_config_id == 456
+
+
 def test_get_by_id_accepts_timeseries_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -253,18 +289,9 @@ def test_list_datasets_accepts_timeseries_modality(
                     id=123,
                     modality=ModalityType.TIMESERIES,
                     data_root_url=None,
-                    storage_config={
-                        "id": 456,
-                        "name": "timeseries-storage",
-                        "type": "GCP",
-                        "organization_name": "org",
-                        "creator_name": "creator",
-                        "s3": None,
-                        "gcp": {"bucket_name": "bucket", "project": "project"},
-                        "git": None,
-                        "created_at": "2026-06-22T14:20:31.663Z",
-                        "updated_at": "2026-06-22T14:20:31.663Z",
-                    },
+                    storage_config=_build_storage_config_payload(
+                        name="timeseries-storage"
+                    ),
                     organization_id=789,
                     creator_id=321,
                     created_at="2026-06-22T14:20:31.663Z",

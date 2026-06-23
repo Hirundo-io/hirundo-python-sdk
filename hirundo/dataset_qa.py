@@ -264,7 +264,14 @@ class QADataset(BaseModel):
             raise ValueError(
                 "No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`"
             )
-        elif self.storage_config is not None and self.storage_config_id is not None:
+        elif (
+            self.storage_config is not None
+            and self.storage_config_id is not None
+            and (
+                not isinstance(self.storage_config, ResponseStorageConfig)
+                or self.storage_config.id != self.storage_config_id
+            )
+        ):
             raise ValueError(
                 "Both `storage_config` and `storage_config_id` have been provided. Pick one."
             )
