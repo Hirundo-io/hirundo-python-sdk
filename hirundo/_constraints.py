@@ -6,7 +6,7 @@ from hirundo._urls import (
     STORAGE_PATTERNS,
 )
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
-from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs
+from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs, MultimodalHirundoCSV
 
 if TYPE_CHECKING:
     from hirundo._urls import HirundoUrl
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 LABELING_TYPES_TO_DATASET_METADATA_TYPES = {
     LabelingType.SINGLE_LABEL_CLASSIFICATION: [
         DatasetMetadataType.HIRUNDO_CSV,
+        DatasetMetadataType.MULTIMODAL_HIRUNDO_CSV,
     ],
     LabelingType.OBJECT_DETECTION: [
         DatasetMetadataType.HIRUNDO_CSV,
@@ -132,6 +133,18 @@ def validate_labeling_type(
         )
 
 
+def _validate_multimodal_labeling_info_urls(
+    labeling_info: MultimodalHirundoCSV,
+    storage_config: "StorageConfig | ResponseStorageConfig",
+) -> None:
+    for modality_csv in labeling_info.modality_csvs:
+        validate_url(modality_csv.labeling_info.csv_url, storage_config)
+        if modality_csv.data_root_url is not None:
+            validate_url(modality_csv.data_root_url, storage_config)
+    if labeling_info.alignment_csv_url is not None:
+        validate_url(labeling_info.alignment_csv_url, storage_config)
+
+
 def validate_labeling_info(
     labeling_type: "LabelingType",
     labeling_info: "LabelingInfo | list[LabelingInfo]",
@@ -152,6 +165,8 @@ def validate_labeling_info(
         return
     elif isinstance(labeling_info, HirundoCSV):
         validate_url(labeling_info.csv_url, storage_config)
+    elif isinstance(labeling_info, MultimodalHirundoCSV):
+        _validate_multimodal_labeling_info_urls(labeling_info, storage_config)
     elif isinstance(labeling_info, COCO):
         validate_url(labeling_info.json_url, storage_config)
     elif isinstance(labeling_info, YOLO):

@@ -91,6 +91,11 @@ Timeseries example:
 .. literalinclude:: dataset_qa_timeseries_example.py
    :language: python
 
+Multimodal example:
+
+.. literalinclude:: dataset_qa_multimodal_example.py
+   :language: python
+
 API reference
 -------------
 

@@ -1,8 +1,10 @@
 import typing
 from abc import ABC
+from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from hirundo._column_options import validate_column_options
 from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType
 
@@ -26,6 +28,125 @@ class HirundoCSV(Metadata, frozen=True):
     or `ssh://my-username@my-repo-name/my-folder/my-metadata.csv`
     (or `file:///datasets/my-folder/my-metadata.csv` if using LOCAL storage type with on-premises installation)
     """
+
+
+class MultimodalModalityType(str, Enum):
+    VISION = "VISION"
+    RADAR = "RADAR"
+    TABULAR = "TABULAR"
+    TIMESERIES = "TIMESERIES"
+
+
+IMAGE_MULTIMODAL_AUGMENTATIONS = frozenset(
+    (
+        "RandomHorizontalFlip",
+        "RandomVerticalFlip",
+        "RandomRotation",
+        "RandomPerspective",
+        "GaussianNoise",
+        "RandomGrayscale",
+        "GaussianBlur",
+    )
+)
+
+TABULAR_MULTIMODAL_AUGMENTATIONS = frozenset(("AddGaussianNoise", "MaskFeatures"))
+
+MULTIMODAL_AUGMENTATIONS_BY_MODALITY = {
+    MultimodalModalityType.VISION: IMAGE_MULTIMODAL_AUGMENTATIONS,
+    MultimodalModalityType.RADAR: IMAGE_MULTIMODAL_AUGMENTATIONS,
+    MultimodalModalityType.TABULAR: TABULAR_MULTIMODAL_AUGMENTATIONS,
+    MultimodalModalityType.TIMESERIES: TABULAR_MULTIMODAL_AUGMENTATIONS,
+}
+
+MULTIMODAL_AUGMENTATIONS = frozenset(
+    augmentation
+    for augmentations in MULTIMODAL_AUGMENTATIONS_BY_MODALITY.values()
+    for augmentation in augmentations
+)
+
+
+class MultimodalModalityCSV(BaseModel, frozen=True):
+    modality: MultimodalModalityType
+    labeling_info: HirundoCSV
+    data_root_url: HirundoUrl | None = None
+    augmentations: list[str] | None = None
+    feature_cols: list[str] | None = None
+    extra_non_feature_cols: list[str] | None = None
+
+    @field_validator("extra_non_feature_cols", "feature_cols", mode="before")
+    @classmethod
+    def _normalize_empty_column_options(cls, value):
+        if value == []:
+            return None
+        return value
+
+    @field_validator("augmentations", mode="before")
+    @classmethod
+    def _validate_known_augmentations(cls, value):
+        if value is None:
+            return None
+        invalid_augmentations = [
+            str(getattr(augmentation, "value", augmentation))
+            for augmentation in value
+            if str(getattr(augmentation, "value", augmentation))
+            not in MULTIMODAL_AUGMENTATIONS
+        ]
+        if invalid_augmentations:
+            raise ValueError(
+                "Invalid multimodal child augmentations: "
+                + ", ".join(invalid_augmentations)
+            )
+        return value
+
+    @field_validator("modality", mode="before")
+    @classmethod
+    def _legacy_image_modality(cls, modality: object) -> object:
+        if modality == "IMAGE":
+            return MultimodalModalityType.VISION
+        return modality
+
+    @model_validator(mode="after")
+    def _validate_child_options(self) -> "MultimodalModalityCSV":
+        validate_column_options(
+            feature_cols=self.feature_cols,
+            extra_non_feature_cols=self.extra_non_feature_cols,
+            modality=self.modality,
+            allowed_modalities=frozenset(
+                (MultimodalModalityType.TABULAR, MultimodalModalityType.TIMESERIES)
+            ),
+            unsupported_message=(
+                "Multimodal feature column settings are only supported for tabular or timeseries child modalities"
+            ),
+        )
+        if self.augmentations is not None:
+            allowed_augmentations = MULTIMODAL_AUGMENTATIONS_BY_MODALITY[self.modality]
+            invalid_augmentations = [
+                augmentation
+                for augmentation in self.augmentations
+                if augmentation not in allowed_augmentations
+            ]
+            if invalid_augmentations:
+                raise ValueError(
+                    f"Invalid augmentations [{', '.join(invalid_augmentations)}] for {self.modality.value} modality"
+                )
+        return self
+
+
+class MultimodalHirundoCSV(Metadata, frozen=True):
+    type: typing.Literal[DatasetMetadataType.MULTIMODAL_HIRUNDO_CSV] = (
+        DatasetMetadataType.MULTIMODAL_HIRUNDO_CSV
+    )
+    modality_csvs: list[MultimodalModalityCSV]
+    alignment_csv_url: HirundoUrl | None = None
+
+    @model_validator(mode="after")
+    def _validate_modality_csvs(self) -> "MultimodalHirundoCSV":
+        if len(self.modality_csvs) < 2:
+            raise ValueError("Multimodal datasets require at least two modalities")
+        modalities = [modality_csv.modality for modality_csv in self.modality_csvs]
+        if len(set(modalities)) != len(modalities):
+            raise ValueError("Multimodal dataset modalities must be unique")
+        return self
 
 
 class COCO(Metadata, frozen=True):
@@ -126,7 +247,7 @@ The dataset labeling info for Keylabs. The dataset labeling info can be one of t
 - `DatasetMetadataType.KeylabsObjSegVideo`: Indicates that the dataset metadata file is in the Keylabs object segmentation video format
 """
 LabelingInfo = typing.Annotated[
-    HirundoCSV | COCO | YOLO | KeylabsInfo | HuggingFaceAudio,
+    HirundoCSV | MultimodalHirundoCSV | COCO | YOLO | KeylabsInfo | HuggingFaceAudio,
     Field(discriminator="type"),
 ]
 """
