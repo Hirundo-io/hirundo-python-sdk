@@ -32,6 +32,9 @@ from .labeling import (
     KeylabsObjDetVideo,
     KeylabsObjSegImages,
     KeylabsObjSegVideo,
+    MultimodalHirundoCSV,
+    MultimodalModalityCSV,
+    MultimodalModalityType,
 )
 from .llm_behavior_eval import (
     EvalRunInfo,
@@ -66,6 +69,9 @@ __all__ = [
     "COCO",
     "YOLO",
     "HirundoCSV",
+    "MultimodalHirundoCSV",
+    "MultimodalModalityCSV",
+    "MultimodalModalityType",
     "HirundoError",
     "HirundoDatasetQaError",
     "HirundoLlmBehaviorEvalError",
