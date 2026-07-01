@@ -233,6 +233,15 @@ def test_non_local_storage_type_shortcut_is_rejected() -> None:
         )
 
 
+def test_create_rejects_non_local_storage_type_shortcut_after_mutation() -> None:
+    dataset = _build_dataset()
+    dataset.storage_config_id = None
+    dataset.storage_config = StorageTypes.GCP
+
+    with pytest.raises(ValueError, match="Only `StorageTypes.LOCAL`"):
+        dataset.create()
+
+
 def _build_multimodal_labeling_info() -> MultimodalHirundoCSV:
     return MultimodalHirundoCSV(
         modality_csvs=[

@@ -372,6 +372,13 @@ class StorageConfig(BaseModel):
                 the default organization is used.
             name: Optional local storage config name. Use this when more than one
                 local storage config exists for the organization.
+
+        Returns:
+            The matching local :code:`ResponseStorageConfig`.
+
+        Raises:
+            ValueError: If no local storage config is found, or if multiple local
+                storage configs match and no explicit name was provided.
         """
         local_storage_configs = [
             storage_config
@@ -401,6 +408,10 @@ class StorageConfig(BaseModel):
         Retrieves the default on-premises local storage config.
 
         This is an alias for :meth:`get_local`.
+
+        Returns:
+            The same local :code:`ResponseStorageConfig` returned by
+            :meth:`get_local`.
         """
         return StorageConfig.get_local(organization_id=organization_id, name=name)
 

@@ -524,6 +524,7 @@ class QADataset(BaseModel):
             missing_message="No dataset storage has been provided",
             mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match.",
         )
+        self._validate_storage_config_shortcut()
         if self.storage_config and self.storage_config_id is None:
             if isinstance(self.storage_config, ResponseStorageConfig):
                 self.storage_config_id = self.storage_config.id
