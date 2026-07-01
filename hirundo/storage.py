@@ -392,6 +392,9 @@ class StorageConfig(BaseModel):
         Args:
             organization_id (optional): The ID of the organization to create the storage config for.
             replace_if_exists: If a :code:`StorageConfig` with the same name and type already exists, replace it.
+
+        Returns:
+            The ID of the created storage config.
         """
         if self.git and self.git.repo:
             self.git.repo_id = self.git.repo.create(
