@@ -216,13 +216,24 @@ def test_multimodal_dataset_run_launches_after_create(
     request_payloads = _capture_create_and_run_payloads(monkeypatch)
     dataset = _build_multimodal_dataset()
 
-    assert dataset.run_qa() == "run-123"
+    assert dataset.run_qa(organization_id=4) == "run-123"
     assert dataset.run_id == "run-123"
     create_payload = request_payloads[0]
     run_payload = request_payloads[1]
     assert create_payload is not None
+    assert create_payload["organization_id"] == 4
     assert create_payload["modality"] == ModalityType.MULTIMODAL
-    assert run_payload is None
+    assert run_payload == {"organization_id": 4, "run_args": {}}
+
+
+def test_launch_qa_run_includes_default_run_args_with_organization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
+
+    assert request_payloads == [{"organization_id": 4, "run_args": {}}]
 
 
 @pytest.mark.parametrize("modality", (ModalityType.TABULAR, ModalityType.TIMESERIES))
