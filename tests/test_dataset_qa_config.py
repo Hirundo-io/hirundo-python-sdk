@@ -212,6 +212,50 @@ def test_local_storage_shortcut_resolves_storage_config_id(
     assert request_params == [{"storage_config_organization_id": 789}]
 
 
+def test_local_storage_shortcut_requires_existing_local_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_create_payload(monkeypatch)
+    _patch_storage_config_list(monkeypatch, [])
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    with pytest.raises(ValueError, match="No local storage config"):
+        dataset.create()
+
+
+def test_local_storage_shortcut_rejects_ambiguous_local_configs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_create_payload(monkeypatch)
+    _patch_storage_config_list(
+        monkeypatch,
+        [
+            _build_local_storage_config_payload(id=456),
+            _build_local_storage_config_payload(id=789, name="Local-backup"),
+        ],
+    )
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    with pytest.raises(ValueError, match="storage_config_id"):
+        dataset.create()
+
+
 def test_local_storage_shortcut_validates_local_urls() -> None:
     with pytest.raises(ValueError, match="Local URL must start with"):
         _build_dataset(

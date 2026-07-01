@@ -149,6 +149,22 @@ MULTIMODAL_CHILD_MODALITIES_WITH_DATA_ROOT = frozenset(
 )
 
 
+def _get_local_storage_config_id(organization_id: int | None = None) -> int:
+    local_storage_config_ids = [
+        storage_config.id
+        for storage_config in StorageConfig.list(organization_id=organization_id)
+        if storage_config.type == StorageTypes.LOCAL
+    ]
+    if len(local_storage_config_ids) == 1:
+        return local_storage_config_ids[0]
+    if not local_storage_config_ids:
+        raise ValueError("No local storage config was found")
+    raise ValueError(
+        "Multiple local storage configs were found. Provide `storage_config_id` "
+        "to select one explicitly."
+    )
+
+
 class QADataset(BaseModel):
     id: int | None = Field(default=None)
     """
@@ -533,9 +549,9 @@ class QADataset(BaseModel):
                     replace_if_exists=replace_if_exists,
                 )
             elif self.storage_config == StorageTypes.LOCAL:
-                self.storage_config_id = StorageConfig.get_local(
-                    organization_id=organization_id,
-                ).id
+                self.storage_config_id = _get_local_storage_config_id(
+                    organization_id=organization_id
+                )
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
         for optional_key in (

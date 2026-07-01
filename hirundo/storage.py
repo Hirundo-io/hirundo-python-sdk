@@ -208,7 +208,6 @@ class StorageConfig(BaseModel):
             StorageTypes.GCP,
             # StorageTypes.AZURE,  TODO: Azure storage is coming soon
             StorageTypes.GIT,
-            StorageTypes.LOCAL,
         ]
     )
     """
@@ -218,7 +217,6 @@ class StorageConfig(BaseModel):
     - :code:`GCP`
     - :code:`Azure` (coming soon)
     - :code:`Git`
-    - :code:`Local` (on-premises installations)
     """
     s3: StorageS3 | None = pydantic.Field(
         default=None,
@@ -358,62 +356,6 @@ class StorageConfig(BaseModel):
         )
         raise_for_status_with_reason(storage_configs)
         return [ResponseStorageConfig(**si) for si in storage_configs.json()]
-
-    @staticmethod
-    def get_local(
-        organization_id: int | None = None,
-        name: str | None = None,
-    ) -> "ResponseStorageConfig":
-        """
-        Retrieves an on-premises local storage config without hard-coding its ID.
-
-        Args:
-            organization_id: The ID of the organization to search. If not provided,
-                the default organization is used.
-            name: Optional local storage config name. Use this when more than one
-                local storage config exists for the organization.
-
-        Returns:
-            The matching local :code:`ResponseStorageConfig`.
-
-        Raises:
-            ValueError: If no local storage config is found, or if multiple local
-                storage configs match and no explicit name was provided.
-        """
-        local_storage_configs = [
-            storage_config
-            for storage_config in StorageConfig.list(organization_id=organization_id)
-            if storage_config.type == StorageTypes.LOCAL
-            and (name is None or storage_config.name == name)
-        ]
-        if len(local_storage_configs) == 1:
-            return local_storage_configs[0]
-        if not local_storage_configs:
-            name_details = f" named {name!r}" if name is not None else ""
-            raise ValueError(f"No local storage config{name_details} was found")
-        matching_names = ", ".join(
-            sorted(storage_config.name for storage_config in local_storage_configs)
-        )
-        raise ValueError(
-            "Multiple local storage configs were found. Pass `name` to select one. "
-            f"Available local storage configs: {matching_names}"
-        )
-
-    @staticmethod
-    def get_default_local(
-        organization_id: int | None = None,
-        name: str | None = None,
-    ) -> "ResponseStorageConfig":
-        """
-        Retrieves the default on-premises local storage config.
-
-        This is an alias for :meth:`get_local`.
-
-        Returns:
-            The same local :code:`ResponseStorageConfig` returned by
-            :meth:`get_local`.
-        """
-        return StorageConfig.get_local(organization_id=organization_id, name=name)
 
     @staticmethod
     def delete_by_id(storage_config_id) -> None:

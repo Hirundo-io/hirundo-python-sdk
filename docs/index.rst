@@ -77,6 +77,22 @@ Supported storage backends include:
 - Git repositories with LFS (GitHub, Hugging Face)
 - Local storage for on-premises installations
 
+For on-premises local storage, pass ``StorageTypes.LOCAL`` on the dataset. The
+SDK resolves the organization's existing local storage config when creating the
+dataset, so examples do not need hard-coded storage config IDs:
+
+.. code-block:: python
+
+   QADataset(
+       name="on-prem local dataset",
+       labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
+       storage_config=StorageTypes.LOCAL,
+       labeling_info=HirundoCSV(
+           csv_url=Url("file:///datasets/my-dataset/metadata.csv"),
+       ),
+       modality=ModalityType.TABULAR,
+   )
+
 Classification example:
 
 .. literalinclude:: dataset_qa_classification_example.py
@@ -95,11 +111,6 @@ Timeseries example:
 Multimodal example:
 
 .. literalinclude:: dataset_qa_multimodal_example.py
-   :language: python
-
-On-premises local storage example:
-
-.. literalinclude:: dataset_qa_on_prem_local_example.py
    :language: python
 
 API reference
