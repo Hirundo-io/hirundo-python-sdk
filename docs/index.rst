@@ -75,6 +75,7 @@ Supported storage backends include:
 - Amazon S3
 - Google Cloud Storage (GCS)
 - Git repositories with LFS (GitHub, Hugging Face)
+- Local storage for on-premises installations
 
 Classification example:
 
@@ -94,6 +95,11 @@ Timeseries example:
 Multimodal example:
 
 .. literalinclude:: dataset_qa_multimodal_example.py
+   :language: python
+
+On-premises local storage example:
+
+.. literalinclude:: dataset_qa_on_prem_local_example.py
    :language: python
 
 API reference
