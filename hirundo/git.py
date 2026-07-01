@@ -118,7 +118,7 @@ class GitRepo(BaseModel):
         Create a Git repository in the Hirundo system.
 
         Args:
-            organization_id: The ID of the organization to create the Git repository for.
+            organization_id (optional): The ID of the organization to create the Git repository for.
             replace_if_exists: If a Git repository with the same name already exists, replace it.
         """
         git_repo_info = self.model_dump(mode="json")
