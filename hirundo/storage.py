@@ -381,19 +381,30 @@ class StorageConfig(BaseModel):
             raise ValueError("No StorageConfig has been created")
         self.delete_by_id(self.id)
 
-    def create(self, replace_if_exists: bool = False) -> int:
+    def create(
+        self,
+        organization_id: int | None = None,
+        replace_if_exists: bool = False,
+    ) -> int:
         """
         Create a :code:`StorageConfig` instance on the server
 
         Args:
+            organization_id: The ID of the organization to create the storage config for.
             replace_if_exists: If a :code:`StorageConfig` with the same name and type already exists, replace it.
         """
         if self.git and self.git.repo:
-            self.git.repo_id = self.git.repo.create(replace_if_exists=replace_if_exists)
+            self.git.repo_id = self.git.repo.create(
+                organization_id=organization_id,
+                replace_if_exists=replace_if_exists,
+            )
+        storage_config_info = self.model_dump(mode="json")
+        if organization_id is not None:
+            storage_config_info["organization_id"] = organization_id
         storage_config = requests.post(
             f"{API_HOST}/storage-config/",
             json={
-                **self.model_dump(mode="json"),
+                **storage_config_info,
                 "replace_if_exists": replace_if_exists,
             },
             headers=get_headers(),

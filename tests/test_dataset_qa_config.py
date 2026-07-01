@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 from hirundo import (
+    GitRepo,
     HirundoCSV,
     LabelingType,
     ModalityType,
@@ -9,6 +10,10 @@ from hirundo import (
     MultimodalModalityCSV,
     MultimodalModalityType,
     QADataset,
+    StorageConfig,
+    StorageGCP,
+    StorageGit,
+    StorageTypes,
 )
 from pydantic_core import Url
 
@@ -101,6 +106,38 @@ def _capture_create_and_run_payloads(
     return request_payloads
 
 
+def _capture_storage_and_dataset_create_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    request_payloads: list[dict[str, Any]] = []
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        request_payloads.append(kwargs["json"])
+        if str(args[0]).endswith("/storage-config/"):
+            return _Response({"id": 456})
+        return _create_dataset_response()
+
+    monkeypatch.setattr("hirundo.storage.requests.post", fake_post)
+    monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
+    return request_payloads
+
+
+def _capture_git_and_storage_create_payloads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[dict[str, Any]]:
+    request_payloads: list[dict[str, Any]] = []
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        request_payloads.append(kwargs["json"])
+        if str(args[0]).endswith("/git-repo/"):
+            return _Response({"id": 321})
+        return _Response({"id": 456})
+
+    monkeypatch.setattr("hirundo.git.requests.post", fake_post)
+    monkeypatch.setattr("hirundo.storage.requests.post", fake_post)
+    return request_payloads
+
+
 def test_tabular_extra_non_feature_cols_are_serialized(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -121,6 +158,53 @@ def test_tabular_feature_cols_are_serialized(
     dataset.create()
 
     assert request_payloads[0]["feature_cols"] == ["age", "score"]
+
+
+def test_dataset_create_propagates_organization_to_storage_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_storage_and_dataset_create_payloads(monkeypatch)
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageConfig(
+            name="dataset-storage",
+            type=StorageTypes.GCP,
+            gcp=StorageGCP(bucket_name="bucket", project="project"),
+        ),
+    )
+
+    dataset.create(organization_id=4)
+
+    storage_payload = request_payloads[0]
+    dataset_payload = request_payloads[1]
+    assert storage_payload["organization_id"] == 4
+    assert dataset_payload["organization_id"] == 4
+    assert dataset_payload["storage_config_id"] == 456
+
+
+def test_storage_config_create_propagates_organization_to_git_repo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_git_and_storage_create_payloads(monkeypatch)
+    storage_config = StorageConfig(
+        name="dataset-git-storage",
+        type=StorageTypes.GIT,
+        git=StorageGit(
+            branch="main",
+            repo=GitRepo(
+                name="dataset-repo",
+                repository_url="https://example.com/org/repo.git",
+            ),
+        ),
+    )
+
+    assert storage_config.create(organization_id=4) == 456
+
+    git_payload = request_payloads[0]
+    storage_payload = request_payloads[1]
+    assert git_payload["organization_id"] == 4
+    assert storage_payload["organization_id"] == 4
+    assert storage_payload["git"]["repo_id"] == 321
 
 
 @pytest.mark.parametrize(

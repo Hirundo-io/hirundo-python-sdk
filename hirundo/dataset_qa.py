@@ -517,6 +517,7 @@ class QADataset(BaseModel):
                 self.storage_config_id = self.storage_config.id
             elif isinstance(self.storage_config, StorageConfig):
                 self.storage_config_id = self.storage_config.create(
+                    organization_id=organization_id,
                     replace_if_exists=replace_if_exists,
                 )
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
