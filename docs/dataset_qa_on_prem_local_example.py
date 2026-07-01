@@ -10,15 +10,13 @@ from hirundo import (
     MultimodalModalityCSV,
     MultimodalModalityType,
     QADataset,
-    StorageConfig,
+    StorageTypes,
 )
-
-local_storage = StorageConfig.get_default_local()
 
 test_dataset = QADataset(
     name="on-prem local multimodal dataset",
     labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
-    storage_config=local_storage,
+    storage_config=StorageTypes.LOCAL,
     labeling_info=MultimodalHirundoCSV(
         modality_csvs=[
             MultimodalModalityCSV(

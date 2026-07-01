@@ -26,7 +26,7 @@ from hirundo._run_checking import (
 from hirundo._run_status import RunStatus
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import HirundoUrl
-from hirundo.dataset_enum import DatasetMetadataType, LabelingType
+from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
 from hirundo.dataset_qa_results import DatasetQAResults
 from hirundo.labeling import (
     YOLO,
@@ -174,9 +174,10 @@ class QADataset(BaseModel):
     """
     The ID of the storage config used to store the dataset and metadata.
     """
-    storage_config: StorageConfig | ResponseStorageConfig | None = None
+    storage_config: StorageConfig | ResponseStorageConfig | StorageTypes | None = None
     """
-    The `StorageConfig` instance to link to.
+    The `StorageConfig` instance to link to. For on-premises local storage, pass
+    `StorageTypes.LOCAL` to use the organization's local storage config.
     """
     data_root_url: HirundoUrl | None = None
     """
@@ -294,6 +295,16 @@ class QADataset(BaseModel):
             and self.storage_config.id == self.storage_config_id
         )
 
+    def _validate_storage_config_shortcut(self) -> None:
+        if (
+            isinstance(self.storage_config, StorageTypes)
+            and self.storage_config != StorageTypes.LOCAL
+        ):
+            raise ValueError(
+                "Only `StorageTypes.LOCAL` can be used directly as a dataset "
+                "storage shortcut. Provide a `StorageConfig` for other storage types."
+            )
+
     def _ensure_storage_config_consistency(
         self,
         missing_message: str,
@@ -332,6 +343,7 @@ class QADataset(BaseModel):
             missing_message="No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`",
             mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Pick one.",
         )
+        self._validate_storage_config_shortcut()
         if self.labeling_type == LabelingType.SPEECH_TO_TEXT and self.language is None:
             raise ValueError("Language is required for Speech-to-Text datasets.")
         elif (
@@ -519,6 +531,10 @@ class QADataset(BaseModel):
                 self.storage_config_id = self.storage_config.create(
                     replace_if_exists=replace_if_exists,
                 )
+            elif self.storage_config == StorageTypes.LOCAL:
+                self.storage_config_id = StorageConfig.get_local(
+                    organization_id=organization_id,
+                ).id
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
         for optional_key in (

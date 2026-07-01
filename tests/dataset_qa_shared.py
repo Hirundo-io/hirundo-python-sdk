@@ -8,6 +8,7 @@ from hirundo import (
     QADataset,
     RunArgs,
     StorageConfig,
+    StorageTypes,
 )
 from hirundo._run_status import RunStatus
 from hirundo.logger import get_logger
@@ -98,8 +99,12 @@ def cleanup(test_dataset: QADataset):
     logger.info("Started cleanup")
     with _handle_not_found_error(test_dataset):
         dataset = QADataset.get_by_name(test_dataset.name)
+        storage_config = dataset.storage_config
         storage_config_id = (
-            dataset.storage_config.id if dataset.storage_config is not None else None
+            storage_config.id
+            if storage_config is not None
+            and not isinstance(storage_config, StorageTypes)
+            else None
         )
         runs_by_dataset = _get_runs_by_dataset()
         if dataset.id is not None:
@@ -121,8 +126,11 @@ def cleanup(test_dataset: QADataset):
                     dataset.id,
                     e,
                 )
-        if dataset.storage_config is not None and dataset.storage_config_id is not None:
-            storage_config = dataset.storage_config
+        if (
+            storage_config is not None
+            and not isinstance(storage_config, StorageTypes)
+            and dataset.storage_config_id is not None
+        ):
             storage_config_id = dataset.storage_config_id
             logger.debug(
                 "Found storage config with ID %s, deleting it", storage_config_id
