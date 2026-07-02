@@ -56,8 +56,8 @@ Homepage = "https://github.com/Hirundo-io/hirundo-python-sdk"
 pandas = ["pandas>=2.2.3"]
 polars = ["polars>=1.0.0"]
 transformers = [
-    "transformers>=5.0.0",
-    #  ⬆️ Required to fix vulnerability CVE-2026-1839
+    "transformers>=5.3.0",
+    #  ⬆️ Required to fix vulnerabilities CVE-2026-1839 and CVE-2026-4372
     "torch>=2.12.1",
     #  ⬆️ Required to fix vulnerabilities CVE-2025-3000
     "peft>=0.18.1",
