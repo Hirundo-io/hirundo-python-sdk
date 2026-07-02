@@ -517,6 +517,7 @@ class QADataset(BaseModel):
                 self.storage_config_id = self.storage_config.id
             elif isinstance(self.storage_config, StorageConfig):
                 self.storage_config_id = self.storage_config.create(
+                    organization_id=organization_id,
                     replace_if_exists=replace_if_exists,
                 )
         model_dict = self.model_dump(mode="json", exclude={"storage_config"})
@@ -562,14 +563,14 @@ class QADataset(BaseModel):
         Returns:
             ID of the run (`run_id`).
         """
-        run_info = {}
-        if organization_id:
+        run_info: dict[str, typing.Any] = {
+            "run_args": run_args.model_dump(mode="json") if run_args else {},
+        }
+        if organization_id is not None:
             run_info["organization_id"] = organization_id
-        if run_args:
-            run_info["run_args"] = run_args.model_dump(mode="json")
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
-            json=run_info if len(run_info) > 0 else None,
+            json=run_info,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )
@@ -618,7 +619,10 @@ class QADataset(BaseModel):
         """
         try:
             if not self.id:
-                self.id = self.create(replace_if_exists=replace_dataset_if_exists)
+                self.id = self.create(
+                    organization_id=organization_id,
+                    replace_if_exists=replace_dataset_if_exists,
+                )
             if run_args is not None:
                 self._validate_run_args(run_args)
             run_id = self.launch_qa_run(self.id, organization_id, run_args)
