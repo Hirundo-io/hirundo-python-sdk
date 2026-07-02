@@ -92,11 +92,18 @@ def validate_gcp_url(str_url: str, gcp_config: "StorageGCP | StorageGCPOut"):
 
 def validate_url(
     url: "HirundoUrl",
-    storage_config: "StorageConfig | ResponseStorageConfig",
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
 ) -> "HirundoUrl":
-    s3_config = storage_config.s3
-    gcp_config = storage_config.gcp
-    git_config = storage_config.git
+    if isinstance(storage_config, StorageTypes):
+        storage_type = storage_config
+        s3_config = None
+        gcp_config = None
+        git_config = None
+    else:
+        storage_type = storage_config.type
+        s3_config = storage_config.s3
+        gcp_config = storage_config.gcp
+        git_config = storage_config.git
     str_url = str(url)
 
     if s3_config is not None:
@@ -109,7 +116,7 @@ def validate_url(
         and not str_url.startswith("ssh://")
     ):
         raise ValueError("Git URL must start with https:// or ssh://")
-    elif storage_config.type == StorageTypes.LOCAL and not str_url.startswith(
+    elif storage_type == StorageTypes.LOCAL and not str_url.startswith(
         "file:///datasets/"
     ):
         raise ValueError("Local URL must start with file:///datasets/")
@@ -135,7 +142,7 @@ def validate_labeling_type(
 
 def _validate_multimodal_labeling_info_urls(
     labeling_info: MultimodalHirundoCSV,
-    storage_config: "StorageConfig | ResponseStorageConfig",
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
 ) -> None:
     for modality_csv in labeling_info.modality_csvs:
         validate_url(modality_csv.labeling_info.csv_url, storage_config)
@@ -148,7 +155,7 @@ def _validate_multimodal_labeling_info_urls(
 def validate_labeling_info(
     labeling_type: "LabelingType",
     labeling_info: "LabelingInfo | list[LabelingInfo]",
-    storage_config: "StorageConfig | ResponseStorageConfig",
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
 ) -> None:
     """
     Validate the labeling info for a dataset

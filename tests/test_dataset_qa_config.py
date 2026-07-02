@@ -69,6 +69,17 @@ def _build_storage_config_payload(**overrides: Any) -> dict[str, Any]:
     return storage_config_payload
 
 
+def _build_local_storage_config_payload(**overrides: Any) -> dict[str, Any]:
+    storage_config_payload = _build_storage_config_payload(
+        id=456,
+        name="Local",
+        type=StorageTypes.LOCAL,
+        gcp=None,
+    )
+    storage_config_payload.update(overrides)
+    return storage_config_payload
+
+
 def _build_dataset(**overrides: Any) -> QADataset:
     dataset_payload = _build_dataset_payload(
         data_root_url=Url("gs://bucket/data"),
@@ -89,6 +100,20 @@ def _capture_create_payload(
 
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
     return request_payloads
+
+
+def _patch_storage_config_list(
+    monkeypatch: pytest.MonkeyPatch,
+    storage_config_payloads: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    request_params: list[dict[str, Any]] = []
+
+    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+        request_params.append(kwargs["params"])
+        return _Response(storage_config_payloads)
+
+    monkeypatch.setattr("hirundo.storage.requests.get", fake_get)
+    return request_params
 
 
 def _capture_create_and_run_payloads(
@@ -243,6 +268,105 @@ def test_timeseries_dataset_run_launches_after_create(
     create_payload = request_payloads[0]
     assert create_payload is not None
     assert create_payload["modality"] == ModalityType.TIMESERIES
+
+
+def test_local_storage_shortcut_resolves_storage_config_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_payload(monkeypatch)
+    request_params = _patch_storage_config_list(
+        monkeypatch,
+        [_build_local_storage_config_payload(id=456)],
+    )
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    dataset.create(organization_id=789)
+
+    assert dataset.storage_config_id == 456
+    assert request_payloads[0]["storage_config_id"] == 456
+    assert request_params == [{"storage_config_organization_id": 789}]
+
+
+def test_local_storage_shortcut_requires_existing_local_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_create_payload(monkeypatch)
+    _patch_storage_config_list(monkeypatch, [])
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    with pytest.raises(ValueError, match="No local storage config"):
+        dataset.create()
+
+
+def test_local_storage_shortcut_rejects_ambiguous_local_configs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _capture_create_payload(monkeypatch)
+    _patch_storage_config_list(
+        monkeypatch,
+        [
+            _build_local_storage_config_payload(id=456),
+            _build_local_storage_config_payload(id=789, name="Local-backup"),
+        ],
+    )
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    with pytest.raises(ValueError, match="storage_config_id"):
+        dataset.create()
+
+
+def test_local_storage_shortcut_validates_local_urls() -> None:
+    with pytest.raises(ValueError, match="Local URL must start with"):
+        _build_dataset(
+            storage_config_id=None,
+            storage_config=StorageTypes.LOCAL,
+            data_root_url=None,
+            labeling_info=HirundoCSV(
+                csv_url=Url("gs://bucket/metadata.csv"),
+            ),
+            modality=ModalityType.TABULAR,
+        )
+
+
+def test_non_local_storage_type_shortcut_is_rejected() -> None:
+    with pytest.raises(ValueError, match="Only `StorageTypes.LOCAL`"):
+        _build_dataset(
+            storage_config_id=None,
+            storage_config=StorageTypes.GCP,
+        )
+
+
+def test_create_rejects_non_local_storage_type_shortcut_after_mutation() -> None:
+    dataset = _build_dataset()
+    dataset.storage_config_id = None
+    dataset.storage_config = StorageTypes.GCP
+
+    with pytest.raises(ValueError, match="Only `StorageTypes.LOCAL`"):
+        dataset.create()
 
 
 def _build_multimodal_labeling_info() -> MultimodalHirundoCSV:
