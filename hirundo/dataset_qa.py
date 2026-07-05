@@ -320,6 +320,18 @@ class QADataset(BaseModel):
                 "storage shortcut. Provide a `StorageConfig` for other storage types."
             )
 
+    def _should_delete_storage_config(self, storage_config: bool) -> bool:
+        if not storage_config:
+            return False
+        if self.storage_config == StorageTypes.LOCAL:
+            return False
+        if (
+            isinstance(self.storage_config, (StorageConfig, ResponseStorageConfig))
+            and self.storage_config.type == StorageTypes.LOCAL
+        ):
+            return False
+        return True
+
     def _ensure_storage_config_consistency(
         self,
         missing_message: str,
@@ -510,7 +522,7 @@ class QADataset(BaseModel):
         This can either be set manually or by creating the `StorageConfig` instance via the `QADataset`'s
         `create` method
         """
-        if storage_config:
+        if self._should_delete_storage_config(storage_config=storage_config):
             if not self.storage_config_id:
                 raise ValueError("No storage config has been created")
             StorageConfig.delete_by_id(self.storage_config_id)

@@ -131,6 +131,26 @@ def _capture_create_and_run_payloads(
     return request_payloads
 
 
+def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]:
+    deleted_ids: dict[str, list[int]] = {"datasets": [], "storage_configs": []}
+
+    def fake_delete_dataset(dataset_id: int) -> None:
+        deleted_ids["datasets"].append(dataset_id)
+
+    def fake_delete_storage_config(storage_config_id: int) -> None:
+        deleted_ids["storage_configs"].append(storage_config_id)
+
+    monkeypatch.setattr(
+        "hirundo.dataset_qa.QADataset.delete_by_id",
+        staticmethod(fake_delete_dataset),
+    )
+    monkeypatch.setattr(
+        "hirundo.dataset_qa.StorageConfig.delete_by_id",
+        staticmethod(fake_delete_storage_config),
+    )
+    return deleted_ids
+
+
 def _capture_storage_and_dataset_create_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
@@ -367,6 +387,61 @@ def test_create_rejects_non_local_storage_type_shortcut_after_mutation() -> None
 
     with pytest.raises(ValueError, match="Only `StorageTypes.LOCAL`"):
         dataset.create()
+
+
+def test_delete_keeps_local_storage_config_from_shortcut(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deleted_ids = _capture_delete_ids(monkeypatch)
+    dataset = _build_dataset(
+        storage_config_id=None,
+        storage_config=StorageTypes.LOCAL,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+    dataset.id = 123
+    dataset.storage_config_id = 456
+
+    dataset.delete()
+
+    assert deleted_ids["datasets"] == [123]
+    assert deleted_ids["storage_configs"] == []
+
+
+def test_delete_keeps_fetched_local_storage_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deleted_ids = _capture_delete_ids(monkeypatch)
+    dataset = _build_dataset(
+        id=123,
+        storage_config_id=456,
+        storage_config=_build_local_storage_config_payload(id=456),
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    dataset.delete()
+
+    assert deleted_ids["datasets"] == [123]
+    assert deleted_ids["storage_configs"] == []
+
+
+def test_delete_preserves_existing_storage_config_deletion_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deleted_ids = _capture_delete_ids(monkeypatch)
+    dataset = _build_dataset(id=123, storage_config_id=456)
+
+    dataset.delete()
+
+    assert deleted_ids["datasets"] == [123]
+    assert deleted_ids["storage_configs"] == [456]
 
 
 def _build_multimodal_labeling_info() -> MultimodalHirundoCSV:
