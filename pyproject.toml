@@ -7,7 +7,7 @@ packages = ["hirundo"]
 
 [project]
 name = "hirundo"
-version = "0.2.4"
+version = "0.3.0"
 description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
@@ -121,16 +121,12 @@ docs = [
 ]
 
 [tool.bumpver]
-current_version = "0.2.4"
+current_version = "0.3.0"
 version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
 
 [tool.bumpver.file_patterns]
 "pyproject.toml" = ['^version = "{version}"$', '^current_version = "{version}"$']
 "hirundo/__init__.py" = ['^__version__ = "{version}"$']
-"docs/_templates/github-pages-redirect.html" = [
-    """<meta http-equiv="refresh" content="0; url=./v{version}/index.html" />""",
-    """<link rel="canonical" href="https://hirundo-io.github.io/hirundo/v{version}/index.html" />$""",
-]
 "docs/conf.py" = ['^release = "{version}"$']
 
 [tool.ruff]
