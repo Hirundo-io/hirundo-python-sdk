@@ -330,6 +330,11 @@ class QADataset(BaseModel):
             and self.storage_config.type == StorageTypes.LOCAL
         ):
             return False
+        if self.storage_config is None and self.storage_config_id is not None:
+            return (
+                StorageConfig.get_by_id(self.storage_config_id).type
+                != StorageTypes.LOCAL
+            )
         return True
 
     def _ensure_storage_config_consistency(

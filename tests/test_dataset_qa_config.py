@@ -151,6 +151,23 @@ def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]
     return deleted_ids
 
 
+def _patch_storage_config_get_by_id(
+    monkeypatch: pytest.MonkeyPatch,
+    storage_config_payload: dict[str, Any],
+) -> list[int]:
+    requested_ids: list[int] = []
+
+    def fake_get_by_id(storage_config_id: int) -> StorageConfig:
+        requested_ids.append(storage_config_id)
+        return StorageConfig(**storage_config_payload)
+
+    monkeypatch.setattr(
+        "hirundo.dataset_qa.StorageConfig.get_by_id",
+        staticmethod(fake_get_by_id),
+    )
+    return requested_ids
+
+
 def _capture_storage_and_dataset_create_payloads(
     monkeypatch: pytest.MonkeyPatch,
 ) -> list[dict[str, Any]]:
@@ -436,12 +453,52 @@ def test_delete_preserves_existing_storage_config_deletion_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     deleted_ids = _capture_delete_ids(monkeypatch)
+    requested_ids = _patch_storage_config_get_by_id(
+        monkeypatch,
+        {
+            "id": 456,
+            "name": "dataset-storage",
+            "type": StorageTypes.GCP,
+            "gcp": StorageGCP(bucket_name="bucket", project="project"),
+        },
+    )
     dataset = _build_dataset(id=123, storage_config_id=456)
 
     dataset.delete()
 
+    assert requested_ids == [456]
     assert deleted_ids["datasets"] == [123]
     assert deleted_ids["storage_configs"] == [456]
+
+
+def test_delete_keeps_id_only_local_storage_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    deleted_ids = _capture_delete_ids(monkeypatch)
+    requested_ids = _patch_storage_config_get_by_id(
+        monkeypatch,
+        {
+            "id": 456,
+            "name": "Local",
+            "type": StorageTypes.LOCAL,
+        },
+    )
+    dataset = _build_dataset(
+        id=123,
+        storage_config_id=456,
+        storage_config=None,
+        data_root_url=None,
+        labeling_info=HirundoCSV(
+            csv_url=Url("file:///datasets/tabular/metadata.csv"),
+        ),
+        modality=ModalityType.TABULAR,
+    )
+
+    dataset.delete()
+
+    assert requested_ids == [456]
+    assert deleted_ids["datasets"] == [123]
+    assert deleted_ids["storage_configs"] == []
 
 
 def _build_multimodal_labeling_info() -> MultimodalHirundoCSV:
