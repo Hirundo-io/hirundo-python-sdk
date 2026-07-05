@@ -29,10 +29,10 @@ from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType
 from hirundo.dataset_qa_results import DatasetQAResults
 from hirundo.labeling import (
+    MULTIMODAL_MODALITIES_WITH_DATA_ROOT,
     YOLO,
     LabelingInfo,
     MultimodalHirundoCSV,
-    MultimodalModalityType,
 )
 from hirundo.logger import get_logger
 from hirundo.storage import ResponseStorageConfig, StorageConfig
@@ -140,13 +140,7 @@ MODALITY_TO_SUPPORTED_LABELING_TYPES = {
 
 TABULAR_LIKE_MODALITIES = frozenset((ModalityType.TABULAR, ModalityType.TIMESERIES))
 
-MODALITIES_WITH_OPTIONAL_TOP_LEVEL_DATA_ROOT = frozenset(
-    (*TABULAR_LIKE_MODALITIES, ModalityType.MULTIMODAL)
-)
-
-MULTIMODAL_CHILD_MODALITIES_WITH_DATA_ROOT = frozenset(
-    (MultimodalModalityType.VISION, MultimodalModalityType.RADAR)
-)
+MODALITIES_WITH_OPTIONAL_TOP_LEVEL_DATA_ROOT = TABULAR_LIKE_MODALITIES
 
 
 class QADataset(BaseModel):
@@ -257,12 +251,16 @@ class QADataset(BaseModel):
                 raise ValueError(
                     "Multimodal datasets do not support dataset-level augmentations"
                 )
+            if self.data_root_url is not None:
+                raise ValueError(
+                    "Multimodal datasets do not support top-level `data_root_url`; "
+                    "set it on vision or radar child modalities instead"
+                )
             missing_root_modalities = [
                 modality_csv.modality.value
                 for modality_csv in self.labeling_info.modality_csvs
-                if modality_csv.modality in MULTIMODAL_CHILD_MODALITIES_WITH_DATA_ROOT
+                if modality_csv.modality in MULTIMODAL_MODALITIES_WITH_DATA_ROOT
                 and modality_csv.data_root_url is None
-                and self.data_root_url is None
             ]
             if missing_root_modalities:
                 raise ValueError(
@@ -278,6 +276,7 @@ class QADataset(BaseModel):
     def _validate_data_root_url(self) -> None:
         if (
             self.data_root_url is None
+            and self.modality != ModalityType.MULTIMODAL
             and self.modality not in MODALITIES_WITH_OPTIONAL_TOP_LEVEL_DATA_ROOT
         ):
             raise ValueError(

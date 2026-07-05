@@ -361,6 +361,26 @@ def test_multimodal_file_child_requires_data_root_url() -> None:
         )
 
 
+def test_multimodal_rejects_top_level_data_root_url() -> None:
+    with pytest.raises(ValueError, match="top-level `data_root_url`"):
+        _build_multimodal_dataset(data_root_url=Url("gs://bucket/images"))
+
+
+@pytest.mark.parametrize(
+    "modality",
+    (MultimodalModalityType.TABULAR, MultimodalModalityType.TIMESERIES),
+)
+def test_multimodal_tabular_like_child_rejects_data_root_url(
+    modality: MultimodalModalityType,
+) -> None:
+    with pytest.raises(ValueError, match="vision or radar child modalities"):
+        MultimodalModalityCSV(
+            modality=modality,
+            labeling_info=HirundoCSV(csv_url=Url("gs://bucket/metadata.csv")),
+            data_root_url=Url("gs://bucket/data"),
+        )
+
+
 def test_multimodal_rejects_dataset_level_augmentations() -> None:
     with pytest.raises(ValueError, match="dataset-level augmentations"):
         _build_multimodal_dataset(
