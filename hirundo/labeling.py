@@ -64,6 +64,14 @@ MULTIMODAL_AUGMENTATIONS = frozenset(
     for augmentation in augmentations
 )
 
+MULTIMODAL_MODALITIES_WITH_DATA_ROOT = frozenset(
+    (MultimodalModalityType.VISION, MultimodalModalityType.RADAR)
+)
+
+MULTIMODAL_MODALITIES_WITHOUT_DATA_ROOT = frozenset(
+    (MultimodalModalityType.TABULAR, MultimodalModalityType.TIMESERIES)
+)
+
 
 class MultimodalModalityCSV(BaseModel, frozen=True):
     modality: MultimodalModalityType
@@ -129,6 +137,13 @@ class MultimodalModalityCSV(BaseModel, frozen=True):
                 raise ValueError(
                     f"Invalid augmentations [{', '.join(invalid_augmentations)}] for {self.modality.value} modality"
                 )
+        if (
+            self.modality in MULTIMODAL_MODALITIES_WITHOUT_DATA_ROOT
+            and self.data_root_url is not None
+        ):
+            raise ValueError(
+                "`data_root_url` is only supported for vision or radar child modalities"
+            )
         return self
 
 
