@@ -23,6 +23,7 @@ concurrency:
 
 jobs:
   deploy-docs:
+    if: ${{ github.event_name == 'push' || (github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test'))) }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -34,7 +35,7 @@ jobs:
           fetch-depth: 0 # Fetch all history for all tags and branches
       - uses: astral-sh/setup-uv@v7
       - name: Install dependencies
-        timeout-minutes: 5
+        timeout-minutes: 30
         env:
           SLEEP: 15
         run: |

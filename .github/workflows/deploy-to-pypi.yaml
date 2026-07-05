@@ -1,6 +1,20 @@
 name: Push new release of the package to PyPI
 
 on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Package index to publish to"
+        required: true
+        type: choice
+        options:
+          - pypi
+          - testpypi
+        default: pypi
+      version:
+        description: "Expected version. Defaults to hirundo/__init__.py"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     paths:
@@ -9,11 +23,11 @@ on:
 jobs:
   push_to_pypi:
     name: Upload release to PyPI
-    if: ${{ github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test'))) }}
     runs-on: ubuntu-latest
     environment:
-      name: ${{ contains(github.event.pull_request.labels.*.name, 'release') && 'pypi' || 'testpypi' }}
-      url: ${{ contains(github.event.pull_request.labels.*.name, 'release') && 'https://pypi.org/p/hirundo' || 'https://test.pypi.org/p/hirundo' }}
+      name: ${{ ((github.event_name == 'workflow_dispatch' && inputs.target == 'pypi') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'release'))) && 'pypi' || 'testpypi' }}
+      url: ${{ ((github.event_name == 'workflow_dispatch' && inputs.target == 'pypi') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'release'))) && 'https://pypi.org/p/hirundo' || 'https://test.pypi.org/p/hirundo' }}
     permissions:
       contents: write  # Used to push tag with release
       pull-requests: read  # Used to create and merge PR with release
@@ -21,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
       - uses: astral-sh/setup-uv@v7
       - name: Push tag with release
         env:
@@ -29,18 +43,46 @@ jobs:
         run: |
           git config user.name "GitHub Actions [release-bot]"
           git config user.email "github-actions@hirundo.io"
-          git pull origin ${{ github.event.pull_request.base.ref }}
-
-          # Write PR body literally (no interpolation or command substitution)
-          cat > .tagmsg.txt <<-'EOF'
-          ${{ github.event.pull_request.body }}
-          EOF
+          REF_NAME="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            REF_NAME="${{ github.event.pull_request.base.ref }}"
+          elif [ "$REF_NAME" != "main" ]; then
+            echo "Manual release recovery must be run from main, not $REF_NAME"
+            exit 1
+          fi
+          git pull origin "$REF_NAME"
 
           VERSION=$(python -c "import re; content=open('hirundo/__init__.py').read(); print(re.search(r'__version__ = [\"\\'](.*?)[\"\\']', content).group(1))")
+          EXPECTED_VERSION="${{ inputs.version }}"
+          if [ -n "$EXPECTED_VERSION" ] && [ "$EXPECTED_VERSION" != "$VERSION" ]; then
+            echo "Expected version $EXPECTED_VERSION but hirundo/__init__.py contains $VERSION"
+            exit 1
+          fi
+
           TAG_NAME="v${VERSION}"
 
-          git tag -a "${TAG_NAME}" -F .tagmsg.txt
-          git push origin "${TAG_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && git ls-remote --exit-code --tags origin "$TAG_NAME" >/dev/null; then
+            git fetch --force origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}"
+            TAG_COMMIT=$(git rev-list -n 1 "$TAG_NAME")
+            HEAD_COMMIT=$(git rev-parse HEAD)
+            if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+              echo "Tag $TAG_NAME points to $TAG_COMMIT, but checked out $HEAD_COMMIT"
+              exit 1
+            fi
+            echo "Reusing existing tag $TAG_NAME"
+          else
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              # Write PR body literally (no interpolation or command substitution)
+              cat > .tagmsg.txt <<-'EOF'
+          ${{ github.event.pull_request.body }}
+          EOF
+            else
+              echo "Release ${TAG_NAME}" > .tagmsg.txt
+            fi
+
+            git tag -a "${TAG_NAME}" -F .tagmsg.txt
+            git push origin "${TAG_NAME}"
+          fi
       - name: Install dependencies & build package
         run: |
           uv venv
@@ -57,9 +99,9 @@ jobs:
           password: ${{ secrets.TESTPYPI_APIKEY }}
       - name: Publish package distributions to TestPyPI (GitHub Actions)
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ contains(github.event.pull_request.labels.*.name, 'test') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'test')) }}
         with:
           repository-url: https://test.pypi.org/legacy/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ contains(github.event.pull_request.labels.*.name, 'release') }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'release')) }}
