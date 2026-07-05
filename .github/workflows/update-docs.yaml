@@ -52,6 +52,7 @@ jobs:
             echo "Error: Could not extract version from hirundo/__init__.py (file may be missing, unreadable, or version format is invalid)"
             exit 1
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
           until uv pip install --no-cache-dir "hirundo==${VERSION}"; do
             echo "Can't find the version you mentioned, waiting $SLEEP seconds and retrying"
@@ -62,12 +63,46 @@ jobs:
       - name: Sphinx multi-version build
         run: |
           source .venv/bin/activate
+          TAG_NAME="v${VERSION}"
+          for attempt in {1..40}; do
+            if git ls-remote --exit-code --tags origin "$TAG_NAME" >/dev/null; then
+              git fetch --tags --force origin
+              break
+            fi
+
+            echo "Can't find tag $TAG_NAME, waiting 15 seconds and retrying ($attempt/40)"
+            sleep 15
+          done
+
+          if ! git rev-parse --verify --quiet "refs/tags/$TAG_NAME" >/dev/null; then
+            echo "Error: tag $TAG_NAME was not available after waiting"
+            exit 1
+          fi
+
           git branch -a
           git tag
           git rev-parse --abbrev-ref HEAD
           git rev-parse HEAD
           sphinx-multiversion docs docs/_build/html
-          cp docs/_templates/github-pages-redirect.html docs/_build/html/index.html
+
+          DOCS_VERSION_DIR="docs/_build/html/v${VERSION}"
+          if [ ! -d "$DOCS_VERSION_DIR" ]; then
+            echo "Expected generated docs at $DOCS_VERSION_DIR"
+            exit 1
+          fi
+
+          cat > docs/_build/html/index.html <<EOF
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <title>Redirecting to main branch docs</title>
+              <meta charset="utf-8" />
+              <meta http-equiv="refresh" content="0; url=./v${VERSION}/index.html" />
+              <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-ancestors 'none'">
+              <link rel="canonical" href="https://hirundo-io.github.io/hirundo/v${VERSION}/index.html" />
+            </head>
+          </html>
+          EOF
         env:
           TZ: "UTC" # for running ACT
           API_HOST: something
