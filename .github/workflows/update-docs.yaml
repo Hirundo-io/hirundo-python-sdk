@@ -1,6 +1,12 @@
 name: Deploy Sphinx docs to GitHub Pages
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Expected version. Defaults to hirundo/__init__.py"
+        required: false
+        type: string
   pull_request:
     types: [closed]
     paths:
@@ -23,7 +29,7 @@ concurrency:
 
 jobs:
   deploy-docs:
-    if: ${{ github.event_name == 'push' || (github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test'))) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test'))) }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -32,6 +38,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref }}
           fetch-depth: 0 # Fetch all history for all tags and branches
       - uses: astral-sh/setup-uv@v7
       - name: Install dependencies
@@ -39,6 +46,11 @@ jobs:
         env:
           SLEEP: 15
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Manual docs deployment must be run from main, not ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
           uv venv
           source .venv/bin/activate
           uv sync --only-group docs --no-install-project
@@ -51,6 +63,11 @@ jobs:
           echo "Using version: $VERSION"
           if [ "$VERSION" = "unknown" ] || [ -z "$VERSION" ]; then
             echo "Error: Could not extract version from hirundo/__init__.py (file may be missing, unreadable, or version format is invalid)"
+            exit 1
+          fi
+          EXPECTED_VERSION="${{ inputs.version }}"
+          if [ -n "$EXPECTED_VERSION" ] && [ "$EXPECTED_VERSION" != "$VERSION" ]; then
+            echo "Expected version $EXPECTED_VERSION but hirundo/__init__.py contains $VERSION"
             exit 1
           fi
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
