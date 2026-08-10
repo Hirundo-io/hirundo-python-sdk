@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   deploy-docs:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release') || contains(github.event.pull_request.labels.*.name, 'test'))) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release')) }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
