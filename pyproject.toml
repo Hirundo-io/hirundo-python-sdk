@@ -57,9 +57,9 @@ pandas = ["pandas>=2.2.3"]
 polars = ["polars>=1.0.0"]
 transformers = [
     "transformers>=5.5.0",
-    #  ⬆️ Required to fix vulnerability PYSEC-2026-2290
+    #  ⬆️ Required to fix vulnerability GHSA-fgcw-684q-jj6r
     "torch>=2.13.0",
-    #  ⬆️ Required to fix vulnerability PYSEC-2025-194
+    #  ⬆️ Required to fix vulnerability GHSA-rrmf-rvhw-rf47
     "peft>=0.18.1",
     "accelerate>=1.12.0",
 ]
