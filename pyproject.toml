@@ -40,8 +40,8 @@ dependencies = [
     #  ⬆️ Required to fix vulnerabilities CVE-2026-21441, PYSEC-2026-141, and PYSEC-2026-142
     "idna>=3.15",
     #  ⬆️ Required to fix vulnerability CVE-2026-45409
-    "setuptools>=78.1.1",
-    #  ⬆️ Required to fix vulnerability GHSA-5rjg-fvgr-3xxf
+    "setuptools>=83.0.0",
+    #  ⬆️ Required to fix vulnerability PYSEC-2026-3447
     "docutils<0.22.0",
     #  ⬆️ Required for sphinx compatibility
 ]
@@ -56,10 +56,10 @@ Homepage = "https://github.com/Hirundo-io/hirundo-python-sdk"
 pandas = ["pandas>=2.2.3"]
 polars = ["polars>=1.0.0"]
 transformers = [
-    "transformers>=5.3.0",
-    #  ⬆️ Required to fix vulnerabilities CVE-2026-1839 and CVE-2026-4372
-    "torch>=2.12.1",
-    #  ⬆️ Required to fix vulnerabilities CVE-2025-3000
+    "transformers>=5.5.0",
+    #  ⬆️ Required to fix vulnerability GHSA-fgcw-684q-jj6r
+    "torch>=2.13.0",
+    #  ⬆️ Required to fix vulnerability GHSA-rrmf-rvhw-rf47
     "peft>=0.18.1",
     "accelerate>=1.12.0",
 ]
@@ -83,8 +83,8 @@ dev = [
     "ruff>=0.12.0",
     "bumpver>=2025.1131",
     "platformdirs>=4.3.6",
-    "cryptography>=48.0.1",
-    #  ⬆️ Required to fix vulnerability GHSA-537c-gmf6-5ccf
+    "cryptography>=50.0.0",
+    #  ⬆️ Required to fix vulnerability PYSEC-2026-3552
     "jinja2>=3.1.6",
     #  ⬆️ Required to fix vulnerabilities GHSA-cpwx-vrp4-4pq7 , GHSA-gmj6-6f8f-6699 & GHSA-q2x7-8rv6-6q7h
     "filelock>=3.20.3",
