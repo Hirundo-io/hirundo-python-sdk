@@ -32,6 +32,9 @@ from .labeling import (
     KeylabsObjDetVideo,
     KeylabsObjSegImages,
     KeylabsObjSegVideo,
+    MultimodalHirundoCSV,
+    MultimodalModalityCSV,
+    MultimodalModalityType,
 )
 from .llm_behavior_eval import (
     EvalRunInfo,
@@ -52,9 +55,13 @@ from .storage import (
     StorageS3,
 )
 from .unlearning_llm import (
-    BiasRunInfo,
+    BiasBehavior,
+    CustomBehavior,
+    HallucinationBehavior,
     LlmModel,
+    LlmRunInfo,
     LlmUnlearningRun,
+    SecurityBehavior,
 )
 from .unzip import load_df, load_from_zip
 
@@ -62,6 +69,9 @@ __all__ = [
     "COCO",
     "YOLO",
     "HirundoCSV",
+    "MultimodalHirundoCSV",
+    "MultimodalModalityCSV",
+    "MultimodalModalityType",
     "HirundoError",
     "HirundoDatasetQaError",
     "HirundoLlmBehaviorEvalError",
@@ -96,18 +106,23 @@ __all__ = [
     "StorageGit",
     "StorageConfig",
     "DatasetQAResults",
-    "BiasRunInfo",
+    "BiasBehavior",
+    "CustomBehavior",
+    "HallucinationBehavior",
     "HuggingFaceTransformersModel",
     "HuggingFaceTransformersModelOutput",
+    "LlmRunInfo",
     "LlmModel",
     "LlmSources",
     "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
+    "SecurityBehavior",
     "load_df",
     "load_from_zip",
     "ModelSourceType",
     "RunStatus",
 ]
 
-__version__ = "0.2.3.post2"
+# Keep this literal in sync with pyproject.toml; release workflows read it.
+__version__ = "0.3.0"

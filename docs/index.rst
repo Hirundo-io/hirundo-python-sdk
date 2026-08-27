@@ -31,7 +31,7 @@ Configure API access:
 
    hirundo setup
 
-This writes ``API_KEY`` (and optionally ``API_HOST``) to a local ``.env`` file or
+This writes ``HIRUNDO_API_KEY`` (and optionally ``HIRUNDO_API_HOST``) to a local ``.env`` file or
 ``~/.hirundo.conf`` for subsequent SDK usage.
 
 LLM behavior unlearning
@@ -68,12 +68,30 @@ multiple labeling types, including:
 - Object/semantic/panoptic segmentation
 - Speech-to-text
 - Tabular classification
+- Timeseries classification
 
 Supported storage backends include:
 
 - Amazon S3
 - Google Cloud Storage (GCS)
 - Git repositories with LFS (GitHub, Hugging Face)
+- Local storage for on-premises installations
+
+For on-premises local storage, pass ``StorageTypes.LOCAL`` on the dataset. The
+SDK resolves the organization's existing local storage config when creating the
+dataset, so examples do not need hard-coded storage config IDs:
+
+.. code-block:: python
+
+   QADataset(
+       name="on-prem local dataset",
+       labeling_type=LabelingType.SINGLE_LABEL_CLASSIFICATION,
+       storage_config=StorageTypes.LOCAL,
+       labeling_info=HirundoCSV(
+           csv_url=Url("file:///datasets/my-dataset/metadata.csv"),
+       ),
+       modality=ModalityType.TABULAR,
+   )
 
 Classification example:
 
@@ -83,6 +101,16 @@ Classification example:
 Object detection example:
 
 .. literalinclude:: dataset_qa_object_detection_example.py
+   :language: python
+
+Timeseries example:
+
+.. literalinclude:: dataset_qa_timeseries_example.py
+   :language: python
+
+Multimodal example:
+
+.. literalinclude:: dataset_qa_multimodal_example.py
    :language: python
 
 API reference

@@ -9,7 +9,7 @@
 project = "hirundo"
 copyright = "2024, Hirundo"  # noqa: A001  Name is specified by Sphinx
 author = "Hirundo"
-release = "0.2.3.post2"
+release = "0.3.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -27,7 +27,11 @@ autodoc_pydantic_field_show_constraints = False
 autodoc_pydantic_field_list_validators = False
 autodoc_pydantic_model_hide_reused_validator = True
 
-smv_tag_whitelist = r"^v.*$"
+# These historical releases fail under the current docs dependency set because
+# autodoc-pydantic now errors on unresolved Pydantic forward references.
+smv_tag_whitelist = (
+    r"^v(?!(?:0\.1\.17\+on-prem|0\.1\.18|0\.1\.19(?:\.\d+)?\+on-prem|0\.1\.21)$).*$"
+)
 smv_branch_whitelist = "None"
 
 templates_path = ["_templates"]

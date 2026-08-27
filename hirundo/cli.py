@@ -88,7 +88,7 @@ def setup_api_key(
     Setup the API key for the Hirundo Python SDK.
     Values are saved to a .env file in the current directory for use by the library in requests.
     """
-    saved_to = upsert_env("API_KEY", api_key)
+    saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
     if saved_to == EnvLocation.HOME.name:
         print(
             "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
@@ -117,7 +117,7 @@ def change_api_remote(
     """
     api_host = fix_api_host(api_host)
 
-    saved_to = upsert_env("API_HOST", api_host)
+    saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
     if saved_to == EnvLocation.HOME.name:
         print(
             "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
@@ -151,8 +151,8 @@ def setup(
     Setup the Hirundo Python SDK.
     """
     api_host = fix_api_host(api_host)
-    api_host_saved_to = upsert_env("API_HOST", api_host)
-    api_key_saved_to = upsert_env("API_KEY", api_key)
+    api_host_saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
+    api_key_saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
     if api_host_saved_to != api_key_saved_to:
         print(
             "API host and API key saved to different locations. This should not happen. Please report this issue."

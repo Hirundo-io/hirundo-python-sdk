@@ -21,9 +21,15 @@ def _get_api_version_header():
     }
 
 
+def get_auth_api_version_headers():
+    return {
+        **_get_auth_headers(),
+        **_get_api_version_header(),
+    }
+
+
 def get_headers():
     return {
         **_json_headers,
-        **_get_auth_headers(),
-        **_get_api_version_header(),
+        **get_auth_api_version_headers(),
     }

@@ -4,10 +4,11 @@ from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import overload
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from hirundo._column_options import validate_column_options
 from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
@@ -25,9 +26,14 @@ from hirundo._run_checking import (
 from hirundo._run_status import RunStatus
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import HirundoUrl
-from hirundo.dataset_enum import DatasetMetadataType, LabelingType
+from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
 from hirundo.dataset_qa_results import DatasetQAResults
-from hirundo.labeling import YOLO, LabelingInfo
+from hirundo.labeling import (
+    MULTIMODAL_MODALITIES_WITH_DATA_ROOT,
+    YOLO,
+    LabelingInfo,
+    MultimodalHirundoCSV,
+)
 from hirundo.logger import get_logger
 from hirundo.storage import ResponseStorageConfig, StorageConfig
 from hirundo.unzip import download_and_extract_zip
@@ -100,6 +106,8 @@ class AugmentationName(str, Enum):
     GAUSSIAN_NOISE = "GaussianNoise"
     RANDOM_GRAYSCALE = "RandomGrayscale"
     GAUSSIAN_BLUR = "GaussianBlur"
+    ADD_GAUSSIAN_NOISE = "AddGaussianNoise"
+    MASK_FEATURES = "MaskFeatures"
 
 
 class ModalityType(str, Enum):
@@ -107,6 +115,8 @@ class ModalityType(str, Enum):
     VISION = "VISION"
     SPEECH = "SPEECH"
     TABULAR = "TABULAR"
+    MULTIMODAL = "MULTIMODAL"
+    TIMESERIES = "TIMESERIES"
 
 
 MODALITY_TO_SUPPORTED_LABELING_TYPES = {
@@ -123,7 +133,30 @@ MODALITY_TO_SUPPORTED_LABELING_TYPES = {
     ],
     ModalityType.SPEECH: [LabelingType.SPEECH_TO_TEXT],
     ModalityType.TABULAR: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
+    ModalityType.MULTIMODAL: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
+    ModalityType.TIMESERIES: [LabelingType.SINGLE_LABEL_CLASSIFICATION],
 }
+
+
+TABULAR_LIKE_MODALITIES = frozenset((ModalityType.TABULAR, ModalityType.TIMESERIES))
+
+MODALITIES_WITH_OPTIONAL_TOP_LEVEL_DATA_ROOT = TABULAR_LIKE_MODALITIES
+
+
+def _get_local_storage_config_id(organization_id: int | None = None) -> int:
+    local_storage_config_ids = [
+        storage_config.id
+        for storage_config in StorageConfig.list(organization_id=organization_id)
+        if storage_config.type == StorageTypes.LOCAL
+    ]
+    if len(local_storage_config_ids) == 1:
+        return local_storage_config_ids[0]
+    if not local_storage_config_ids:
+        raise ValueError("No local storage config was found")
+    raise ValueError(
+        "Multiple local storage configs were found. Provide `storage_config_id` "
+        "to select one explicitly."
+    )
 
 
 class QADataset(BaseModel):
@@ -151,18 +184,24 @@ class QADataset(BaseModel):
     """
     The ID of the storage config used to store the dataset and metadata.
     """
-    storage_config: StorageConfig | ResponseStorageConfig | None = None
+    storage_config: StorageConfig | ResponseStorageConfig | StorageTypes | None = None
     """
-    The `StorageConfig` instance to link to.
+    The `StorageConfig` instance to link to. For on-premises local storage, pass
+    `StorageTypes.LOCAL` to use the organization's local storage config.
     """
-    data_root_url: HirundoUrl
+    data_root_url: HirundoUrl | None = None
     """
-    URL for data (e.g. images) within the `StorageConfig` instance,
+    URL for file-backed data (e.g. images or audio) within the `StorageConfig` instance,
     e.g. `s3://my-bucket-name/my-images-folder`, `gs://my-bucket-name/my-images-folder`,
     or `ssh://my-username@my-repo-name/my-images-folder`
     (or `file:///datasets/my-images-folder` if using LOCAL storage type with on-premises installation)
 
-    Note: All CSV `image_path` entries in the metadata file should be relative to this folder.
+    Required for modalities whose metadata references external files. Not used for
+    tabular or timeseries datasets, where the CSV metadata is the dataset itself.
+
+    Note: CSV path columns for file-backed datasets should be relative to this folder.
+    For example, with `data_root_url="s3://my-bucket/images"`, a CSV `image_path`
+    value of `cats/001.jpg` resolves to `s3://my-bucket/images/cats/001.jpg`.
     """
 
     classes: list[str] | None = None
@@ -183,6 +222,17 @@ class QADataset(BaseModel):
     Used to define the modality of the dataset.
     Defaults to Image.
     """
+    extra_non_feature_cols: list[str] | None = None
+    """
+    Tabular or timeseries classification metadata columns to preserve in compact result exports.
+    These columns are passed to core as `learning.dataset.extra_non_feature_cols`
+    and are not used as model features.
+    """
+    feature_cols: list[str] | None = None
+    """
+    Tabular or timeseries classification columns to use as model features.
+    Cannot be provided together with `extra_non_feature_cols`.
+    """
 
     run_id: str | None = Field(default=None, init=False)
     """
@@ -190,6 +240,116 @@ class QADataset(BaseModel):
     """
 
     status: RunStatus | None = None
+
+    @field_validator("extra_non_feature_cols", "feature_cols", mode="before")
+    @classmethod
+    def _normalize_empty_tabular_like_column_options(cls, value):
+        if value == []:
+            return None
+        return value
+
+    def _has_multimodal_labeling_info(self) -> bool:
+        if isinstance(self.labeling_info, MultimodalHirundoCSV):
+            return True
+        if isinstance(self.labeling_info, list):
+            return any(
+                isinstance(labeling_info, MultimodalHirundoCSV)
+                for labeling_info in self.labeling_info
+            )
+        return False
+
+    def _validate_multimodal_dataset(self) -> None:
+        if self.modality == ModalityType.MULTIMODAL:
+            if not isinstance(self.labeling_info, MultimodalHirundoCSV):
+                raise ValueError(
+                    "Multimodal datasets require `MultimodalHirundoCSV` labeling info"
+                )
+            if self.augmentations is not None:
+                raise ValueError(
+                    "Multimodal datasets do not support dataset-level augmentations"
+                )
+            if self.data_root_url is not None:
+                raise ValueError(
+                    "Multimodal datasets do not support top-level `data_root_url`; "
+                    "set it on vision or radar child modalities instead"
+                )
+            missing_root_modalities = [
+                modality_csv.modality.value
+                for modality_csv in self.labeling_info.modality_csvs
+                if modality_csv.modality in MULTIMODAL_MODALITIES_WITH_DATA_ROOT
+                and modality_csv.data_root_url is None
+            ]
+            if missing_root_modalities:
+                raise ValueError(
+                    "Multimodal child modalities require a data root URL: "
+                    + ", ".join(missing_root_modalities)
+                )
+            return
+        if self._has_multimodal_labeling_info():
+            raise ValueError(
+                "MultimodalHirundoCSV labeling info is only supported for MULTIMODAL datasets"
+            )
+
+    def _validate_data_root_url(self) -> None:
+        if (
+            self.data_root_url is None
+            and self.modality != ModalityType.MULTIMODAL
+            and self.modality not in MODALITIES_WITH_OPTIONAL_TOP_LEVEL_DATA_ROOT
+        ):
+            raise ValueError(
+                "`data_root_url` is required for non-tabular Dataset QA datasets"
+            )
+        if self.data_root_url and self.storage_config:
+            validate_url(self.data_root_url, self.storage_config)
+
+    def _storage_config_id_matches_response_storage_config(self) -> bool:
+        return (
+            self.storage_config is not None
+            and self.storage_config_id is not None
+            and isinstance(self.storage_config, ResponseStorageConfig)
+            and self.storage_config.id == self.storage_config_id
+        )
+
+    def _validate_storage_config_shortcut(self) -> None:
+        if (
+            isinstance(self.storage_config, StorageTypes)
+            and self.storage_config != StorageTypes.LOCAL
+        ):
+            raise ValueError(
+                "Only `StorageTypes.LOCAL` can be used directly as a dataset "
+                "storage shortcut. Provide a `StorageConfig` for other storage types."
+            )
+
+    def _should_delete_storage_config(self, storage_config: bool) -> bool:
+        if not storage_config:
+            return False
+        if self.storage_config == StorageTypes.LOCAL:
+            return False
+        if (
+            isinstance(self.storage_config, (StorageConfig, ResponseStorageConfig))
+            and self.storage_config.type == StorageTypes.LOCAL
+        ):
+            return False
+        if self.storage_config is None and self.storage_config_id is not None:
+            return (
+                StorageConfig.get_by_id(self.storage_config_id).type
+                != StorageTypes.LOCAL
+            )
+        return True
+
+    def _ensure_storage_config_consistency(
+        self,
+        missing_message: str,
+        mismatch_message: str,
+    ) -> None:
+        if self.storage_config is None and self.storage_config_id is None:
+            raise ValueError(missing_message)
+        if (
+            self.storage_config is not None
+            and self.storage_config_id is not None
+            and not self._storage_config_id_matches_response_storage_config()
+        ):
+            raise ValueError(mismatch_message)
 
     @model_validator(mode="after")
     def validate_dataset(self):
@@ -204,14 +364,18 @@ class QADataset(BaseModel):
             raise ValueError(
                 f"Labeling type {self.labeling_type} is not supported for modality {self.modality}. Supported labeling types are: {MODALITY_TO_SUPPORTED_LABELING_TYPES[self.modality]}"
             )
-        if self.storage_config is None and self.storage_config_id is None:
-            raise ValueError(
-                "No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`"
-            )
-        elif self.storage_config is not None and self.storage_config_id is not None:
-            raise ValueError(
-                "Both `storage_config` and `storage_config_id` have been provided. Pick one."
-            )
+        validate_column_options(
+            feature_cols=self.feature_cols,
+            extra_non_feature_cols=self.extra_non_feature_cols,
+            modality=self.modality,
+            allowed_modalities=TABULAR_LIKE_MODALITIES,
+            unsupported_message="`extra_non_feature_cols` and `feature_cols` are only supported for tabular or timeseries datasets",
+        )
+        self._ensure_storage_config_consistency(
+            missing_message="No dataset storage has been provided. Provide one via `storage_config` or `storage_config_id`",
+            mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Pick one.",
+        )
+        self._validate_storage_config_shortcut()
         if self.labeling_type == LabelingType.SPEECH_TO_TEXT and self.language is None:
             raise ValueError("Language is required for Speech-to-Text datasets.")
         elif (
@@ -242,8 +406,8 @@ class QADataset(BaseModel):
             validate_labeling_info(
                 self.labeling_type, self.labeling_info, self.storage_config
             )
-        if self.data_root_url and self.storage_config:
-            validate_url(self.data_root_url, self.storage_config)
+        self._validate_multimodal_dataset()
+        self._validate_data_root_url()
         return self
 
     @staticmethod
@@ -363,7 +527,7 @@ class QADataset(BaseModel):
         This can either be set manually or by creating the `StorageConfig` instance via the `QADataset`'s
         `create` method
         """
-        if storage_config:
+        if self._should_delete_storage_config(storage_config=storage_config):
             if not self.storage_config_id:
                 raise ValueError("No storage config has been created")
             StorageConfig.delete_by_id(self.storage_config_id)
@@ -388,32 +552,37 @@ class QADataset(BaseModel):
         Returns:
             The ID of the created `QADataset` instance
         """
-        if self.storage_config is None and self.storage_config_id is None:
-            raise ValueError("No dataset storage has been provided")
-        elif self.storage_config and self.storage_config_id is None:
+        self._ensure_storage_config_consistency(
+            missing_message="No dataset storage has been provided",
+            mismatch_message="Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match.",
+        )
+        self._validate_storage_config_shortcut()
+        if self.storage_config and self.storage_config_id is None:
             if isinstance(self.storage_config, ResponseStorageConfig):
                 self.storage_config_id = self.storage_config.id
             elif isinstance(self.storage_config, StorageConfig):
                 self.storage_config_id = self.storage_config.create(
+                    organization_id=organization_id,
                     replace_if_exists=replace_if_exists,
                 )
-        elif (
-            self.storage_config is not None
-            and self.storage_config_id is not None
-            and (
-                not isinstance(self.storage_config, ResponseStorageConfig)
-                or self.storage_config.id != self.storage_config_id
-            )
-        ):
-            raise ValueError(
-                "Both `storage_config` and `storage_config_id` have been provided. Storage config IDs do not match."
-            )
-        model_dict = self.model_dump(mode="json")
+            elif self.storage_config == StorageTypes.LOCAL:
+                self.storage_config_id = _get_local_storage_config_id(
+                    organization_id=organization_id
+                )
+        model_dict = self.model_dump(mode="json", exclude={"storage_config"})
         # ⬆️ Get dict of model fields from Pydantic model instance
+        for optional_key in (
+            "data_root_url",
+            "augmentations",
+            "extra_non_feature_cols",
+            "feature_cols",
+        ):
+            if model_dict[optional_key] is None:
+                model_dict.pop(optional_key)
         dataset_response = requests.post(
             f"{API_HOST}/dataset-qa/dataset/",
             json={
-                **{k: model_dict[k] for k in model_dict.keys() - {"storage_config"}},
+                **model_dict,
                 "organization_id": organization_id,
                 "replace_if_exists": replace_if_exists,
             },
@@ -443,14 +612,14 @@ class QADataset(BaseModel):
         Returns:
             ID of the run (`run_id`).
         """
-        run_info = {}
-        if organization_id:
+        run_info: dict[str, typing.Any] = {
+            "run_args": run_args.model_dump(mode="json") if run_args else {},
+        }
+        if organization_id is not None:
             run_info["organization_id"] = organization_id
-        if run_args:
-            run_info["run_args"] = run_args.model_dump(mode="json")
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
-            json=run_info if len(run_info) > 0 else None,
+            json=run_info,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )
@@ -499,7 +668,10 @@ class QADataset(BaseModel):
         """
         try:
             if not self.id:
-                self.id = self.create(replace_if_exists=replace_dataset_if_exists)
+                self.id = self.create(
+                    organization_id=organization_id,
+                    replace_if_exists=replace_dataset_if_exists,
+                )
             if run_args is not None:
                 self._validate_run_args(run_args)
             run_id = self.launch_qa_run(self.id, organization_id, run_args)
@@ -752,13 +924,16 @@ class QADatasetOut(BaseModel):
 
     name: str
     labeling_type: LabelingType
+    modality: ModalityType = ModalityType.VISION
 
     storage_config: ResponseStorageConfig
+    storage_config_id: int | None = None
 
-    data_root_url: HirundoUrl
+    data_root_url: HirundoUrl | None = None
 
     classes: list[str] | None = None
     labeling_info: LabelingInfo | list[LabelingInfo]
+    augmentations: list[AugmentationName] | None = None
 
     organization_id: int | None
     creator_id: int | None
@@ -771,6 +946,7 @@ class DataQARunOut(BaseModel):
     name: str
     dataset_id: int
     run_id: str
+    modality: ModalityType | None = None
     status: RunStatus
     approved: bool
     created_at: datetime.datetime

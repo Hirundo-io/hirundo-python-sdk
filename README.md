@@ -41,7 +41,7 @@ You can set environment variables directly or use the CLI helper:
 hirundo setup
 ```
 
-This writes `API_KEY` (and optionally `API_HOST`) to `.env` in the current directory or `~/.hirundo.conf`.
+This writes `HIRUNDO_API_KEY` (and optionally `HIRUNDO_API_HOST`) to `.env` in the current directory or `~/.hirundo.conf`.
 
 ## Quickstart examples
 

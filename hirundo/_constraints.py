@@ -6,7 +6,7 @@ from hirundo._urls import (
     STORAGE_PATTERNS,
 )
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
-from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs
+from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs, MultimodalHirundoCSV
 
 if TYPE_CHECKING:
     from hirundo._urls import HirundoUrl
@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 LABELING_TYPES_TO_DATASET_METADATA_TYPES = {
     LabelingType.SINGLE_LABEL_CLASSIFICATION: [
         DatasetMetadataType.HIRUNDO_CSV,
+        DatasetMetadataType.MULTIMODAL_HIRUNDO_CSV,
     ],
     LabelingType.OBJECT_DETECTION: [
         DatasetMetadataType.HIRUNDO_CSV,
@@ -91,11 +92,18 @@ def validate_gcp_url(str_url: str, gcp_config: "StorageGCP | StorageGCPOut"):
 
 def validate_url(
     url: "HirundoUrl",
-    storage_config: "StorageConfig | ResponseStorageConfig",
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
 ) -> "HirundoUrl":
-    s3_config = storage_config.s3
-    gcp_config = storage_config.gcp
-    git_config = storage_config.git
+    if isinstance(storage_config, StorageTypes):
+        storage_type = storage_config
+        s3_config = None
+        gcp_config = None
+        git_config = None
+    else:
+        storage_type = storage_config.type
+        s3_config = storage_config.s3
+        gcp_config = storage_config.gcp
+        git_config = storage_config.git
     str_url = str(url)
 
     if s3_config is not None:
@@ -108,7 +116,7 @@ def validate_url(
         and not str_url.startswith("ssh://")
     ):
         raise ValueError("Git URL must start with https:// or ssh://")
-    elif storage_config.type == StorageTypes.LOCAL and not str_url.startswith(
+    elif storage_type == StorageTypes.LOCAL and not str_url.startswith(
         "file:///datasets/"
     ):
         raise ValueError("Local URL must start with file:///datasets/")
@@ -132,10 +140,22 @@ def validate_labeling_type(
         )
 
 
+def _validate_multimodal_labeling_info_urls(
+    labeling_info: MultimodalHirundoCSV,
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
+) -> None:
+    for modality_csv in labeling_info.modality_csvs:
+        validate_url(modality_csv.labeling_info.csv_url, storage_config)
+        if modality_csv.data_root_url is not None:
+            validate_url(modality_csv.data_root_url, storage_config)
+    if labeling_info.alignment_csv_url is not None:
+        validate_url(labeling_info.alignment_csv_url, storage_config)
+
+
 def validate_labeling_info(
     labeling_type: "LabelingType",
     labeling_info: "LabelingInfo | list[LabelingInfo]",
-    storage_config: "StorageConfig | ResponseStorageConfig",
+    storage_config: "StorageConfig | ResponseStorageConfig | StorageTypes",
 ) -> None:
     """
     Validate the labeling info for a dataset
@@ -152,6 +172,8 @@ def validate_labeling_info(
         return
     elif isinstance(labeling_info, HirundoCSV):
         validate_url(labeling_info.csv_url, storage_config)
+    elif isinstance(labeling_info, MultimodalHirundoCSV):
+        _validate_multimodal_labeling_info_urls(labeling_info, storage_config)
     elif isinstance(labeling_info, COCO):
         validate_url(labeling_info.json_url, storage_config)
     elif isinstance(labeling_info, YOLO):

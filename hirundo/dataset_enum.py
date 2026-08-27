@@ -22,6 +22,7 @@ class DatasetMetadataType(str, Enum):
     """
 
     HIRUNDO_CSV = "HirundoCSV"
+    MULTIMODAL_HIRUNDO_CSV = "MultimodalHirundoCSV"
     COCO = "COCO"
     YOLO = "YOLO"
     HuggingFaceAudio = "HuggingFaceAudio"
