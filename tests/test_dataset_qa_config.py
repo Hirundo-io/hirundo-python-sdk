@@ -564,13 +564,45 @@ def test_multimodal_dataset_run_launches_after_create(
     assert create_payload is not None
     assert create_payload["organization_id"] == 4
     assert create_payload["modality"] == ModalityType.MULTIMODAL
-    assert run_payload == {"organization_id": 4}
+    assert run_payload == {
+        "organization_id": 4,
+        "run_args": {"image_size": [224, 224], "upsample": False},
+    }
 
 
-def test_launch_qa_run_omits_absent_run_args_with_organization(
+def test_launch_qa_run_uses_default_run_args_for_non_speech_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    dataset = _build_dataset()
+    monkeypatch.setattr(
+        "hirundo.dataset_qa.QADataset.get_by_id",
+        staticmethod(lambda dataset_id: dataset),
+    )
+
+    assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
+
+    assert request_payloads == [
+        {
+            "organization_id": 4,
+            "run_args": {"image_size": [224, 224], "upsample": False},
+        }
+    ]
+
+
+def test_launch_qa_run_omits_run_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    speech_dataset = _build_dataset(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    monkeypatch.setattr(
+        "hirundo.dataset_qa.QADataset.get_by_id",
+        staticmethod(lambda dataset_id: speech_dataset),
+    )
 
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
