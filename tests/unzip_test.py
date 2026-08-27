@@ -5,11 +5,16 @@ from pathlib import Path
 import pytest
 from hirundo import unzip
 from hirundo._dataframe import has_pandas, has_polars
-from hirundo.unzip import download_and_extract_zip
+from hirundo.unzip import (
+    download_and_extract_llm_behavior_eval_zip,
+    download_and_extract_zip,
+)
 
 SUSPECTS_CSV = "image_path,suspect_level\nimg_0.png,0.9\n"
 SUSPECT_LEVEL_COUNTS_CSV = "suspect_level,count\n0.9,1\n"
 WARNINGS_AND_ERRORS_CSV = "image_path,status\nimg_1.png,MISSING_IMAGE\n"
+SUMMARY_BRIEF_CSV = "benchmark,score\nbbq,0.8\n"
+SUMMARY_FULL_CSV = "benchmark,detail\nbbq,example\n"
 
 
 def _build_results_zip() -> bytes:
@@ -18,6 +23,20 @@ def _build_results_zip() -> bytes:
         archive.writestr("mislabel_suspects.csv", SUSPECTS_CSV)
         archive.writestr("mislabel_suspect_level_counts.csv", SUSPECT_LEVEL_COUNTS_CSV)
         archive.writestr("warnings_and_errors.csv", WARNINGS_AND_ERRORS_CSV)
+    return buffer.getvalue()
+
+
+def _build_llm_behavior_eval_results_zip(response_model_folder: str) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(
+            f"responses/{response_model_folder}/summary_brief.csv",
+            SUMMARY_BRIEF_CSV,
+        )
+        archive.writestr(
+            f"responses/{response_model_folder}/summary_full.csv",
+            SUMMARY_FULL_CSV,
+        )
     return buffer.getvalue()
 
 
@@ -104,3 +123,36 @@ def test_download_and_extract_zip_populates_result_frames(monkeypatch, tmp_path)
     assert results.warnings_and_errors is not None
     # `object_mislabel_suspects.csv` is absent from this ZIP, so it stays None.
     assert results.object_suspects is None
+
+
+@pytest.mark.parametrize(
+    ("response_model_folder", "archive_model_folder"),
+    [
+        (None, "Qwen3-0.6B"),
+        ("merged_model", "merged_model"),
+    ],
+)
+@pytest.mark.skipif(
+    not (has_pandas or has_polars),
+    reason="Requires pandas or polars to materialize result DataFrames",
+)
+def test_download_and_extract_llm_behavior_eval_zip_uses_response_model_folder(
+    monkeypatch, tmp_path, response_model_folder, archive_model_folder
+):
+    zip_bytes = _build_llm_behavior_eval_results_zip(archive_model_folder)
+    monkeypatch.setattr(
+        "hirundo.unzip.requests.get",
+        lambda *args, **kwargs: _FakeStreamingResponse(zip_bytes),
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    results = download_and_extract_llm_behavior_eval_zip(
+        "test-run-id",
+        "https://example.com/results.zip",
+        "Qwen/Qwen3-0.6B",
+        response_model_folder=response_model_folder,
+    )
+
+    assert results.model_name == "Qwen/Qwen3-0.6B"
+    assert results.summary_brief is not None
+    assert results.summary_full is not None
