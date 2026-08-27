@@ -126,10 +126,11 @@ def test_download_and_extract_zip_populates_result_frames(monkeypatch, tmp_path)
 
 
 @pytest.mark.parametrize(
-    ("response_model_folder", "archive_model_folder"),
+    ("model_name", "response_model_folder", "archive_model_folder"),
     [
-        (None, "Qwen3-0.6B"),
-        ("merged_model", "merged_model"),
+        ("Qwen/Qwen3-0.6B", None, "Qwen3-0.6B"),
+        ("Qwen/Qwen3-0.6B", "merged_model", "merged_model"),
+        (None, "merged_model", "merged_model"),
     ],
 )
 @pytest.mark.skipif(
@@ -137,7 +138,11 @@ def test_download_and_extract_zip_populates_result_frames(monkeypatch, tmp_path)
     reason="Requires pandas or polars to materialize result DataFrames",
 )
 def test_download_and_extract_llm_behavior_eval_zip_uses_response_model_folder(
-    monkeypatch, tmp_path, response_model_folder, archive_model_folder
+    monkeypatch,
+    tmp_path,
+    model_name,
+    response_model_folder,
+    archive_model_folder,
 ):
     zip_bytes = _build_llm_behavior_eval_results_zip(archive_model_folder)
     monkeypatch.setattr(
@@ -149,10 +154,10 @@ def test_download_and_extract_llm_behavior_eval_zip_uses_response_model_folder(
     results = download_and_extract_llm_behavior_eval_zip(
         "test-run-id",
         "https://example.com/results.zip",
-        "Qwen/Qwen3-0.6B",
+        model_name,
         response_model_folder=response_model_folder,
     )
 
-    assert results.model_name == "Qwen/Qwen3-0.6B"
+    assert results.model_name == model_name
     assert results.summary_brief is not None
     assert results.summary_full is not None

@@ -256,8 +256,10 @@ def download_and_extract_llm_behavior_eval_zip(
 
     summary_brief_df = None
     summary_full_df = None
-    if model_name:
-        model_folder = response_model_folder or model_name.split("/")[-1]
+    model_folder = response_model_folder
+    if model_folder is None and model_name:
+        model_folder = model_name.split("/")[-1]
+    if model_folder:
         summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
         summary_full_name = f"responses/{model_folder}/summary_full.csv"
 
