@@ -612,9 +612,9 @@ class QADataset(BaseModel):
         Returns:
             ID of the run (`run_id`).
         """
-        run_info: dict[str, typing.Any] = {
-            "run_args": run_args.model_dump(mode="json") if run_args else {},
-        }
+        run_info: dict[str, typing.Any] = {}
+        if run_args is not None:
+            run_info["run_args"] = run_args.model_dump(mode="json")
         if organization_id is not None:
             run_info["organization_id"] = organization_id
         run_response = requests.post(

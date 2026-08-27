@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 from hirundo import (
+    ClassificationRunArgs,
     GitRepo,
     HirundoCSV,
     LabelingType,
@@ -563,17 +564,29 @@ def test_multimodal_dataset_run_launches_after_create(
     assert create_payload is not None
     assert create_payload["organization_id"] == 4
     assert create_payload["modality"] == ModalityType.MULTIMODAL
-    assert run_payload == {"organization_id": 4, "run_args": {}}
+    assert run_payload == {"organization_id": 4}
 
 
-def test_launch_qa_run_includes_default_run_args_with_organization(
+def test_launch_qa_run_omits_absent_run_args_with_organization(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_payloads = _capture_create_and_run_payloads(monkeypatch)
 
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
-    assert request_payloads == [{"organization_id": 4, "run_args": {}}]
+    assert request_payloads == [{"organization_id": 4}]
+
+
+def test_launch_qa_run_serializes_explicit_run_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    assert QADataset.launch_qa_run(123, run_args=ClassificationRunArgs()) == "run-123"
+
+    assert request_payloads == [
+        {"run_args": {"image_size": [224, 224], "upsample": False}}
+    ]
 
 
 @pytest.mark.parametrize("modality", (ModalityType.TABULAR, ModalityType.TIMESERIES))
