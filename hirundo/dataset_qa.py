@@ -608,6 +608,12 @@ class QADataset(BaseModel):
 
         Args:
             dataset_id: The ID of the dataset to run QA on.
+            organization_id: The organization ID to use for this run. When set,
+                it overrides the default organization selection.
+            run_args: Optional QA run arguments. When `None`, the SDK omits
+                `run_args` from the request payload. When supplied, the SDK
+                serializes them into the payload. Speech-to-text runs must not
+                supply run arguments.
 
         Returns:
             ID of the run (`run_id`).
