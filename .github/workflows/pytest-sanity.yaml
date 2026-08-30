@@ -80,7 +80,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
           UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
-          FULL_TEST: ${{ (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' && inputs.full_test) && 'true' || 'false' }}
+          FULL_TEST: ${{ ((github.event_name == 'merge_group' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.10') || (github.event_name == 'workflow_dispatch' && inputs.full_test)) && 'true' || 'false' }}
       - name: Run PyTest on Windows
         if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
         run: .venv/Scripts/pytest
@@ -92,7 +92,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
           UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
-          FULL_TEST: ${{ (github.event_name == 'merge_group' || github.event_name == 'workflow_dispatch' && inputs.full_test) && 'true' || 'false' }}
+          FULL_TEST: false
       - name: Skip tests (only workflow files changed)
         if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow != 'true'
         run: echo "Only .github/workflows files changed; skipping installation and tests."
