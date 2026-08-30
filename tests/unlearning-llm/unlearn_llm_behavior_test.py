@@ -26,7 +26,13 @@ def test_unlearn_llm_behavior():
     llm_id = llm.create()
     run_info = LlmRunInfo(target_behaviors=[BiasBehavior()])
     assert llm_id is not None
-    if os.getenv("FULL_TEST", "false") == "true":
-        run_id = LlmUnlearningRun.launch(llm_id, run_info)
-        new_adapter = llm.get_hf_pipeline_for_run(run_id)
-        assert isinstance(new_adapter, Pipeline)
+    run_id = None
+    try:
+        if os.getenv("FULL_TEST", "false") == "true":
+            run_id = LlmUnlearningRun.launch(llm_id, run_info)
+            new_adapter = llm.get_hf_pipeline_for_run(run_id)
+            assert isinstance(new_adapter, Pipeline)
+    finally:
+        if run_id is not None:
+            LlmUnlearningRun.archive(run_id)
+        llm.delete()
