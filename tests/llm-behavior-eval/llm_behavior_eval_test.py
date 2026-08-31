@@ -1,6 +1,7 @@
 import logging
 import os
 
+import pytest
 from hirundo import (
     BBQBiasType,
     EvalRunInfo,
@@ -19,6 +20,9 @@ unique_id = get_unique_id()
 
 
 def test_llm_behavior_eval():
+    if os.getenv("FULL_TEST", "false") != "true":
+        pytest.skip("FULL_TEST not enabled")
+
     llm = LlmModel(
         model_name=f"TEST-LLM-BEHAVIOR-EVAL-Qwen3-0.6B-{unique_id}",
         model_source=HuggingFaceTransformersModel(
