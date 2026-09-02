@@ -60,7 +60,9 @@ from .unlearning_llm import (
     HallucinationBehavior,
     LlmModel,
     LlmRunInfo,
+    LlmUnlearningCapabilities,
     LlmUnlearningRun,
+    RefusalBehavior,
     SecurityBehavior,
 )
 from .unzip import load_df, load_from_zip
@@ -112,11 +114,13 @@ __all__ = [
     "HuggingFaceTransformersModel",
     "HuggingFaceTransformersModelOutput",
     "LlmRunInfo",
+    "LlmUnlearningCapabilities",
     "LlmModel",
     "LlmSources",
     "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
+    "RefusalBehavior",
     "SecurityBehavior",
     "load_df",
     "load_from_zip",
