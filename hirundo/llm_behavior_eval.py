@@ -360,6 +360,13 @@ class LlmBehaviorEval:
         return None
 
     @staticmethod
+    def _resolve_response_model_folder(run_info: EvalRunRecord) -> str | None:
+        """Return the response directory used by the evaluation result archive."""
+        if run_info.source_run_id:
+            return "merged_model"
+        return None
+
+    @staticmethod
     def _check_run_by_id(
         run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
     ) -> Generator[SseRunEventData, None, None]:
@@ -457,10 +464,14 @@ class LlmBehaviorEval:
                             )
                         run_info = LlmBehaviorEval.get_run_info_by_id(run_id)
                         model_name = LlmBehaviorEval._resolve_model_name(run_info)
+                        response_model_folder = (
+                            LlmBehaviorEval._resolve_response_model_folder(run_info)
+                        )
                         return download_and_extract_llm_behavior_eval_zip(
                             run_id,
                             zip_temporary_url,
                             model_name,
+                            response_model_folder,
                         )
                     elif (
                         state == RunStatus.AWAITING_MANUAL_APPROVAL.value
