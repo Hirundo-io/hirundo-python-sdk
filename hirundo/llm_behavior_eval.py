@@ -5,7 +5,7 @@ from enum import Enum
 from typing import overload
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -53,6 +53,11 @@ class PresetType(str, Enum):
     HALU_EVAL = "HALU_EVAL"
     MED_HALLU = "MED_HALLU"
     INJECTION_EVAL = "INJECTION_EVAL"
+    XSTEST = "XSTEST"
+    OR_BENCH = "OR_BENCH"
+
+
+REFUSAL_PRESET_TYPES = {PresetType.XSTEST, PresetType.OR_BENCH}
 
 
 class JudgeModel(BaseModel):
@@ -71,6 +76,12 @@ class EvalRunInfo(BaseModel):
     preset_type: PresetType | None = None
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
+
+    @model_validator(mode="after")
+    def _validate_bias_type(self) -> "EvalRunInfo":
+        if self.preset_type in REFUSAL_PRESET_TYPES and self.bias_type is not None:
+            raise ValueError("`bias_type` is not supported for refusal presets")
+        return self
 
 
 class OutputLlm(BaseModel):
