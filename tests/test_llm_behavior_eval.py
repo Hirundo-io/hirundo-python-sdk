@@ -3,12 +3,14 @@ from typing import Any
 import pytest
 from hirundo import (
     BBQBiasType,
+    EvalFramework,
     EvalRunInfo,
     JudgeModel,
     LlmBehaviorEval,
     ModelOrRun,
     PresetType,
 )
+from hirundo.llm_behavior_eval import LlmEvalMetricRow, LlmEvalMetrics
 
 
 class _Response:
@@ -63,3 +65,53 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
         },
     }
     assert "file_path" not in captured_request["json"]
+
+
+def test_parse_inspect_evaluation_run() -> None:
+    run_record = LlmBehaviorEval._parse_eval_run_record(
+        {
+            "id": 1,
+            "name": "inspect-evaluation",
+            "model_id": 123,
+            "model": None,
+            "source_run_id": None,
+            "source_run": None,
+            "framework": "inspect-evals",
+            "preset_type": None,
+            "bias_type": None,
+            "task_ids": ["inspect_evals/aime25"],
+            "sample_limit": None,
+            "judge_model": None,
+            "run_id": "eval-run-id",
+            "mlflow_run_id": None,
+            "status": "SUCCESS",
+            "created_at": "2026-09-08T00:00:00Z",
+            "pre_process_progress": 100.0,
+            "optimization_progress": 100.0,
+            "post_process_progress": 100.0,
+            "metrics": {
+                "rows": [
+                    {
+                        "benchmark": "AIME 2025",
+                        "metric": "accuracy",
+                        "score": 0.5,
+                        "runtime_seconds": 12.5,
+                    }
+                ]
+            },
+        }
+    )
+
+    assert run_record.framework is EvalFramework.INSPECT_EVALS
+    assert run_record.task_ids == ["inspect_evals/aime25"]
+    assert run_record.sample_limit is None
+    assert run_record.metrics == LlmEvalMetrics(
+        rows=[
+            LlmEvalMetricRow(
+                benchmark="AIME 2025",
+                metric="accuracy",
+                score=0.5,
+                runtime_seconds=12.5,
+            )
+        ]
+    )

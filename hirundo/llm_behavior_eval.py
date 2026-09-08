@@ -60,6 +60,13 @@ class PresetType(str, Enum):
 REFUSAL_PRESET_TYPES = {PresetType.XSTEST, PresetType.OR_BENCH}
 
 
+class EvalFramework(str, Enum):
+    """Evaluation implementation used by a unified LLM evaluation run."""
+
+    LLM_BEHAVIOR_EVAL = "llm-behavior-eval"
+    INSPECT_EVALS = "inspect-evals"
+
+
 class JudgeModel(BaseModel):
     path_or_repo_id: str
     token: str | None = None
@@ -117,6 +124,8 @@ class LlmEvalMetricRow(BaseModel):
     post_unlearning: float | str | None = None
     reduction_percent: float | None = None
     subset: str | None = None
+    score: float | str | None = None
+    runtime_seconds: float | None = None
 
 
 class LlmEvalMetrics(BaseModel):
@@ -132,9 +141,12 @@ class EvalRunRecord(BaseModel):
     model: OutputLlm | None
     source_run_id: str | None
     source_run: OutputUnlearningLlmRun | None
-    preset_type: PresetType | None
-    bias_type: BBQBiasType | UnqoverBiasType | None
-    judge_model: JudgeModel | None
+    framework: EvalFramework = EvalFramework.LLM_BEHAVIOR_EVAL
+    preset_type: PresetType | None = None
+    bias_type: BBQBiasType | UnqoverBiasType | None = None
+    task_ids: list[str] | None = None
+    sample_limit: int | None = None
+    judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
     status: str
@@ -193,8 +205,13 @@ class LlmBehaviorEval:
             model=model,
             source_run_id=response_payload.get("source_run_id"),
             source_run=source_run,
+            framework=response_payload.get(
+                "framework", EvalFramework.LLM_BEHAVIOR_EVAL
+            ),
             preset_type=response_payload.get("preset_type"),
             bias_type=response_payload.get("bias_type"),
+            task_ids=response_payload.get("task_ids"),
+            sample_limit=response_payload.get("sample_limit"),
             judge_model=judge_model,
             run_id=response_payload["run_id"],
             mlflow_run_id=response_payload.get("mlflow_run_id"),

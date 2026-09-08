@@ -22,6 +22,15 @@ from .dataset_qa import (
     RunArgs,
 )
 from .dataset_qa_results import DatasetQAResults
+from .external_eval import (
+    ExternalEval,
+    ExternalEvalCatalog,
+    ExternalEvalCatalogBenchmark,
+    ExternalEvalCatalogSource,
+    ExternalEvalCatalogTask,
+    ExternalEvalRunInfo,
+    HirundoExternalEvalError,
+)
 from .git import GitPlainAuth, GitRepo, GitSSHAuth
 from .labeling import (
     COCO,
@@ -37,6 +46,7 @@ from .labeling import (
     MultimodalModalityType,
 )
 from .llm_behavior_eval import (
+    EvalFramework,
     EvalRunInfo,
     EvalRunRecord,
     HirundoLlmBehaviorEvalError,
@@ -77,6 +87,7 @@ __all__ = [
     "HirundoError",
     "HirundoDatasetQaError",
     "HirundoLlmBehaviorEvalError",
+    "HirundoExternalEvalError",
     "KeylabsAuth",
     "KeylabsObjDetImages",
     "KeylabsObjDetVideo",
@@ -87,6 +98,13 @@ __all__ = [
     "QADataset",
     "EvalRunInfo",
     "EvalRunRecord",
+    "EvalFramework",
+    "ExternalEval",
+    "ExternalEvalCatalog",
+    "ExternalEvalCatalogBenchmark",
+    "ExternalEvalCatalogSource",
+    "ExternalEvalCatalogTask",
+    "ExternalEvalRunInfo",
     "JudgeModel",
     "LlmBehaviorEval",
     "LlmBehaviorEvalResults",
