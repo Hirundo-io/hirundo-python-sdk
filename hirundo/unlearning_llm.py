@@ -284,6 +284,18 @@ class LlmRunInfo(BaseModel):
 
     @model_validator(mode="after")
     def validate_refusal_utilities(self) -> "LlmRunInfo":
+        """Validate utility targets are compatible with the selected behaviors.
+
+        Args:
+            self: The `LlmRunInfo` instance to validate.
+
+        Returns:
+            The validated `LlmRunInfo` instance.
+
+        Raises:
+            ValueError: If refusal behavior is combined with non-empty target
+                utilities.
+        """
         has_refusal = any(
             isinstance(target_behavior, RefusalBehavior)
             for target_behavior in self.target_behaviors
@@ -294,6 +306,12 @@ class LlmRunInfo(BaseModel):
 
 
 class LlmUnlearningCapabilities(BaseModel):
+    """Features supported by the configured Hirundo API.
+
+    Omitted capability fields default to disabled. Check
+    `refusal_unlearning_enabled` before starting refusal unlearning.
+    """
+
     refusal_unlearning_enabled: bool = Field(
         default=False,
         validation_alias=AliasChoices(
@@ -359,6 +377,15 @@ class LlmUnlearningRun:
 
     @staticmethod
     def get_capabilities() -> LlmUnlearningCapabilities:
+        """Retrieve LLM-unlearning features supported by the configured API.
+
+        Sends a GET request to `/config/config.json`. HTTP failures are raised
+        through the SDK's standard HTTP error handling.
+
+        Returns:
+            An `LlmUnlearningCapabilities` model. Omitted capability fields
+            default to disabled during validation.
+        """
         config_response = requests.get(
             f"{API_HOST}/config/config.json",
             headers=get_headers(),
