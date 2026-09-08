@@ -25,7 +25,10 @@ from hirundo.dataset_qa_results import (
     DataFrameType,
     DatasetQAResults,
 )
-from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
+from hirundo.llm_behavior_eval_results import (
+    ExternalEvalResults,
+    LlmBehaviorEvalResults,
+)
 from hirundo.logger import get_logger
 
 ZIP_FILE_CHUNK_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -283,3 +286,14 @@ def download_and_extract_llm_behavior_eval_zip(
         summary_brief=summary_brief_df,
         summary_full=summary_full_df,
     )
+
+
+def download_external_eval_zip(run_id: str, zip_url: str) -> ExternalEvalResults:
+    """Download an Inspect result archive without assuming its internal layout."""
+    zip_file_path = _download_zip_to_cache(run_id, zip_url, "llm-behavior-eval")
+    logger.info(
+        "Successfully downloaded the external evaluation result zip for run ID %s to %s",
+        run_id,
+        zip_file_path,
+    )
+    return ExternalEvalResults(cached_zip_path=zip_file_path)

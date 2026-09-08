@@ -5,7 +5,7 @@ from hirundo import ExternalEval, ExternalEvalRunInfo, ModelOrRun
 catalog = ExternalEval.get_catalog()
 task_id = catalog.benchmarks[0].tasks[0].id
 
-run_id = ExternalEval.launch_eval_run(
+launch = ExternalEval.launch_eval_run(
     ModelOrRun.MODEL,
     ExternalEvalRunInfo(
         name="Inspect evaluation",
@@ -15,5 +15,6 @@ run_id = ExternalEval.launch_eval_run(
     ),
 )
 
-# Use LlmBehaviorEval's unified lifecycle APIs to poll and download results.
-print(run_id)
+# Poll and download the framework-neutral Inspect archive.
+result = ExternalEval.check_run_by_id(launch.run_id)
+print(result.cached_zip_path)

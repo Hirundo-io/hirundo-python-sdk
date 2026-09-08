@@ -25,3 +25,9 @@ class LlmBehaviorEvalResults(BaseModel, typing.Generic[T]):
     """
     A polars/pandas DataFrame containing the summary_full CSV
     """
+
+
+class ExternalEvalResults(BaseModel):
+    """Downloaded external-evaluation archive without Inspect-specific parsing."""
+
+    cached_zip_path: Path

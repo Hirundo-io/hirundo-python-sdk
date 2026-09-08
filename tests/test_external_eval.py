@@ -1,12 +1,17 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
 from hirundo import (
+    CanonicalTaskReference,
     ExternalEval,
+    ExternalEvalResults,
     ExternalEvalRunInfo,
     HirundoExternalEvalError,
     ModelOrRun,
 )
+from hirundo._run_status import RunStatus
+from hirundo._sse_event_data import SseRunEventData
 
 
 class _Response:
@@ -35,7 +40,7 @@ def test_launch_external_eval_run_serializes_request(
     monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
     monkeypatch.setattr("hirundo.external_eval.requests.post", fake_post)
 
-    run_id = ExternalEval.launch_eval_run(
+    launch = ExternalEval.launch_eval_run(
         ModelOrRun.RUN,
         ExternalEvalRunInfo(
             name="Inspect AIME",
@@ -44,7 +49,8 @@ def test_launch_external_eval_run_serializes_request(
         ),
     )
 
-    assert run_id == "inspect-run-id"
+    assert launch.run_id == "inspect-run-id"
+    assert launch.message == "Run launched"
     assert captured_request["url"].endswith("/external-evals/run/run")
     assert captured_request["json"] == {
         "organization_id": None,
@@ -99,6 +105,37 @@ def test_external_eval_run_info_rejects_duplicate_tasks() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("model_or_run", "run_info", "message"),
+    [
+        (
+            ModelOrRun.MODEL,
+            ExternalEvalRunInfo(
+                source_run_id="unlearning-run-id", task_ids=["inspect_evals/aime25"]
+            ),
+            "model launches require model_id",
+        ),
+        (
+            ModelOrRun.RUN,
+            ExternalEvalRunInfo(model_id=123, task_ids=["inspect_evals/aime25"]),
+            "run launches require source_run_id",
+        ),
+    ],
+)
+def test_launch_external_eval_run_requires_source_for_endpoint(
+    model_or_run: ModelOrRun,
+    run_info: ExternalEvalRunInfo,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        ExternalEval.launch_eval_run(model_or_run, run_info)
+
+
+def test_external_eval_run_info_rejects_noncanonical_task_ids() -> None:
+    with pytest.raises(ValueError, match="String should match pattern"):
+        ExternalEvalRunInfo(model_id=123, task_ids=["aime25"])
+
+
 def test_launch_external_eval_run_requires_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -116,3 +153,34 @@ def test_launch_external_eval_run_requires_run_id(
                 task_ids=["inspect_evals/aime25"],
             ),
         )
+
+
+def test_canonical_task_reference_is_public_type() -> None:
+    assert CanonicalTaskReference is not None
+
+
+def test_check_external_eval_run_downloads_unparsed_archive(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    result_path = tmp_path / "inspect-run-id.zip"
+    monkeypatch.setattr(
+        "hirundo.external_eval.LlmBehaviorEval._check_run_by_id",
+        lambda *args, **kwargs: iter(
+            [
+                SseRunEventData(
+                    id="inspect-run-id",
+                    state=RunStatus.SUCCESS,
+                    result="https://example.com/inspect.zip",
+                )
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "hirundo.external_eval.download_external_eval_zip",
+        lambda run_id, zip_url: ExternalEvalResults(cached_zip_path=result_path),
+    )
+
+    result = ExternalEval.check_run_by_id("inspect-run-id")
+
+    assert result.cached_zip_path == result_path

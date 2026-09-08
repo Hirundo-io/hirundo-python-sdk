@@ -1,19 +1,29 @@
 """Public client models and methods for server-owned Inspect evaluations."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
+from hirundo._run_checking import DEFAULT_MAX_RETRIES, get_state, handle_run_failure
+from hirundo._run_status import RunStatus
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
-from hirundo.llm_behavior_eval import ModelOrRun
+from hirundo.llm_behavior_eval import LlmBehaviorEval, ModelOrRun
+from hirundo.llm_behavior_eval_results import ExternalEvalResults
+from hirundo.unzip import download_external_eval_zip
 
 
 class HirundoExternalEvalError(HirundoError):
     """Raised when an external evaluation response does not contain a run ID."""
+
+
+CanonicalTaskReference = Annotated[
+    str,
+    StringConstraints(pattern=r"^inspect_evals/[A-Za-z0-9_]+$"),
+]
 
 
 class ExternalEvalRunInfo(BaseModel):
@@ -25,12 +35,25 @@ class ExternalEvalRunInfo(BaseModel):
     name: str | None = None
     model_id: int | None = None
     source_run_id: str | None = None
-    task_ids: list[str] = Field(min_length=1)
+    task_ids: list[CanonicalTaskReference] = Field(min_length=1)
     sample_limit: int | None = Field(default=None, gt=0)
 
     def model_post_init(self, __context: object) -> None:
         if len(self.task_ids) != len(set(self.task_ids)):
             raise ValueError("task_ids must be unique")
+
+    def validate_source(self, model_or_run: ModelOrRun) -> None:
+        """Ensure the selected endpoint has exactly its required source ID."""
+        if model_or_run is ModelOrRun.MODEL:
+            if self.model_id is None or self.source_run_id is not None:
+                raise ValueError(
+                    "model launches require model_id and must not include source_run_id"
+                )
+            return
+        if self.source_run_id is None or self.model_id is not None:
+            raise ValueError(
+                "run launches require source_run_id and must not include model_id"
+            )
 
 
 class ExternalEvalCatalogSource(BaseModel):
@@ -68,6 +91,13 @@ class ExternalEvalCatalog(BaseModel):
     benchmarks: list[ExternalEvalCatalogBenchmark]
 
 
+class ExternalEvalLaunchResponse(BaseModel):
+    """Server confirmation returned after queuing an Inspect evaluation."""
+
+    message: str
+    run_id: str
+
+
 class ExternalEval:
     """Launch and discover server-owned Inspect evaluations."""
 
@@ -86,9 +116,10 @@ class ExternalEval:
     def launch_eval_run(
         model_or_run: ModelOrRun | Literal["model", "run"] | str,
         run_info: ExternalEvalRunInfo,
-    ) -> str:
+    ) -> ExternalEvalLaunchResponse:
         """Launch an Inspect evaluation for a saved model or unlearning run."""
         model_or_run_value = ModelOrRun(model_or_run)
+        run_info.validate_source(model_or_run_value)
         response = requests.post(
             f"{API_HOST}/external-evals/run/{model_or_run_value.value}",
             json=run_info.model_dump(mode="json"),
@@ -96,9 +127,37 @@ class ExternalEval:
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(response)
-        run_identifier = response.json().get("run_id")
-        if not run_identifier:
+        try:
+            return ExternalEvalLaunchResponse.model_validate(response.json())
+        except ValueError as error:
             raise HirundoExternalEvalError(
                 "Unable to determine the run ID from the response payload."
-            )
-        return run_identifier
+            ) from error
+
+    @staticmethod
+    def check_run_by_id(
+        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+    ) -> ExternalEvalResults:
+        """Poll an Inspect evaluation and download its unparsed result archive."""
+        for event in LlmBehaviorEval._check_run_by_id(run_id, max_retries=max_retries):
+            state = get_state(event, ("state",))
+            if state in {
+                RunStatus.FAILURE.value,
+                RunStatus.REJECTED.value,
+                RunStatus.REVOKED.value,
+            }:
+                handle_run_failure(
+                    event,
+                    error_cls=HirundoExternalEvalError,
+                    run_label="external evaluation",
+                )
+            if state == RunStatus.SUCCESS.value:
+                result_url = event.result
+                if not isinstance(result_url, str) or not result_url:
+                    raise HirundoExternalEvalError(
+                        "External evaluation completed without a results URL."
+                    )
+                return download_external_eval_zip(run_id, result_url)
+        raise HirundoExternalEvalError(
+            "External evaluation did not reach a terminal state"
+        )

@@ -23,11 +23,13 @@ from .dataset_qa import (
 )
 from .dataset_qa_results import DatasetQAResults
 from .external_eval import (
+    CanonicalTaskReference,
     ExternalEval,
     ExternalEvalCatalog,
     ExternalEvalCatalogBenchmark,
     ExternalEvalCatalogSource,
     ExternalEvalCatalogTask,
+    ExternalEvalLaunchResponse,
     ExternalEvalRunInfo,
     HirundoExternalEvalError,
 )
@@ -55,7 +57,7 @@ from .llm_behavior_eval import (
     ModelOrRun,
     PresetType,
 )
-from .llm_behavior_eval_results import LlmBehaviorEvalResults
+from .llm_behavior_eval_results import ExternalEvalResults, LlmBehaviorEvalResults
 from .llm_bias_type import BBQBiasType, UnqoverBiasType
 from .storage import (
     StorageConfig,
@@ -104,7 +106,10 @@ __all__ = [
     "ExternalEvalCatalogBenchmark",
     "ExternalEvalCatalogSource",
     "ExternalEvalCatalogTask",
+    "ExternalEvalLaunchResponse",
     "ExternalEvalRunInfo",
+    "ExternalEvalResults",
+    "CanonicalTaskReference",
     "JudgeModel",
     "LlmBehaviorEval",
     "LlmBehaviorEvalResults",
