@@ -54,13 +54,13 @@ def test_refusal_run_rejects_nonempty_target_utilities() -> None:
         )
 
 
-def test_refusal_launch_payload_omits_target_utilities() -> None:
+def test_refusal_launch_payload_includes_empty_target_utilities() -> None:
     payload = LlmUnlearningRun._build_launch_payload(
         LlmRunInfo(target_behaviors=[RefusalBehavior()])
     )
 
     assert payload["target_behaviors"] == [{"type": "REFUSAL"}]
-    assert "target_utilities" not in payload
+    assert payload["target_utilities"] == []
 
 
 @pytest.mark.parametrize(

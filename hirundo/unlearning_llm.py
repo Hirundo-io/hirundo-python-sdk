@@ -363,16 +363,13 @@ class LlmUnlearningRun:
             A JSON-serializable payload derived from
             `run_info.model_dump(mode="json")`. Bias targets include the
             backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
+            Refusal targets retain their validated empty `target_utilities`
+            field for the API request schema.
         """
         payload = run_info.model_dump(mode="json")
         for target_behavior in payload["target_behaviors"]:
             if target_behavior["type"] == "BIAS":
                 target_behavior["bias_type"] = BBQBiasType.ALL.value
-        if any(
-            target_behavior["type"] == "REFUSAL"
-            for target_behavior in payload["target_behaviors"]
-        ):
-            payload.pop("target_utilities", None)
         return payload
 
     @staticmethod
