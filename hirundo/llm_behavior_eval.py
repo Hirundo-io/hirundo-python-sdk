@@ -68,7 +68,6 @@ class EvalRunInfo(BaseModel):
     name: str | None = None
     model_id: int | None = None
     source_run_id: str | None = None
-    file_path: str | None = None
     preset_type: PresetType | None = None
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
@@ -122,7 +121,6 @@ class EvalRunRecord(BaseModel):
     model: OutputLlm | None
     source_run_id: str | None
     source_run: OutputUnlearningLlmRun | None
-    file_path: str | None
     preset_type: PresetType | None
     bias_type: BBQBiasType | UnqoverBiasType | None
     judge_model: JudgeModel | None
@@ -184,7 +182,6 @@ class LlmBehaviorEval:
             model=model,
             source_run_id=response_payload.get("source_run_id"),
             source_run=source_run,
-            file_path=response_payload.get("file_path"),
             preset_type=response_payload.get("preset_type"),
             bias_type=response_payload.get("bias_type"),
             judge_model=judge_model,
