@@ -192,3 +192,28 @@ def test_download_external_eval_zip_populates_summary_brief(
     )
 
     assert results.summary_brief is not None
+
+
+def test_download_zip_to_cache_removes_partial_download_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(
+        "hirundo.unzip.requests.get",
+        lambda *args, **kwargs: _FakeStreamingResponse(b"partial archive"),
+    )
+    monkeypatch.setattr(
+        "hirundo.unzip._stream_download_to_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("download failed")),
+    )
+
+    with pytest.raises(OSError, match="download failed"):
+        unzip._download_zip_to_cache(
+            "test-run-id",
+            "https://example.com/results.zip",
+            "llm-behavior-eval",
+        )
+
+    assert not (tmp_path / ".hirundo" / "cache" / "test-run-id.zip").exists()
+    assert not list((tmp_path / ".hirundo" / "cache").glob("*.part"))

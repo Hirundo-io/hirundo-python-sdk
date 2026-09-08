@@ -36,4 +36,4 @@ class ExternalEvalResults(BaseModel, typing.Generic[T]):
     """The path to the cached zip file of the results."""
 
     summary_brief: T
-    """A polars or pandas DataFrame containing the Inspect summary CSV."""
+    """The Inspect summary DataFrame, or None when no dataframe package is installed."""
