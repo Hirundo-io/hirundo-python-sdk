@@ -14,6 +14,7 @@ Submodules
    hirundo.dataset_enum
    hirundo.dataset_qa
    hirundo.dataset_qa_results
+   hirundo.external_eval
    hirundo.git
    hirundo.labeling
    hirundo.logger
