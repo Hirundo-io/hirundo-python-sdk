@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator
 from typing import Annotated, Literal, overload
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from hirundo._env import API_HOST, EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS
 from hirundo._headers import get_headers
@@ -47,9 +47,11 @@ class ExternalEvalRunInfo(BaseModel):
     task_ids: list[CanonicalTaskReference] = Field(min_length=1)
     sample_limit: int | None = Field(default=None, gt=0)
 
-    def model_post_init(self, __context: object) -> None:
+    @model_validator(mode="after")
+    def _validate_unique_task_ids(self) -> "ExternalEvalRunInfo":
         if len(self.task_ids) != len(set(self.task_ids)):
             raise ValueError("task_ids must be unique")
+        return self
 
     def validate_source(self, model_or_run: ModelOrRun) -> None:
         """Ensure the selected endpoint has exactly its required source ID."""
@@ -196,7 +198,9 @@ class ExternalEval:
         ExternalEval._validate_run_id(run_id)
         try:
             for event in LlmBehaviorEval._check_run_by_id(
-                run_id, max_retries=max_retries
+                run_id,
+                max_retries=max_retries,
+                stop_on_manual_approval=stop_on_manual_approval,
             ):
                 state = get_state(event, ("state",))
                 if state in {
@@ -220,9 +224,6 @@ class ExternalEval:
                 if state == RunStatus.AWAITING_MANUAL_APPROVAL.value:
                     if stop_on_manual_approval:
                         return None
-                    raise HirundoExternalEvalError(
-                        "External evaluation is awaiting manual approval."
-                    )
         except HirundoLlmBehaviorEvalError as error:
             raise HirundoExternalEvalError(str(error)) from error
         raise HirundoExternalEvalError(

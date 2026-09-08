@@ -13,6 +13,7 @@ from hirundo import (
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
 from hirundo.llm_behavior_eval import HirundoLlmBehaviorEvalError
+from pydantic import ValidationError
 from requests import HTTPError
 
 
@@ -139,7 +140,7 @@ def test_external_eval_http_errors_are_raised(
 
 
 def test_external_eval_run_info_rejects_duplicate_tasks() -> None:
-    with pytest.raises(ValueError, match="task_ids must be unique"):
+    with pytest.raises(ValidationError, match="task_ids must be unique"):
         ExternalEvalRunInfo(
             model_id=123,
             task_ids=["inspect_evals/aime25", "inspect_evals/aime25"],

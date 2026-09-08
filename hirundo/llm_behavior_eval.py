@@ -1,4 +1,6 @@
+import asyncio
 import datetime
+import time
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
@@ -35,6 +37,7 @@ logger = get_logger(__name__)
 
 
 STATUS_TO_TEXT_MAP = build_status_text_map("LLM behavior eval")
+RECONNECT_DELAY_SECONDS = 1.0
 
 
 class HirundoLlmBehaviorEvalError(HirundoError):
@@ -205,9 +208,8 @@ class LlmBehaviorEval:
             model=model,
             source_run_id=response_payload.get("source_run_id"),
             source_run=source_run,
-            framework=response_payload.get(
-                "framework", EvalFramework.LLM_BEHAVIOR_EVAL
-            ),
+            framework=response_payload.get("framework")
+            or EvalFramework.LLM_BEHAVIOR_EVAL,
             preset_type=response_payload.get("preset_type"),
             bias_type=response_payload.get("bias_type"),
             task_ids=response_payload.get("task_ids"),
@@ -405,7 +407,10 @@ class LlmBehaviorEval:
 
     @staticmethod
     def _check_run_by_id(
-        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+        run_id: str,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        stop_on_manual_approval: bool = False,
     ) -> Generator[SseRunEventData, None, None]:
         retry_count = 0
         while True:
@@ -433,6 +438,14 @@ class LlmBehaviorEval:
                 RunStatus.AWAITING_MANUAL_APPROVAL.value,
             }:
                 retry_count += 1
+                time.sleep(RECONNECT_DELAY_SECONDS)
+                continue
+            if (
+                last_state == RunStatus.AWAITING_MANUAL_APPROVAL.value
+                and not stop_on_manual_approval
+            ):
+                retry_count += 1
+                time.sleep(RECONNECT_DELAY_SECONDS)
                 continue
             return
 
@@ -474,7 +487,9 @@ class LlmBehaviorEval:
         logger.debug("Checking run with ID: %s", run_id)
         with logging_redirect_tqdm():
             progress_bar = tqdm(total=100.0)
-            for iteration in LlmBehaviorEval._check_run_by_id(run_id):
+            for iteration in LlmBehaviorEval._check_run_by_id(
+                run_id, stop_on_manual_approval=stop_on_manual_approval
+            ):
                 state = get_state(iteration, ("state",))
                 if state in STATUS_TO_PROGRESS_MAP:
                     progress_bar.set_description(STATUS_TO_TEXT_MAP[state])
@@ -596,6 +611,7 @@ class LlmBehaviorEval:
             if last_state in terminal_states:
                 return
             retry_count += 1
+            await asyncio.sleep(RECONNECT_DELAY_SECONDS)
         raise HirundoLlmBehaviorEvalError("Max retries reached")
 
     async def acheck_run(self) -> AsyncGenerator[SseRunEventData, None]:

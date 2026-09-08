@@ -143,6 +143,26 @@ def test_parse_legacy_evaluation_run_defaults_framework() -> None:
     assert run_record.framework is EvalFramework.LLM_BEHAVIOR_EVAL
 
 
+def test_parse_legacy_evaluation_run_defaults_null_framework() -> None:
+    run_record = LlmBehaviorEval._parse_eval_run_record(
+        {
+            "id": 1,
+            "name": "Legacy evaluation",
+            "model_id": None,
+            "model": None,
+            "source_run_id": None,
+            "source_run": None,
+            "framework": None,
+            "run_id": "eval-run-id",
+            "mlflow_run_id": None,
+            "status": "SUCCESS",
+            "created_at": "2026-09-08T00:00:00Z",
+        }
+    )
+
+    assert run_record.framework is EvalFramework.LLM_BEHAVIOR_EVAL
+
+
 def test_check_run_reconnects_after_retry_event(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -177,7 +197,52 @@ def test_check_run_reconnects_after_retry_event(
         lambda *args, **kwargs: iter(next(event_streams)),
     )
     monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.llm_behavior_eval.time.sleep", lambda _: None)
 
     events = list(LlmBehaviorEval._check_run_by_id("eval-run-id"))
 
     assert [event.state for event in events] == [RunStatus.RETRY, RunStatus.SUCCESS]
+
+
+def test_check_run_reconnects_after_manual_approval_when_not_stopping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class SseEvent:
+        event = ""
+
+        def __init__(self, state: RunStatus):
+            self.data = (
+                '{"data":{"id":"eval-run-id","state":"'
+                + state.value
+                + '","result":null}}'
+            )
+
+    class Client:
+        def __enter__(self) -> "Client":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    event_streams = iter(
+        [
+            [SseEvent(RunStatus.AWAITING_MANUAL_APPROVAL)],
+            [SseEvent(RunStatus.SUCCESS)],
+        ]
+    )
+    monkeypatch.setattr(
+        "hirundo.llm_behavior_eval.httpx.Client", lambda **kwargs: Client()
+    )
+    monkeypatch.setattr(
+        "hirundo.llm_behavior_eval.iter_sse_retrying",
+        lambda *args, **kwargs: iter(next(event_streams)),
+    )
+    monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.llm_behavior_eval.time.sleep", lambda _: None)
+
+    events = list(LlmBehaviorEval._check_run_by_id("eval-run-id"))
+
+    assert [event.state for event in events] == [
+        RunStatus.AWAITING_MANUAL_APPROVAL,
+        RunStatus.SUCCESS,
+    ]

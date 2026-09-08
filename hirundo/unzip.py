@@ -189,6 +189,10 @@ def _download_zip_to_cache(
             raise_for_status_with_reason(response)
             _stream_download_to_file(response, temporary_file_path)
         temporary_file_path.replace(zip_file_path)
+        if cache_key:
+            for stale_zip_path in cache_dir.glob(f"{run_id}-*.zip"):
+                if stale_zip_path != zip_file_path:
+                    stale_zip_path.unlink(missing_ok=True)
     except Exception:
         temporary_file_path.unlink(missing_ok=True)
         raise
