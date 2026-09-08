@@ -227,6 +227,15 @@ class LlmBehaviorEval:
         else:
             model_or_run_value = model_or_run
 
+        if model_or_run_value is ModelOrRun.MODEL and run_info.model_id is None:
+            raise ValueError(
+                "`model_id` is required when launching an evaluation for a model"
+            )
+        if model_or_run_value is ModelOrRun.RUN and run_info.source_run_id is None:
+            raise ValueError(
+                "`source_run_id` is required when launching an evaluation for a run"
+            )
+
         response = requests.post(
             f"{API_HOST}/llm-behavior-eval/run/{model_or_run_value.value}",
             json=run_info.model_dump(mode="json"),

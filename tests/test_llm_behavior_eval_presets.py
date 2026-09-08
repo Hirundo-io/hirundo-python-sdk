@@ -33,10 +33,10 @@ def test_refusal_preset_launch_serializes_platform_contract(
     model_id: int | None,
     source_run_id: str | None,
 ) -> None:
-    request_payloads: list[dict[str, Any]] = []
+    requests_made: list[tuple[str, dict[str, Any]]] = []
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_payloads.append(kwargs["json"])
+    def fake_post(url: str, **kwargs: Any) -> _Response:
+        requests_made.append((url, kwargs["json"]))
         return _Response({"run_id": "eval-run-id"})
 
     monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
@@ -50,10 +50,36 @@ def test_refusal_preset_launch_serializes_platform_contract(
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
 
     assert run_id == "eval-run-id"
-    assert request_payloads[0]["preset_type"] == preset_type.value
-    assert request_payloads[0]["model_id"] == model_id
-    assert request_payloads[0]["source_run_id"] == source_run_id
-    assert request_payloads[0]["bias_type"] is None
+    request_url, request_payload = requests_made[0]
+    assert request_url.endswith(f"/llm-behavior-eval/run/{model_or_run.value}")
+    assert request_payload["preset_type"] == preset_type.value
+    assert request_payload["model_id"] == model_id
+    assert request_payload["source_run_id"] == source_run_id
+    assert request_payload["bias_type"] is None
+
+
+@pytest.mark.parametrize(
+    ("model_or_run", "run_info", "error_message"),
+    [
+        (
+            ModelOrRun.MODEL,
+            EvalRunInfo(source_run_id="run-12"),
+            "`model_id` is required",
+        ),
+        (
+            ModelOrRun.RUN,
+            EvalRunInfo(model_id=12),
+            "`source_run_id` is required",
+        ),
+    ],
+)
+def test_launch_eval_run_requires_identifier_for_selected_route(
+    model_or_run: ModelOrRun,
+    run_info: EvalRunInfo,
+    error_message: str,
+) -> None:
+    with pytest.raises(ValueError, match=error_message):
+        LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
 
 
 @pytest.mark.parametrize("preset_type", [PresetType.XSTEST, PresetType.OR_BENCH])
