@@ -425,7 +425,13 @@ class LlmBehaviorEval:
                     last_payload = payload
                     yield payload
             last_state = get_state(last_payload, ("state",)) if last_payload else None
-            if last_payload is None or last_state == RunStatus.PENDING.value:
+            if last_state not in {
+                RunStatus.SUCCESS.value,
+                RunStatus.FAILURE.value,
+                RunStatus.REJECTED.value,
+                RunStatus.REVOKED.value,
+                RunStatus.AWAITING_MANUAL_APPROVAL.value,
+            }:
                 retry_count += 1
                 continue
             return

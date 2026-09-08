@@ -12,6 +12,7 @@ from hirundo import (
 )
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
+from requests import HTTPError
 
 
 class _Response:
@@ -97,6 +98,45 @@ def test_get_external_eval_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
     assert catalog.benchmarks[0].tasks[0].id == "inspect_evals/aime25"
 
 
+@pytest.mark.parametrize(
+    "request_name",
+    [
+        "get",
+        "post",
+    ],
+)
+def test_external_eval_http_errors_are_raised(
+    monkeypatch: pytest.MonkeyPatch,
+    request_name: str,
+) -> None:
+    class ErrorResponse:
+        status_code = 500
+
+        def json(self) -> dict[str, str]:
+            return {"reason": "service unavailable"}
+
+        def raise_for_status(self) -> None:
+            raise HTTPError("service unavailable")
+
+    monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    monkeypatch.setattr(
+        f"hirundo.external_eval.requests.{request_name}",
+        lambda *args, **kwargs: ErrorResponse(),
+    )
+
+    with pytest.raises(HTTPError, match="service unavailable"):
+        if request_name == "get":
+            ExternalEval.get_catalog()
+        else:
+            ExternalEval.launch_eval_run(
+                ModelOrRun.MODEL,
+                ExternalEvalRunInfo(
+                    model_id=123,
+                    task_ids=["inspect_evals/aime25"],
+                ),
+            )
+
+
 def test_external_eval_run_info_rejects_duplicate_tasks() -> None:
     with pytest.raises(ValueError, match="task_ids must be unique"):
         ExternalEvalRunInfo(
@@ -155,6 +195,22 @@ def test_launch_external_eval_run_requires_run_id(
         )
 
 
+def test_launch_external_eval_run_rejects_empty_run_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    monkeypatch.setattr(
+        "hirundo.external_eval.requests.post",
+        lambda *args, **kwargs: _Response({"message": "Run launched", "run_id": ""}),
+    )
+
+    with pytest.raises(HirundoExternalEvalError, match="run ID"):
+        ExternalEval.launch_eval_run(
+            ModelOrRun.MODEL,
+            ExternalEvalRunInfo(model_id=123, task_ids=["inspect_evals/aime25"]),
+        )
+
+
 def test_canonical_task_reference_is_public_type() -> None:
     assert CanonicalTaskReference is not None
 
@@ -187,6 +243,37 @@ def test_check_external_eval_run_downloads_unparsed_archive(
     result = ExternalEval.check_run_by_id("inspect-run-id")
 
     assert result.cached_zip_path == result_path
+
+
+@pytest.mark.parametrize("run_id", ["", "../inspect-run-id", "/unsafe/inspect-run-id"])
+def test_check_external_eval_run_rejects_unsafe_run_ids(run_id: str) -> None:
+    with pytest.raises(HirundoExternalEvalError, match="filename segments"):
+        ExternalEval.check_run_by_id(run_id)
+
+
+def test_check_external_eval_run_stops_for_manual_approval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "hirundo.external_eval.LlmBehaviorEval._check_run_by_id",
+        lambda *args, **kwargs: iter(
+            [
+                SseRunEventData(
+                    id="inspect-run-id",
+                    state=RunStatus.AWAITING_MANUAL_APPROVAL,
+                    result=None,
+                )
+            ]
+        ),
+    )
+
+    assert (
+        ExternalEval.check_run_by_id(
+            "inspect-run-id",
+            stop_on_manual_approval=True,
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio

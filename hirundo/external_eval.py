@@ -1,7 +1,7 @@
 """Public client models and methods for server-owned Inspect evaluations."""
 
 from collections.abc import AsyncGenerator
-from typing import Annotated, Literal
+from typing import Annotated, Literal, overload
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -26,6 +26,8 @@ CanonicalTaskReference = Annotated[
     str,
     StringConstraints(pattern=r"^inspect_evals/[A-Za-z0-9_]+$"),
 ]
+
+NonEmptyRunId = Annotated[str, StringConstraints(min_length=1)]
 
 
 class ExternalEvalRunInfo(BaseModel):
@@ -97,7 +99,7 @@ class ExternalEvalLaunchResponse(BaseModel):
     """Server confirmation returned after queuing an Inspect evaluation."""
 
     message: str
-    run_id: str
+    run_id: NonEmptyRunId
 
 
 class ExternalEval:
@@ -137,10 +139,39 @@ class ExternalEval:
             ) from error
 
     @staticmethod
+    def _validate_run_id(run_id: str) -> None:
+        if not run_id or run_id in {".", ".."} or "/" in run_id or "\\" in run_id:
+            raise HirundoExternalEvalError(
+                "External evaluation run IDs must be non-empty filename segments."
+            )
+
+    @staticmethod
+    @overload
     def check_run_by_id(
-        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
-    ) -> ExternalEvalResults:
+        run_id: str,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        stop_on_manual_approval: Literal[True],
+    ) -> ExternalEvalResults | None: ...
+
+    @staticmethod
+    @overload
+    def check_run_by_id(
+        run_id: str,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        stop_on_manual_approval: Literal[False] = False,
+    ) -> ExternalEvalResults: ...
+
+    @staticmethod
+    def check_run_by_id(
+        run_id: str,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        stop_on_manual_approval: bool = False,
+    ) -> ExternalEvalResults | None:
         """Poll an Inspect evaluation and download its unparsed result archive."""
+        ExternalEval._validate_run_id(run_id)
         for event in LlmBehaviorEval._check_run_by_id(run_id, max_retries=max_retries):
             state = get_state(event, ("state",))
             if state in {
@@ -160,6 +191,12 @@ class ExternalEval:
                         "External evaluation completed without a results URL."
                     )
                 return download_external_eval_zip(run_id, result_url)
+            if state == RunStatus.AWAITING_MANUAL_APPROVAL.value:
+                if stop_on_manual_approval:
+                    return None
+                raise HirundoExternalEvalError(
+                    "External evaluation is awaiting manual approval."
+                )
         raise HirundoExternalEvalError(
             "External evaluation did not reach a terminal state"
         )
@@ -172,5 +209,6 @@ class ExternalEval:
         failures. Consumers handle events as they arrive, including terminal
         states, and can await multiple runs concurrently.
         """
+        ExternalEval._validate_run_id(run_id)
         async for event in LlmBehaviorEval.acheck_run_by_id(run_id):
             yield event
