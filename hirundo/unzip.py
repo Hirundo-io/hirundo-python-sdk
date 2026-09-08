@@ -233,6 +233,7 @@ def download_and_extract_llm_behavior_eval_zip(
     run_id: str,
     zip_url: str,
     model_name: str | None = None,
+    response_model_folder: str | None = None,
 ) -> LlmBehaviorEvalResults[DataFrameType]:
     """
     Download and extract the LLM behavior evaluation results zip file.
@@ -241,6 +242,7 @@ def download_and_extract_llm_behavior_eval_zip(
         run_id: The ID of the LLM behavior eval run.
         zip_url: The URL of the zip file to download.
         model_name (optional): The full model name to resolve the folder within the zip.
+        response_model_folder (optional): The response directory name in the zip.
 
     Returns:
         The LLM behavior eval results object.
@@ -254,8 +256,14 @@ def download_and_extract_llm_behavior_eval_zip(
 
     summary_brief_df = None
     summary_full_df = None
-    if model_name:
-        model_folder = model_name.split("/")[-1]
+    model_folder = (
+        response_model_folder
+        if response_model_folder is not None
+        else model_name.split("/")[-1]
+        if model_name
+        else None
+    )
+    if model_folder:
         summary_brief_name = f"responses/{model_folder}/summary_brief.csv"
         summary_full_name = f"responses/{model_folder}/summary_full.csv"
 
