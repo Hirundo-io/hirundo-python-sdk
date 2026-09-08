@@ -1,8 +1,9 @@
 import os
 import re
 import sys
+from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, cast
 from urllib.parse import urlparse
 
 import typer
@@ -25,6 +26,13 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
 )
+
+
+class RunType(str, Enum):
+    LLM_UNLEARNING = "llm-unlearning"
+    LLM_EVALUATION = "llm-evaluation"
+    DATASET_QA = "dataset-qa"
+    EXTERNAL_EVALUATION = "external-evaluation"
 
 
 def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
@@ -191,50 +199,89 @@ def setup(
 @app.command("check-run", epilog=hirundo_epilog)
 def check_run(
     run_id: str,
+    run_type: Annotated[
+        RunType,
+        typer.Option("--run-type", "-t", help="Type of run to check."),
+    ] = RunType.LLM_UNLEARNING,
 ):
     """
     Check the status of a run.
     """
-    from hirundo.dataset_qa import QADataset
+    if run_type is RunType.LLM_UNLEARNING:
+        from hirundo.unlearning_llm import LlmUnlearningRun
 
-    results = QADataset.check_run_by_id(run_id)
-    print(f"Run results saved to {results.cached_zip_path}")
+        print(LlmUnlearningRun.check_run_by_id(run_id))
+    elif run_type is RunType.LLM_EVALUATION:
+        from hirundo.llm_behavior_eval import LlmBehaviorEval
+
+        results = LlmBehaviorEval.check_run_by_id(run_id)
+        print(f"Run results saved to {results.cached_zip_path}")
+    elif run_type is RunType.EXTERNAL_EVALUATION:
+        from hirundo.external_eval import ExternalEval
+
+        results = ExternalEval.check_run_by_id(run_id)
+        print(f"Run results saved to {results.cached_zip_path}")
+    else:
+        from hirundo.dataset_qa import QADataset
+
+        results = QADataset.check_run_by_id(run_id)
+        print(f"Run results saved to {results.cached_zip_path}")
 
 
 @app.command("list-runs", epilog=hirundo_epilog)
-def list_runs():
+def list_runs(
+    run_type: Annotated[
+        RunType,
+        typer.Option("--run-type", "-t", help="Type of runs to list."),
+    ] = RunType.LLM_UNLEARNING,
+):
     """
     List all runs available.
     """
-    from hirundo.dataset_qa import QADataset
+    if run_type is RunType.LLM_UNLEARNING:
+        from hirundo.unlearning_llm import LlmUnlearningRun
 
-    runs = QADataset.list_runs()
+        runs = LlmUnlearningRun.list()
+    elif run_type is RunType.LLM_EVALUATION:
+        from hirundo.llm_behavior_eval import LlmBehaviorEval
+
+        runs = LlmBehaviorEval.list_runs()
+    elif run_type is RunType.DATASET_QA:
+        from hirundo.dataset_qa import QADataset
+
+        runs = QADataset.list_runs()
+    else:
+        raise typer.BadParameter("External evaluations do not support listing runs.")
 
     console = Console()
     table = Table(
         title="Runs:",
         expand=True,
     )
-    cols = (
-        "Dataset name",
-        "Run ID",
-        "Status",
-        "Created At",
-        "Run Args",
-    )
+    cols = ["Name", "Run ID", "Status", "Created At"]
+    if run_type is RunType.DATASET_QA:
+        cols.append("Run Args")
     for col in cols:
         table.add_column(
             col,
             overflow="fold",
         )
     for run in runs:
-        table.add_row(
+        row = [
             str(run.name),
-            str(run.id),
+            str(run.run_id),
             str(run.status),
             run.created_at.isoformat(),
-            run.run_args.model_dump_json() if run.run_args else None,
-        )
+        ]
+        if run_type is RunType.DATASET_QA:
+            from hirundo.dataset_qa import DataQARunOut
+
+            dataset_qa_run = cast("DataQARunOut", run)
+            if hasattr(dataset_qa_run, "run_args") and dataset_qa_run.run_args:
+                row.append(dataset_qa_run.run_args.model_dump_json())
+            else:
+                row.append("")
+        table.add_row(*row)
     console.print(table)
 
 

@@ -2,10 +2,11 @@
 
 from collections.abc import AsyncGenerator
 from typing import Annotated, Literal, overload
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from hirundo._env import API_HOST
+from hirundo._env import API_HOST, EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
@@ -146,6 +147,18 @@ class ExternalEval:
             )
 
     @staticmethod
+    def _validate_result_url(result_url: str) -> None:
+        if not EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS:
+            return
+        parsed_url = urlparse(result_url)
+        result_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        if result_origin not in EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS:
+            raise HirundoExternalEvalError(
+                "External evaluation result URL is not in "
+                "HIRUNDO_EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS."
+            )
+
+    @staticmethod
     @overload
     def check_run_by_id(
         run_id: str,
@@ -190,6 +203,7 @@ class ExternalEval:
                     raise HirundoExternalEvalError(
                         "External evaluation completed without a results URL."
                     )
+                ExternalEval._validate_result_url(result_url)
                 return download_external_eval_zip(run_id, result_url)
             if state == RunStatus.AWAITING_MANUAL_APPROVAL.value:
                 if stop_on_manual_approval:
