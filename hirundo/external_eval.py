@@ -154,7 +154,12 @@ class ExternalEval:
     def _validate_result_url(result_url: str) -> None:
         if not EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS:
             return
-        parsed_url = urlparse(result_url)
+        try:
+            parsed_url = urlparse(result_url)
+        except ValueError as error:
+            raise HirundoExternalEvalError(
+                "External evaluation result URL is malformed."
+            ) from error
         result_origin = f"{parsed_url.scheme}://{parsed_url.netloc}"
         if result_origin not in EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS:
             raise HirundoExternalEvalError(

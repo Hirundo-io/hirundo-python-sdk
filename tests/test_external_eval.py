@@ -12,6 +12,7 @@ from hirundo import (
 )
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
+from hirundo.llm_behavior_eval import HirundoLlmBehaviorEvalError
 from requests import HTTPError
 
 
@@ -280,8 +281,9 @@ def test_check_external_eval_run_stops_for_manual_approval(
 async def test_acheck_external_eval_run_yields_status_events(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_acheck_run_by_id(run_id: str):
+    async def fake_acheck_run_by_id(run_id: str, *, max_retries: int):
         assert run_id == "inspect-run-id"
+        assert max_retries > 0
         yield SseRunEventData(
             id=run_id,
             state=RunStatus.PENDING,
@@ -304,3 +306,22 @@ async def test_acheck_external_eval_run_yields_status_events(
         RunStatus.PENDING,
         RunStatus.SUCCESS,
     ]
+
+
+@pytest.mark.asyncio
+async def test_acheck_external_eval_run_propagates_retry_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def failing_acheck_run_by_id(*args: object, **kwargs: object):
+        assert kwargs["max_retries"] == 3
+        raise HirundoLlmBehaviorEvalError("Max retries reached")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(
+        "hirundo.external_eval.LlmBehaviorEval.acheck_run_by_id",
+        failing_acheck_run_by_id,
+    )
+
+    with pytest.raises(HirundoExternalEvalError, match="Max retries reached"):
+        async for _ in ExternalEval.acheck_run_by_id("inspect-run-id", max_retries=3):
+            pass

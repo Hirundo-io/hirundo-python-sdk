@@ -251,7 +251,13 @@ def list_runs(
 
         runs = QADataset.list_runs()
     else:
-        raise typer.BadParameter("External evaluations do not support listing runs.")
+        from hirundo.llm_behavior_eval import EvalFramework, LlmBehaviorEval
+
+        runs = [
+            run
+            for run in LlmBehaviorEval.list_runs()
+            if run.framework is EvalFramework.INSPECT_EVALS
+        ]
 
     console = Console()
     table = Table(
