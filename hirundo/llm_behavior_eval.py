@@ -557,7 +557,9 @@ class LlmBehaviorEval:
         return self.check_run_by_id(self.run_id, stop_on_manual_approval)
 
     @staticmethod
-    async def acheck_run_by_id(run_id: str) -> AsyncGenerator[SseRunEventData, None]:
+    async def acheck_run_by_id(
+        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+    ) -> AsyncGenerator[SseRunEventData, None]:
         """
         Async version of :func:`check_run_by_id`
 
@@ -566,19 +568,35 @@ class LlmBehaviorEval:
         This generator will produce values to show progress of the run.
         """
         logger.debug("Checking run with ID: %s", run_id)
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
-            async_iterator = await aiter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/llm-behavior-eval/run/{run_id}",
-                headers=get_headers(),
-            )
-            async for sse_event in async_iterator:
-                if sse_event.event == "ping":
-                    continue
-                yield _parse_sse_payload(sse_event.data)
+        retry_count = 0
+        terminal_states = {
+            RunStatus.SUCCESS,
+            RunStatus.FAILURE,
+            RunStatus.REJECTED,
+            RunStatus.REVOKED,
+            RunStatus.AWAITING_MANUAL_APPROVAL,
+        }
+        while retry_count <= max_retries:
+            last_state = None
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(None, connect=5.0)
+            ) as client:
+                async_iterator = await aiter_sse_retrying(
+                    client,
+                    "GET",
+                    f"{API_HOST}/llm-behavior-eval/run/{run_id}",
+                    headers=get_headers(),
+                )
+                async for sse_event in async_iterator:
+                    if sse_event.event == "ping":
+                        continue
+                    payload = _parse_sse_payload(sse_event.data)
+                    last_state = payload.state
+                    yield payload
+            if last_state in terminal_states:
+                return
+            retry_count += 1
+        raise HirundoLlmBehaviorEvalError("Max retries reached")
 
     async def acheck_run(self) -> AsyncGenerator[SseRunEventData, None]:
         """

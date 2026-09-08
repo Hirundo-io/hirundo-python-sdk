@@ -14,7 +14,11 @@ from hirundo._run_checking import DEFAULT_MAX_RETRIES, get_state, handle_run_fai
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
-from hirundo.llm_behavior_eval import LlmBehaviorEval, ModelOrRun
+from hirundo.llm_behavior_eval import (
+    HirundoLlmBehaviorEvalError,
+    LlmBehaviorEval,
+    ModelOrRun,
+)
 from hirundo.llm_behavior_eval_results import ExternalEvalResults
 from hirundo.unzip import download_external_eval_zip
 
@@ -185,38 +189,45 @@ class ExternalEval:
     ) -> ExternalEvalResults | None:
         """Poll an Inspect evaluation and download its unparsed result archive."""
         ExternalEval._validate_run_id(run_id)
-        for event in LlmBehaviorEval._check_run_by_id(run_id, max_retries=max_retries):
-            state = get_state(event, ("state",))
-            if state in {
-                RunStatus.FAILURE.value,
-                RunStatus.REJECTED.value,
-                RunStatus.REVOKED.value,
-            }:
-                handle_run_failure(
-                    event,
-                    error_cls=HirundoExternalEvalError,
-                    run_label="external evaluation",
-                )
-            if state == RunStatus.SUCCESS.value:
-                result_url = event.result
-                if not isinstance(result_url, str) or not result_url:
-                    raise HirundoExternalEvalError(
-                        "External evaluation completed without a results URL."
+        try:
+            for event in LlmBehaviorEval._check_run_by_id(
+                run_id, max_retries=max_retries
+            ):
+                state = get_state(event, ("state",))
+                if state in {
+                    RunStatus.FAILURE.value,
+                    RunStatus.REJECTED.value,
+                    RunStatus.REVOKED.value,
+                }:
+                    handle_run_failure(
+                        event,
+                        error_cls=HirundoExternalEvalError,
+                        run_label="external evaluation",
                     )
-                ExternalEval._validate_result_url(result_url)
-                return download_external_eval_zip(run_id, result_url)
-            if state == RunStatus.AWAITING_MANUAL_APPROVAL.value:
-                if stop_on_manual_approval:
-                    return None
-                raise HirundoExternalEvalError(
-                    "External evaluation is awaiting manual approval."
-                )
+                if state == RunStatus.SUCCESS.value:
+                    result_url = event.result
+                    if not isinstance(result_url, str) or not result_url:
+                        raise HirundoExternalEvalError(
+                            "External evaluation completed without a results URL."
+                        )
+                    ExternalEval._validate_result_url(result_url)
+                    return download_external_eval_zip(run_id, result_url)
+                if state == RunStatus.AWAITING_MANUAL_APPROVAL.value:
+                    if stop_on_manual_approval:
+                        return None
+                    raise HirundoExternalEvalError(
+                        "External evaluation is awaiting manual approval."
+                    )
+        except HirundoLlmBehaviorEvalError as error:
+            raise HirundoExternalEvalError(str(error)) from error
         raise HirundoExternalEvalError(
             "External evaluation did not reach a terminal state"
         )
 
     @staticmethod
-    async def acheck_run_by_id(run_id: str) -> AsyncGenerator[SseRunEventData, None]:
+    async def acheck_run_by_id(
+        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+    ) -> AsyncGenerator[SseRunEventData, None]:
         """Yield status events for an external evaluation without blocking.
 
         This method does not download result archives or raise terminal run
@@ -224,5 +235,10 @@ class ExternalEval:
         states, and can await multiple runs concurrently.
         """
         ExternalEval._validate_run_id(run_id)
-        async for event in LlmBehaviorEval.acheck_run_by_id(run_id):
-            yield event
+        try:
+            async for event in LlmBehaviorEval.acheck_run_by_id(
+                run_id, max_retries=max_retries
+            ):
+                yield event
+        except HirundoLlmBehaviorEvalError as error:
+            raise HirundoExternalEvalError(str(error)) from error
