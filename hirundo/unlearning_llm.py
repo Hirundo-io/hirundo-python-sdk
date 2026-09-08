@@ -379,8 +379,9 @@ class LlmUnlearningRun:
     def get_capabilities() -> LlmUnlearningCapabilities:
         """Retrieve LLM-unlearning features supported by the configured API.
 
-        Sends a GET request to `/config/config.json`. HTTP failures are raised
-        through the SDK's standard HTTP error handling.
+        Sends an unauthenticated GET request to the public `/config/config.json`
+        endpoint. HTTP failures are raised through the SDK's standard HTTP error
+        handling.
 
         Returns:
             An `LlmUnlearningCapabilities` model. Omitted capability fields
@@ -388,7 +389,6 @@ class LlmUnlearningRun:
         """
         config_response = requests.get(
             f"{API_HOST}/config/config.json",
-            headers=get_headers(),
             timeout=READ_TIMEOUT,
         )
         raise_for_status_with_reason(config_response)

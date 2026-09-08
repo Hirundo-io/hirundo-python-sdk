@@ -76,14 +76,21 @@ def test_refusal_capability_uses_deployment_config(
     config_payload: dict[str, object],
     expected_enabled: bool,
 ) -> None:
+    request_arguments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def get_config(*args: Any, **kwargs: Any) -> Response:
+        request_arguments.append((args, kwargs))
+        return _response(200, config_payload)
+
     monkeypatch.setattr(
         "hirundo.unlearning_llm.requests.get",
-        lambda *args, **kwargs: _response(200, config_payload),
+        get_config,
     )
 
     capabilities = LlmUnlearningRun.get_capabilities()
 
     assert capabilities.refusal_unlearning_enabled is expected_enabled
+    assert "headers" not in request_arguments[0][1]
 
 
 def test_older_server_config_error_uses_typed_http_path(
