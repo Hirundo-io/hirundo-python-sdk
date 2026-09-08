@@ -1,5 +1,5 @@
 .. meta::
-   :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
+   :http-equiv=Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
 
 hirundo
 =======
