@@ -178,9 +178,42 @@ def test_check_external_eval_run_downloads_unparsed_archive(
     )
     monkeypatch.setattr(
         "hirundo.external_eval.download_external_eval_zip",
-        lambda run_id, zip_url: ExternalEvalResults(cached_zip_path=result_path),
+        lambda run_id, zip_url: ExternalEvalResults(
+            cached_zip_path=result_path,
+            summary_brief=None,
+        ),
     )
 
     result = ExternalEval.check_run_by_id("inspect-run-id")
 
     assert result.cached_zip_path == result_path
+
+
+@pytest.mark.asyncio
+async def test_acheck_external_eval_run_yields_status_events(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_acheck_run_by_id(run_id: str):
+        assert run_id == "inspect-run-id"
+        yield SseRunEventData(
+            id=run_id,
+            state=RunStatus.PENDING,
+            result=None,
+        )
+        yield SseRunEventData(
+            id=run_id,
+            state=RunStatus.SUCCESS,
+            result="https://example.com/inspect.zip",
+        )
+
+    monkeypatch.setattr(
+        "hirundo.external_eval.LlmBehaviorEval.acheck_run_by_id",
+        fake_acheck_run_by_id,
+    )
+
+    events = [event async for event in ExternalEval.acheck_run_by_id("inspect-run-id")]
+
+    assert [event.state for event in events] == [
+        RunStatus.PENDING,
+        RunStatus.SUCCESS,
+    ]

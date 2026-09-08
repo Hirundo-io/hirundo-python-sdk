@@ -289,11 +289,21 @@ def download_and_extract_llm_behavior_eval_zip(
 
 
 def download_external_eval_zip(run_id: str, zip_url: str) -> ExternalEvalResults:
-    """Download an Inspect result archive without assuming its internal layout."""
+    """Download an Inspect result archive and load its summary metrics."""
     zip_file_path = _download_zip_to_cache(run_id, zip_url, "llm-behavior-eval")
     logger.info(
         "Successfully downloaded the external evaluation result zip for run ID %s to %s",
         run_id,
         zip_file_path,
     )
-    return ExternalEvalResults(cached_zip_path=zip_file_path)
+    summary_brief_name = "responses/summary_brief.csv"
+    with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+        if summary_brief_name not in zip_file.namelist():
+            raise ValueError(
+                f"Missing {summary_brief_name} in external evaluation zip for run {run_id}"
+            )
+
+    return ExternalEvalResults[DataFrameType](
+        cached_zip_path=zip_file_path,
+        summary_brief=load_from_zip(zip_file_path, summary_brief_name),
+    )

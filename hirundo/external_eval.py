@@ -1,5 +1,6 @@
 """Public client models and methods for server-owned Inspect evaluations."""
 
+from collections.abc import AsyncGenerator
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -10,6 +11,7 @@ from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._run_checking import DEFAULT_MAX_RETRIES, get_state, handle_run_failure
 from hirundo._run_status import RunStatus
+from hirundo._sse_event_data import SseRunEventData
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.llm_behavior_eval import LlmBehaviorEval, ModelOrRun
 from hirundo.llm_behavior_eval_results import ExternalEvalResults
@@ -161,3 +163,14 @@ class ExternalEval:
         raise HirundoExternalEvalError(
             "External evaluation did not reach a terminal state"
         )
+
+    @staticmethod
+    async def acheck_run_by_id(run_id: str) -> AsyncGenerator[SseRunEventData, None]:
+        """Yield status events for an external evaluation without blocking.
+
+        This method does not download result archives or raise terminal run
+        failures. Consumers handle events as they arrive, including terminal
+        states, and can await multiple runs concurrently.
+        """
+        async for event in LlmBehaviorEval.acheck_run_by_id(run_id):
+            yield event

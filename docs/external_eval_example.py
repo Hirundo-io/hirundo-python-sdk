@@ -18,3 +18,4 @@ launch = ExternalEval.launch_eval_run(
 # Poll and download the framework-neutral Inspect archive.
 result = ExternalEval.check_run_by_id(launch.run_id)
 print(result.cached_zip_path)
+print(result.summary_brief)
