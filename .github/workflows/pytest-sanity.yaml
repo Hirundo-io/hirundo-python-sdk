@@ -39,7 +39,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
       - name: Run unit tests without network
-        run: uv run pytest -m unit --block-network
+        run: >-
+          uv run pytest -m unit --block-network
+          --allowed-hosts='^127\.0\.0\.1$'
       - name: Run localhost transport tests
         run: uv run pytest -m local_transport --block-network --allowed-hosts='^127\.0\.0\.1$'
       - name: Require live probe credentials
@@ -128,19 +130,22 @@ jobs:
           echo "RECORDING_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_ENV}"
       - name: Sanitize and manifest recordings
         env:
-          HTTP_RECORDING_SECRETS: |
-            ${{ secrets.API_KEY2 }}
-            ${{ secrets.GCP_CREDENTIALS }}
-            ${{ secrets.AWS_ACCESS_KEY }}
-            ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
+          RECORDING_API_KEY: ${{ secrets.API_KEY2 }}
+          RECORDING_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          RECORDING_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          RECORDING_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RECORDING_HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
         shell: bash
         run: |
           expires_at=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
           uv run python -m tests.recording.artifact_cli publish \
             "${RUNNER_TEMP}/raw-cassettes" \
             "${RUNNER_TEMP}/publish-cassettes" \
-            --secrets-env HTTP_RECORDING_SECRETS \
+            --secrets-env RECORDING_API_KEY \
+            --secrets-env RECORDING_GCP_CREDENTIALS \
+            --secrets-env RECORDING_AWS_ACCESS_KEY \
+            --secrets-env RECORDING_AWS_SECRET_ACCESS_KEY \
+            --secrets-env RECORDING_HUGGINGFACE_TOKEN \
             --sdk-sha "${GITHUB_SHA}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}" \

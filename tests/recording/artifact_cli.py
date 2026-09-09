@@ -31,12 +31,12 @@ PILOT_RECORD_NAME_PREFIX = "sdk-http-recording-"
 app = typer.Typer(add_completion=False)
 
 
-def _secrets(*, environment_name: str | None, secrets_file: Path | None) -> list[str]:
+def _secrets(*, environment_names: list[str], secrets_file: Path | None) -> list[str]:
     values: list[str] = []
-    if environment_name:
+    for environment_name in environment_names:
         environment_value = os.environ.get(environment_name)
         if environment_value:
-            values.extend(environment_value.splitlines())
+            values.append(environment_value)
     if secrets_file:
         values.extend(secrets_file.read_text(encoding="utf-8").splitlines())
     return [value for value in values if value]
@@ -237,8 +237,8 @@ def publish_cassettes(
         cassette_format="vcrpy-yaml-v1",
         interaction_count=interaction_count,
         artifact_bytes=sum(
-            len(sanitized_yaml.encode("utf-8"))
-            for _, sanitized_yaml in sanitized_documents
+            (publish_directory / relative_path).stat().st_size
+            for relative_path, _ in sanitized_documents
         ),
         cassette_checksums=checksums,
     )
@@ -306,7 +306,7 @@ def publish_command(
     expires_at: Annotated[str, typer.Option("--expires-at")],
     schema_digest: Annotated[str, typer.Option("--schema-digest")],
     tests: Annotated[list[str], typer.Option("--test")],
-    secrets_env: Annotated[str | None, typer.Option("--secrets-env")] = None,
+    secrets_env: Annotated[list[str] | None, typer.Option("--secrets-env")] = None,
     secrets_file: Annotated[Path | None, typer.Option("--secrets-file")] = None,
 ) -> None:
     """Sanitize raw cassettes and publish a provenance-bound artifact.
@@ -323,7 +323,7 @@ def publish_command(
         expires_at: UTC ISO 8601 artifact expiry time.
         schema_digest: SHA-256 digest of the API schema.
         tests: Pytest node IDs included in the recording job.
-        secrets_env: Environment variable containing newline-separated secrets.
+        secrets_env: Repeatable environment-variable name containing one secret.
         secrets_file: Optional file containing newline-separated secrets.
 
     Returns:
@@ -333,7 +333,7 @@ def publish_command(
         raw_directory=raw_directory,
         publish_directory=publish_directory,
         seeded_secrets=_secrets(
-            environment_name=secrets_env,
+            environment_names=secrets_env or [],
             secrets_file=secrets_file,
         ),
         sdk_sha=sdk_sha,

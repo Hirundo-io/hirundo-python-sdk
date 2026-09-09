@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 import yaml
-from tests.recording.artifact_cli import publish_cassettes, verify_cassettes
+from tests.recording.artifact_cli import _secrets, publish_cassettes, verify_cassettes
 from tests.recording.support import (
     Cassette,
     JsonValue,
@@ -84,6 +84,19 @@ def _publish(raw_directory: Path, publish_directory: Path, secret: str) -> None:
         schema_digest="sha256:" + "b" * 64,
         test_selection=("tests/pilot_test.py::test_download",),
     )
+
+
+def test_secret_environment_values_preserve_multiline_credentials(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    credential_value = "first-line\nsecond-line"
+    monkeypatch.setenv("MULTILINE_SECRET", credential_value)
+    monkeypatch.setenv("TOKEN_SECRET", "single-line-token")
+
+    assert _secrets(
+        environment_names=["MULTILINE_SECRET", "TOKEN_SECRET"],
+        secrets_file=None,
+    ) == [credential_value, "single-line-token"]
 
 
 def test_publish_sanitizes_all_yaml_and_writes_checksum_manifest(
