@@ -2,6 +2,7 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, overload
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -150,9 +151,22 @@ class LlmModel(BaseModel):
         device: "str | int | torch_device | None" = None,
         device_map: str | dict[str, int | str] | None = None,
         trust_remote_code: bool = False,
+        base_model_path: str | Path | None = None,
     ) -> "Pipeline":
+        """Load a run's adapter on the model available to this SDK client.
+
+        Args:
+            base_model_path: Optional client-side base-model path. Use this when the
+                SDK client cannot access the model path recorded by the server.
+        """
         return get_hf_pipeline_for_run_given_model(
-            self, run_id, config, device, device_map, trust_remote_code
+            self,
+            run_id,
+            config,
+            device,
+            device_map,
+            trust_remote_code,
+            base_model_path=base_model_path,
         )
 
 
@@ -176,7 +190,14 @@ class LlmModelOut(BaseModel):
         device_map: str | dict[str, int | str] | None = None,
         trust_remote_code: bool = False,
         token: str | None = None,
+        base_model_path: str | Path | None = None,
     ) -> "Pipeline":
+        """Load a run's adapter on the model available to this SDK client.
+
+        Args:
+            base_model_path: Optional client-side base-model path. Use this when the
+                SDK client cannot access the model path recorded by the server.
+        """
         return get_hf_pipeline_for_run_given_model(
             self,
             run_id,
@@ -185,6 +206,7 @@ class LlmModelOut(BaseModel):
             device_map,
             trust_remote_code,
             token=token,
+            base_model_path=base_model_path,
         )
 
 
