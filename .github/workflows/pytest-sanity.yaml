@@ -4,95 +4,203 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, assigned]
   push:
-    branches:
-      - "main"
+    branches: [main]
   merge_group:
     types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      full_test:
-        description: "Run backend E2E tests by setting FULL_TEST=true"
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  RECORDING_ARTIFACT: sdk-http-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+  TEST_SELECTION: tests/integration/recorded_api_test.py
+
 jobs:
-  pytest_sanity:
+  unit-and-transport:
+    name: unit-transport-probe (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: read
     strategy:
+      fail-fast: false
       max-parallel: 20
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: No-op on pull_request
-        if: github.event_name == 'pull_request'
-        run: echo "Skipping installation and tests on PR; marking job success."
-      - name: Detect non-workflow changes
-        id: changes
-        shell: bash
-        run: |
-          set -eo pipefail
-          git fetch origin main --depth=1
-          BASE=$(git merge-base HEAD origin/main)
-          CHANGED=$(git diff --name-only "$BASE" HEAD || true)
-          NON_WORKFLOW=$(echo "$CHANGED" | grep -vE '^(\.github/workflows/|$)' || true)
-          if [[ -n "$NON_WORKFLOW" ]]; then
-            echo "non_workflow=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "non_workflow=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Set up Python
-        if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow == 'true'
-        uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install dependencies on Linux and macOS
-        if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
-        run: |
-          uv venv
-          source .venv/bin/activate
-          uv sync --group dev
-      - name: Run commands on Windows
-        if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
-        shell: pwsh
-        run: |
-          uv venv
-          & .\.venv\Scripts\Activate.ps1
-          uv sync --group dev
-      - name: Run PyTest on Linux and macOS
-        if: github.event_name != 'pull_request' && runner.os != 'Windows' && steps.changes.outputs.non_workflow == 'true'
-        run: .venv/bin/pytest
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Run unit tests without network
+        run: >-
+          uv run pytest -m unit --block-network
+          --allowed-hosts='^127\.0\.0\.1$'
+      - name: Run localhost transport tests
+        run: uv run pytest -m local_transport --block-network --allowed-hosts='^127\.0\.0\.1$'
+      - name: Require live probe credentials
         env:
-          API_HOST: ${{ secrets.API_HOST2 }}
-          API_KEY: ${{ secrets.API_KEY2 }}
-          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
-          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
-          FULL_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.full_test && 'true' || 'false' }}
-      - name: Run PyTest on Windows
-        if: github.event_name != 'pull_request' && runner.os == 'Windows' && steps.changes.outputs.non_workflow == 'true'
-        run: .venv/Scripts/pytest
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+        run: >-
+          uv run python -c "import os, sys;
+          sys.exit(0 if os.environ.get('HIRUNDO_API_HOST') and
+          os.environ.get('HIRUNDO_API_KEY') else 'live probe credentials are required')"
+      - name: Run one authenticated HTTPS probe
         env:
-          API_HOST: ${{ secrets.API_HOST2 }}
-          API_KEY: ${{ secrets.API_KEY2 }}
-          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
-          UNIQUE_ID: ${{ matrix.os }}-${{ matrix.python-version }}-${{ github.run_number }}-${{ github.run_attempt }}
-          FULL_TEST: false
-      - name: Skip tests (only workflow files changed)
-        if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow != 'true'
-        run: echo "Only .github/workflows files changed; skipping installation and tests."
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+        run: uv run pytest -m authenticated_probe --disable-recording
+
+  package:
+    name: generated package and wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.10"
+      - name: Build wheel
+        run: |
+          uv sync --group dev --group deploy
+          uv run python scripts/generate_models.py
+          git diff --exit-code -- hirundo/_generated
+          uv run python -m build --wheel
+      - name: Verify generated subpackage in installed wheel
+        run: |
+          uv venv "${RUNNER_TEMP}/wheel-test"
+          uv pip install --python "${RUNNER_TEMP}/wheel-test/bin/python" dist/*.whl
+          "${RUNNER_TEMP}/wheel-test/bin/python" -c "import hirundo._generated.wire_models"
+
+  record-integration:
+    name: record integration (ubuntu-latest, 3.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Require recording credentials
+        env:
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+        run: >-
+          uv run python -c "import os, sys;
+          sys.exit(0 if os.environ.get('HIRUNDO_API_HOST') and
+          os.environ.get('HIRUNDO_API_KEY') else 'recording credentials are required')"
+      - name: Fetch deployed OpenAPI snapshot
+        id: schema
+        env:
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+        shell: bash
+        run: |
+          digest=$(uv run python scripts/fetch_openapi_snapshot.py "${RUNNER_TEMP}/openapi.json")
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+      - name: Run bounded Schemathesis diagnostic
+        continue-on-error: true
+        env:
+          HTTP_CONTRACT_PILOT: "1"
+          SCHEMATHESIS_OPENAPI_URL: ${{ runner.temp }}/openapi.json
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_TOKEN: ${{ secrets.API_KEY2 }}
+          HIRUNDO_API_VERSION: "0.3"
+        run: uv run python scripts/run_schemathesis_pilot.py
+      - name: Record real SDK integration
+        env:
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+          HIRUNDO_CASSETTE_DIR: ${{ runner.temp }}/raw-cassettes
+          UNIQUE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          mkdir -p "${HIRUNDO_CASSETTE_DIR}"
+          echo "RECORDING_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_ENV}"
+          uv run pytest -m recorded_integration --record-mode=rewrite
+          echo "RECORDING_FINISHED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_ENV}"
+      - name: Sanitize and manifest recordings
+        env:
+          RECORDING_API_KEY: ${{ secrets.API_KEY2 }}
+          RECORDING_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          RECORDING_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          RECORDING_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RECORDING_HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
+        shell: bash
+        run: |
+          expires_at=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
+          uv run python -m tests.recording.artifact_cli publish \
+            "${RUNNER_TEMP}/raw-cassettes" \
+            "${RUNNER_TEMP}/publish-cassettes" \
+            --secrets-env RECORDING_API_KEY \
+            --secrets-env RECORDING_GCP_CREDENTIALS \
+            --secrets-env RECORDING_AWS_ACCESS_KEY \
+            --secrets-env RECORDING_AWS_SECRET_ACCESS_KEY \
+            --secrets-env RECORDING_HUGGINGFACE_TOKEN \
+            --sdk-sha "${GITHUB_SHA}" \
+            --run-id "${GITHUB_RUN_ID}" \
+            --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --environment designated-saas-test \
+            --recording-started-at "${RECORDING_STARTED_AT}" \
+            --recording-finished-at "${RECORDING_FINISHED_AT}" \
+            --expires-at "${expires_at}" \
+            --schema-digest "${{ steps.schema.outputs.digest }}" \
+            --test "${TEST_SELECTION}"
+      - name: Upload sanitized recording artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.RECORDING_ARTIFACT }}
+          path: ${{ runner.temp }}/publish-cassettes
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  replay-integration:
+    name: replay integration (${{ matrix.os }}, ${{ matrix.python-version }})
+    needs: record-integration
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - os: ubuntu-latest
+            python-version: "3.10"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --group dev
+      - name: Download this attempt's sanitized recording
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ env.RECORDING_ARTIFACT }}
+          path: ${{ runner.temp }}/replay-cassettes
+      - name: Verify recording provenance and checksums
+        run: >-
+          uv run python -m tests.recording.artifact_cli verify
+          "${{ runner.temp }}/replay-cassettes"
+          --sdk-sha "${{ github.sha }}"
+          --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+      - name: Replay with synthetic credentials and no network
+        env:
+          HIRUNDO_API_HOST: https://api.example.test
+          HIRUNDO_API_KEY: synthetic-replay-key
+          HIRUNDO_CASSETTE_DIR: ${{ runner.temp }}/replay-cassettes
+          UNIQUE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+        run: uv run pytest -m recorded_integration --record-mode=none --block-network

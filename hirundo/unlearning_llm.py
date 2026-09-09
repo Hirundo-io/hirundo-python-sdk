@@ -1,14 +1,23 @@
 import datetime
-import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import TYPE_CHECKING, Annotated, Literal, overload
+from typing import TYPE_CHECKING, Annotated, Literal, cast, overload
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from hirundo._env import API_HOST
+from hirundo._generated.wire_models import (
+    CreateLlm,
+    ServerUnlearningLlmModelsRunRunInfo,
+)
+from hirundo._generated.wire_models import (
+    DatasetType as GeneratedDatasetType,
+)
+from hirundo._generated.wire_models import (
+    OutputLlm as GeneratedOutputLlm,
+)
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
@@ -35,6 +44,8 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+DatasetType = GeneratedDatasetType
+
 
 class LlmModel(BaseModel):
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
@@ -49,12 +60,14 @@ class LlmModel(BaseModel):
         self,
         replace_if_exists: bool = False,
     ) -> int:
+        payload = {
+            **self.model_dump(mode="json", exclude={"id"}),
+            "replace_if_exists": replace_if_exists,
+        }
+        CreateLlm.model_validate(payload)
         llm_model_response = requests.post(
             f"{API_HOST}/unlearning-llm/llm/",
-            json={
-                **self.model_dump(mode="json"),
-                "replace_if_exists": replace_if_exists,
-            },
+            json=payload,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )
@@ -71,7 +84,9 @@ class LlmModel(BaseModel):
             timeout=READ_TIMEOUT,
         )
         raise_for_status_with_reason(llm_model_response)
-        return LlmModelOut.model_validate(llm_model_response.json())
+        response_payload = llm_model_response.json()
+        GeneratedOutputLlm.model_validate(response_payload)
+        return LlmModelOut.model_validate(response_payload)
 
     @staticmethod
     def get_by_name(llm_model_name: str) -> "LlmModelOut":
@@ -81,7 +96,9 @@ class LlmModel(BaseModel):
             timeout=READ_TIMEOUT,
         )
         raise_for_status_with_reason(llm_model_response)
-        return LlmModelOut.model_validate(llm_model_response.json())
+        response_payload = llm_model_response.json()
+        GeneratedOutputLlm.model_validate(response_payload)
+        return LlmModelOut.model_validate(response_payload)
 
     @staticmethod
     def list(organization_id: int | None = None) -> list["LlmModelOut"]:
@@ -96,7 +113,12 @@ class LlmModel(BaseModel):
         )
         raise_for_status_with_reason(llm_model_response)
         llm_model_json = llm_model_response.json()
-        return [LlmModelOut.model_validate(llm_model) for llm_model in llm_model_json]
+        return [
+            LlmModelOut.model_validate(
+                GeneratedOutputLlm.model_validate(llm_model).model_dump(mode="json")
+            )
+            for llm_model in llm_model_json
+        ]
 
     @staticmethod
     def delete_by_id(llm_model_id: int) -> None:
@@ -121,9 +143,11 @@ class LlmModel(BaseModel):
     ) -> None:
         if not self.id:
             raise ValueError("No LLM model has been created")
-        payload: dict[str, typing.Any] = {
+        payload: dict[str, JsonValue] = {
             "model_name": model_name,
-            "model_source": model_source.model_dump(mode="json")
+            "model_source": cast(
+                "dict[str, JsonValue]", model_source.model_dump(mode="json")
+            )
             if model_source
             else None,
             "archive_existing_runs": archive_existing_runs,
@@ -188,24 +212,26 @@ class LlmModelOut(BaseModel):
         )
 
 
-class DatasetType(str, Enum):
-    NORMAL = "normal"
-    BIAS = "bias"
-    UNBIAS = "unbias"
-
-
 class UnlearningLlmAdvancedOptions(BaseModel):
+    """Advanced launch options matching the API request fields."""
+
     max_tokens_for_model: dict[DatasetType, int] | int | None = None
 
 
 class HirundoCSVDataset(BaseModel):
-    type: Literal["HirundoCSV"] = "HirundoCSV"
+    """Public Hirundo CSV dataset matching the API request fields."""
+
     csv_url: str
+    type: Literal["HirundoCSV"] = "HirundoCSV"
 
 
 class HuggingFaceDataset(BaseModel):
-    type: Literal["HuggingFaceDataset"] = "HuggingFaceDataset"
+    """Public Hugging Face dataset matching the API request fields."""
+
     hugging_face_dataset_name: str
+    token: str | None = None
+    token_id: int | None = None
+    type: Literal["HuggingFaceDataset"] = "HuggingFaceDataset"
 
 
 CustomDataset = HirundoCSVDataset | HuggingFaceDataset
@@ -216,6 +242,8 @@ class CustomUtility(BaseModel):
 
 
 class BiasBehavior(BaseModel):
+    """Bias behavior with the SDK's backend-only bias type omitted."""
+
     model_config = ConfigDict(extra="forbid")
 
     type: Literal["BIAS"] = "BIAS"
@@ -229,11 +257,15 @@ class HallucinationType(str, Enum):
 
 
 class HallucinationBehavior(BaseModel):
+    """Public hallucination behavior backed by generated API fields."""
+
     type: Literal["HALLUCINATION"] = "HALLUCINATION"
     hallucination_type: HallucinationType
 
 
 class SecurityBehavior(BaseModel):
+    """Public security behavior matching the API request fields."""
+
     type: Literal["SECURITY"] = "SECURITY"
 
 
@@ -269,7 +301,7 @@ class LlmRunInfo(BaseModel):
     advanced_options: UnlearningLlmAdvancedOptions | None = None
 
 
-OutputLlm = dict[str, object]
+OutputLlm = dict[str, JsonValue]
 CeleryTaskState = str
 
 
@@ -301,7 +333,7 @@ STATUS_TO_TEXT_MAP = build_status_text_map("LLM unlearning")
 
 class LlmUnlearningRun:
     @staticmethod
-    def _build_launch_payload(run_info: LlmRunInfo) -> dict[str, typing.Any]:
+    def _build_launch_payload(run_info: LlmRunInfo) -> dict[str, JsonValue]:
         """
         Build the JSON payload for an LLM unlearning launch request.
 
@@ -313,10 +345,16 @@ class LlmUnlearningRun:
             `run_info.model_dump(mode="json")`. Bias targets include the
             backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
         """
-        payload = run_info.model_dump(mode="json")
-        for target_behavior in payload["target_behaviors"]:
+        payload = cast("dict[str, JsonValue]", run_info.model_dump(mode="json"))
+        target_behaviors = payload["target_behaviors"]
+        if not isinstance(target_behaviors, list):
+            raise TypeError("target_behaviors must serialize as a list")
+        for target_behavior in target_behaviors:
+            if not isinstance(target_behavior, dict):
+                raise TypeError("each target behavior must serialize as an object")
             if target_behavior["type"] == "BIAS":
                 target_behavior["bias_type"] = BBQBiasType.ALL.value
+        ServerUnlearningLlmModelsRunRunInfo.model_validate(payload)
         return payload
 
     @staticmethod
@@ -397,7 +435,9 @@ class LlmUnlearningRun:
         return [OutputUnlearningLlmRun.model_validate(response_json)]
 
     @staticmethod
-    def _check_run_by_id(run_id: str, retry=0) -> Generator[dict, None, None]:
+    def _check_run_by_id(
+        run_id: str, retry: int = 0
+    ) -> Generator[dict[str, JsonValue], None, None]:
         yield from iter_run_events(
             f"{API_HOST}/unlearning-llm/run/{run_id}",
             headers=get_headers(),
@@ -411,22 +451,24 @@ class LlmUnlearningRun:
     @overload
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: Literal[True]
-    ) -> typing.Any | None: ...
+    ) -> JsonValue | None: ...
 
     @staticmethod
     @overload
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: Literal[False] = False
-    ) -> typing.Any: ...
+    ) -> JsonValue: ...
 
     @staticmethod
     @overload
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: bool
-    ) -> typing.Any | None: ...
+    ) -> JsonValue | None: ...
 
     @staticmethod
-    def check_run_by_id(run_id: str, stop_on_manual_approval: bool = False):
+    def check_run_by_id(
+        run_id: str, stop_on_manual_approval: bool = False
+    ) -> JsonValue | None:
         """
         Check the status of a run given its ID
 
@@ -484,9 +526,15 @@ class LlmUnlearningRun:
         raise HirundoError("LLM unlearning run failed with an unknown error")
 
     @staticmethod
-    def check_run(run_id: str, stop_on_manual_approval: bool = False):
+    def check_run(
+        run_id: str, stop_on_manual_approval: bool = False
+    ) -> JsonValue | None:
         """
         Check the status of the given run.
+
+        Args:
+            run_id: Identifier of the unlearning run to monitor.
+            stop_on_manual_approval: Return while the run awaits manual approval.
 
         Returns:
             The result payload for the run, if available
@@ -494,7 +542,9 @@ class LlmUnlearningRun:
         return LlmUnlearningRun.check_run_by_id(run_id, stop_on_manual_approval)
 
     @staticmethod
-    async def acheck_run_by_id(run_id: str, retry=0) -> AsyncGenerator[dict, None]:
+    async def acheck_run_by_id(
+        run_id: str, retry: int = 0
+    ) -> AsyncGenerator[dict[str, JsonValue], None]:
         """
         Async version of :func:`check_run_by_id`
 
@@ -507,6 +557,9 @@ class LlmUnlearningRun:
         Args:
             run_id: The `run_id` produced by a `launch` call
             retry: A number used to track the number of retries to limit re-checks. *Do not* provide this value manually.
+
+        Returns:
+            An asynchronous generator of run-status event dictionaries.
 
         Yields:
             Each event will be a dict, where:
@@ -526,13 +579,19 @@ class LlmUnlearningRun:
             yield iteration
 
     @staticmethod
-    async def acheck_run(run_id: str) -> AsyncGenerator[dict, None]:
+    async def acheck_run(run_id: str) -> AsyncGenerator[dict[str, JsonValue], None]:
         """
         Async version of :func:`check_run`
 
         Check the status of the given run.
 
         This generator will produce values to show progress of the run.
+
+        Args:
+            run_id: Identifier of the unlearning run to monitor.
+
+        Returns:
+            An asynchronous generator of run-status event dictionaries.
 
         Yields:
             Each event will be a dict, where:

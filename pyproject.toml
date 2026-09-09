@@ -2,8 +2,8 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["hirundo"]
+[tool.setuptools.packages.find]
+include = ["hirundo*"]
 
 [project]
 name = "hirundo"
@@ -44,6 +44,7 @@ dependencies = [
     #  ⬆️ Required to fix vulnerability PYSEC-2026-3447
     "docutils<0.22.0",
     #  ⬆️ Required for sphinx compatibility
+    "email-validator>=2.0",
 ]
 
 [project.scripts]
@@ -73,6 +74,9 @@ dev = [
     "pytest>=9.0.3",
     #  ⬆️ Required to fix vulnerability CVE-2025-71176
     "pytest-asyncio>=0.23.6",
+    "pytest-recording==0.13.4",
+    "datamodel-code-generator==0.76.2",
+    "schemathesis==4.26.1",
     "uv>=0.11.15",
     #  ⬆️ Required to fix vulnerability GHSA-4gg8-gxpx-9rph
     "pre-commit>=3.7.1",
@@ -206,7 +210,9 @@ unfixable = ["F401"]
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = ["S101"]
+# OpenAPI names and enum values must remain identical to the server contract.
+"hirundo/_generated/*.py" = ["N815", "S105"]
+"tests/**/*.py" = ["S101"]
 "notebooks/**/*.ipynb" = ["S324"]
 "docs/**/*.py" = ["E402"]
 
