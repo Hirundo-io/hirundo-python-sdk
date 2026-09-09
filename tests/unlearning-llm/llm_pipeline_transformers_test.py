@@ -1,7 +1,8 @@
 import io
 import zipfile
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import TypedDict
 
 import pytest
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
@@ -19,7 +20,12 @@ class FakeResponse:
     def __enter__(self) -> "FakeResponse":
         return self
 
-    def __exit__(self, exception_type, exception_value, traceback_value) -> None:
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception_value: BaseException | None,
+        traceback_value: TracebackType | None,
+    ) -> None:
         return None
 
     def raise_for_status(self) -> None:
@@ -32,7 +38,7 @@ class FakeResponse:
 
 class FakeTokenizer:
     def __init__(self) -> None:
-        self.pad_token = None
+        self.pad_token: str | None = None
         self.eos_token = "".join(["<", "eos", ">"])
 
 
@@ -42,6 +48,52 @@ class FakeConfig:
 
     def to_dict(self) -> dict[str, str]:
         return {"model_type": self.model_type}
+
+
+class FakeModel:
+    """Model identity returned by the patched model loaders."""
+
+
+class FakePipeline:
+    """Pipeline identity returned by the patched pipeline factory."""
+
+
+class LoaderKeywords(TypedDict):
+    token: str | None
+    trust_remote_code: bool
+
+
+class LoaderCall(TypedDict):
+    args: tuple[str]
+    kwargs: LoaderKeywords
+
+
+class PipelineCall(TypedDict):
+    task: str
+    model: FakeModel
+    tokenizer: FakeTokenizer
+    config: FakeConfig
+    device: str | int | None
+    device_map: str | dict[str, int | str] | None
+
+
+def _loader_call(
+    model_name: str, token: str | None, trust_remote_code: bool
+) -> LoaderCall:
+    """Record the arguments passed to a Transformers pretrained loader.
+
+    Args:
+        model_name: Source model repository or local path.
+        token: Optional repository access token.
+        trust_remote_code: Whether the loader may load custom model code.
+
+    Returns:
+        The positional and keyword arguments used by the SDK.
+    """
+    return {
+        "args": (model_name,),
+        "kwargs": {"token": token, "trust_remote_code": trust_remote_code},
+    }
 
 
 @pytest.fixture
@@ -57,37 +109,59 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
 ) -> None:
     tokenizer = FakeTokenizer()
     config = FakeConfig(model_type="not-multimodal")
-    base_model = object()
-    peft_model = object()
-    pipeline_result = object()
-    tokenizer_calls: list[dict[str, Any]] = []
-    config_calls: list[dict[str, Any]] = []
-    causal_lm_calls: list[dict[str, Any]] = []
-    peft_calls: list[tuple[object, str]] = []
-    pipeline_calls: list[dict[str, Any]] = []
+    base_model = FakeModel()
+    peft_model = FakeModel()
+    pipeline_result = FakePipeline()
+    tokenizer_calls: list[LoaderCall] = []
+    config_calls: list[LoaderCall] = []
+    causal_lm_calls: list[LoaderCall] = []
+    peft_calls: list[tuple[FakeModel, str]] = []
+    pipeline_calls: list[PipelineCall] = []
 
-    def fake_requests_get(*args: Any, **kwargs: Any) -> FakeResponse:
-        del args, kwargs
+    def fake_requests_get(url: str, *, timeout: float, stream: bool) -> FakeResponse:
         return FakeResponse(adapter_zip_bytes)
 
-    def fake_tokenizer_from_pretrained(*args: Any, **kwargs: Any) -> FakeTokenizer:
-        tokenizer_calls.append({"args": args, "kwargs": kwargs})
+    def fake_tokenizer_from_pretrained(
+        model_name: str, *, token: str | None, trust_remote_code: bool
+    ) -> FakeTokenizer:
+        tokenizer_calls.append(_loader_call(model_name, token, trust_remote_code))
         return tokenizer
 
-    def fake_config_from_pretrained(*args: Any, **kwargs: Any) -> FakeConfig:
-        config_calls.append({"args": args, "kwargs": kwargs})
+    def fake_config_from_pretrained(
+        model_name: str, *, token: str | None, trust_remote_code: bool
+    ) -> FakeConfig:
+        config_calls.append(_loader_call(model_name, token, trust_remote_code))
         return config
 
-    def fake_causal_lm_from_pretrained(*args: Any, **kwargs: Any) -> object:
-        causal_lm_calls.append({"args": args, "kwargs": kwargs})
+    def fake_causal_lm_from_pretrained(
+        model_name: str, *, token: str | None, trust_remote_code: bool
+    ) -> FakeModel:
+        causal_lm_calls.append(_loader_call(model_name, token, trust_remote_code))
         return base_model
 
-    def fake_peft_from_pretrained(model: object, path: str) -> object:
+    def fake_peft_from_pretrained(model: FakeModel, path: str) -> FakeModel:
         peft_calls.append((model, path))
         return peft_model
 
-    def fake_pipeline(**kwargs: Any) -> object:
-        pipeline_calls.append(kwargs)
+    def fake_pipeline(
+        *,
+        task: str,
+        model: FakeModel,
+        tokenizer: FakeTokenizer,
+        config: FakeConfig,
+        device: str | int | None,
+        device_map: str | dict[str, int | str] | None,
+    ) -> FakePipeline:
+        pipeline_calls.append(
+            {
+                "task": task,
+                "model": model,
+                "tokenizer": tokenizer,
+                "config": config,
+                "device": device,
+                "device_map": device_map,
+            }
+        )
         return pipeline_result
 
     monkeypatch.setattr(
@@ -182,13 +256,12 @@ def test_multimodal_pipeline_uses_image_text_loader_when_model_type_matches(
     multimodal_model_type = next(iter(MODEL_FOR_IMAGE_TEXT_TO_TEXT_MAPPING_NAMES))
     tokenizer = FakeTokenizer()
     config = FakeConfig(model_type=multimodal_model_type)
-    multimodal_base_model = object()
-    peft_model = object()
-    pipeline_result = object()
-    multimodal_calls: list[dict[str, Any]] = []
+    multimodal_base_model = FakeModel()
+    peft_model = FakeModel()
+    pipeline_result = FakePipeline()
+    multimodal_calls: list[LoaderCall] = []
 
-    def fake_requests_get(*args: Any, **kwargs: Any) -> FakeResponse:
-        del args, kwargs
+    def fake_requests_get(url: str, *, timeout: float, stream: bool) -> FakeResponse:
         return FakeResponse(adapter_zip_bytes)
 
     monkeypatch.setattr(
@@ -207,13 +280,15 @@ def test_multimodal_pipeline_uses_image_text_loader_when_model_type_matches(
         AutoTokenizer, "from_pretrained", lambda *args, **kwargs: tokenizer
     )
     monkeypatch.setattr(AutoConfig, "from_pretrained", lambda *args, **kwargs: config)
+
+    def fake_multimodal_from_pretrained(
+        model_name: str, *, token: str | None, trust_remote_code: bool
+    ) -> FakeModel:
+        multimodal_calls.append(_loader_call(model_name, token, trust_remote_code))
+        return multimodal_base_model
+
     monkeypatch.setattr(
-        AutoModelForImageTextToText,
-        "from_pretrained",
-        lambda *args, **kwargs: (
-            multimodal_calls.append({"args": args, "kwargs": kwargs})
-            or multimodal_base_model
-        ),
+        AutoModelForImageTextToText, "from_pretrained", fake_multimodal_from_pretrained
     )
     monkeypatch.setattr(PeftModel, "from_pretrained", lambda model, path: peft_model)
     monkeypatch.setattr(

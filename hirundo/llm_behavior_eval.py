@@ -2,14 +2,18 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import overload
+from typing import cast, overload
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, JsonValue, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from hirundo._env import API_HOST
+from hirundo._generated.wire_models import (
+    PresetType,
+    ServerUnlearningLlmModelsEvalRunInfo,
+)
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
@@ -46,31 +50,43 @@ class ModelOrRun(str, Enum):
     RUN = "run"
 
 
-class PresetType(str, Enum):
-    BBQ_BIAS = "BBQ_BIAS"
-    BBQ_UNBIAS = "BBQ_UNBIAS"
-    UNQOVER_BIAS = "UNQOVER_BIAS"
-    HALU_EVAL = "HALU_EVAL"
-    MED_HALLU = "MED_HALLU"
-    INJECTION_EVAL = "INJECTION_EVAL"
-
-
 class JudgeModel(BaseModel):
+    """Public evaluation judge model matching the API request fields."""
+
     path_or_repo_id: str
     token: str | None = None
+    token_id: int | None = None
     batch_size: int | None = None
     output_tokens: int | None = None
     use_4bit: bool | None = None
 
+    @model_validator(mode="after")
+    def _validate_token_inputs(self) -> "JudgeModel":
+        if self.token and self.token_id:
+            raise ValueError("Only one of `token` and `token_id` may be provided")
+        return self
+
 
 class EvalRunInfo(BaseModel):
+    """SDK-compatible request validated against the generated wire model."""
+
+    model_config = ConfigDict(extra="forbid")
+
     organization_id: int | None = None
     name: str | None = None
     model_id: int | None = None
     source_run_id: str | None = None
-    preset_type: PresetType | None = None
+    preset_type: PresetType
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
+
+    @model_validator(mode="after")
+    def _validate_and_wire_public_models(self) -> "EvalRunInfo":
+        if self.preset_type in {PresetType.XSTEST, PresetType.OR_BENCH} and (
+            self.bias_type is not None
+        ):
+            raise ValueError("`bias_type` is not supported for refusal presets")
+        return self
 
 
 class OutputLlm(BaseModel):
@@ -98,6 +114,8 @@ class OutputUnlearningLlmRun(BaseModel):
 
 
 class LlmEvalMetricRow(BaseModel):
+    """SDK compatibility model for response metrics absent from OpenAPI."""
+
     model_config = ConfigDict(extra="allow")
 
     benchmark: str
@@ -110,7 +128,6 @@ class LlmEvalMetricRow(BaseModel):
 
 class LlmEvalMetrics(BaseModel):
     model_config = ConfigDict(extra="allow")
-
     rows: list[LlmEvalMetricRow]
 
 
@@ -142,7 +159,9 @@ class LlmBehaviorEval:
         self.run_id = run_id
 
     @staticmethod
-    def _parse_eval_run_record(response_payload: dict) -> EvalRunRecord:
+    def _parse_eval_run_record(
+        response_payload: dict[str, JsonValue],
+    ) -> EvalRunRecord:
         model_payload = response_payload.get("model")
         source_run_payload = response_payload.get("source_run")
         judge_model_payload = response_payload.get("judge_model")
@@ -175,25 +194,33 @@ class LlmBehaviorEval:
         else:
             metrics = None
 
-        return EvalRunRecord(
-            id=response_payload["id"],
-            name=response_payload["name"],
-            model_id=response_payload.get("model_id"),
-            model=model,
-            source_run_id=response_payload.get("source_run_id"),
-            source_run=source_run,
-            preset_type=response_payload.get("preset_type"),
-            bias_type=response_payload.get("bias_type"),
-            judge_model=judge_model,
-            run_id=response_payload["run_id"],
-            mlflow_run_id=response_payload.get("mlflow_run_id"),
-            status=response_payload["status"],
-            created_at=response_payload["created_at"],
-            pre_process_progress=response_payload.get("pre_process_progress", 0.0),
-            optimization_progress=response_payload.get("optimization_progress", 0.0),
-            post_process_progress=response_payload.get("post_process_progress", 0.0),
-            metrics=metrics,
-            responses_zip_url=response_payload.get("responses_zip_url"),
+        return EvalRunRecord.model_validate(
+            {
+                "id": response_payload["id"],
+                "name": response_payload["name"],
+                "model_id": response_payload.get("model_id"),
+                "model": model,
+                "source_run_id": response_payload.get("source_run_id"),
+                "source_run": source_run,
+                "preset_type": response_payload.get("preset_type"),
+                "bias_type": response_payload.get("bias_type"),
+                "judge_model": judge_model,
+                "run_id": response_payload["run_id"],
+                "mlflow_run_id": response_payload.get("mlflow_run_id"),
+                "status": response_payload["status"],
+                "created_at": response_payload["created_at"],
+                "pre_process_progress": response_payload.get(
+                    "pre_process_progress", 0.0
+                ),
+                "optimization_progress": response_payload.get(
+                    "optimization_progress", 0.0
+                ),
+                "post_process_progress": response_payload.get(
+                    "post_process_progress", 0.0
+                ),
+                "metrics": metrics,
+                "responses_zip_url": response_payload.get("responses_zip_url"),
+            }
         )
 
     @staticmethod
@@ -216,9 +243,17 @@ class LlmBehaviorEval:
         else:
             model_or_run_value = model_or_run
 
+        launch_payload = cast("dict[str, JsonValue]", run_info.model_dump(mode="json"))
+        judge_model_payload = launch_payload.get("judge_model")
+        if (
+            isinstance(judge_model_payload, dict)
+            and judge_model_payload.get("token_id") is None
+        ):
+            judge_model_payload.pop("token_id")
+        ServerUnlearningLlmModelsEvalRunInfo.model_validate(launch_payload)
         response = requests.post(
             f"{API_HOST}/llm-behavior-eval/run/{model_or_run_value.value}",
-            json=run_info.model_dump(mode="json"),
+            json=launch_payload,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )
@@ -237,8 +272,13 @@ class LlmBehaviorEval:
 
     @staticmethod
     def cancel_by_id(run_id: str) -> None:
-        """
-        Cancel a running evaluation.
+        """Cancel a running evaluation.
+
+        Args:
+            run_id: Identifier of the evaluation run to cancel.
+
+        Returns:
+            None.
         """
         response = requests.patch(
             f"{API_HOST}/llm-behavior-eval/run/cancel/{run_id}",
@@ -254,8 +294,14 @@ class LlmBehaviorEval:
 
     @staticmethod
     def rename_by_id(run_id: str, new_name: str) -> None:
-        """
-        Rename an evaluation run.
+        """Rename an evaluation run.
+
+        Args:
+            run_id: Identifier of the evaluation run to rename.
+            new_name: Replacement display name for the run.
+
+        Returns:
+            None.
         """
         response = requests.patch(
             f"{API_HOST}/llm-behavior-eval/run/rename/{run_id}",
@@ -272,8 +318,13 @@ class LlmBehaviorEval:
 
     @staticmethod
     def archive_by_id(run_id: str) -> None:
-        """
-        Archive an evaluation run.
+        """Archive an evaluation run.
+
+        Args:
+            run_id: Identifier of the evaluation run to archive.
+
+        Returns:
+            None.
         """
         response = requests.patch(
             f"{API_HOST}/llm-behavior-eval/run/archive/{run_id}",
@@ -289,8 +340,13 @@ class LlmBehaviorEval:
 
     @staticmethod
     def restore_by_id(run_id: str) -> None:
-        """
-        Restore an archived evaluation run.
+        """Restore an archived evaluation run.
+
+        Args:
+            run_id: Identifier of the evaluation run to restore.
+
+        Returns:
+            None.
         """
         response = requests.patch(
             f"{API_HOST}/llm-behavior-eval/run/restore/{run_id}",
@@ -306,8 +362,13 @@ class LlmBehaviorEval:
 
     @staticmethod
     def get_run_info_by_id(run_id: str) -> EvalRunRecord:
-        """
-        Retrieve the metadata for an evaluation run.
+        """Retrieve the metadata for an evaluation run.
+
+        Args:
+            run_id: Identifier of the evaluation run to retrieve.
+
+        Returns:
+            The parsed evaluation run record.
         """
         response = requests.get(
             f"{API_HOST}/llm-behavior-eval/run/info/{run_id}",
@@ -323,8 +384,14 @@ class LlmBehaviorEval:
         organization_id: int | None = None,
         archived: bool = False,
     ) -> list[EvalRunRecord]:
-        """
-        List evaluation runs.
+        """List evaluation runs.
+
+        Args:
+            organization_id: Optional organization used to filter the runs.
+            archived: Whether to list archived runs.
+
+        Returns:
+            Parsed evaluation run records.
         """
         response = requests.get(
             f"{API_HOST}/llm-behavior-eval/run/list",
@@ -506,6 +573,9 @@ class LlmBehaviorEval:
         """
         Check the status of the current active instance's run.
 
+        Args:
+            stop_on_manual_approval: Return while the run awaits manual approval.
+
         Returns:
             An LlmBehaviorEvalResults object with the results of the evaluation run
         """
@@ -521,6 +591,12 @@ class LlmBehaviorEval:
         Check the status of a run given its ID.
 
         This generator will produce values to show progress of the run.
+
+        Args:
+            run_id: Identifier of the evaluation run to monitor.
+
+        Returns:
+            An asynchronous generator of parsed run events.
         """
         logger.debug("Checking run with ID: %s", run_id)
         async with httpx.AsyncClient(
@@ -546,6 +622,12 @@ class LlmBehaviorEval:
         This generator will produce values to show progress of the run.
 
         Note: This function does not handle errors nor show progress. It is expected that you do that.
+
+        Args:
+            None.
+
+        Returns:
+            An asynchronous generator of parsed run events.
         """
         if not self.run_id:
             raise HirundoLlmBehaviorEvalError("No run has been started")

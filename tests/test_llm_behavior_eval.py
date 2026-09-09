@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TypedDict
 
 import pytest
 from hirundo import (
@@ -9,6 +9,7 @@ from hirundo import (
     ModelOrRun,
     PresetType,
 )
+from pydantic import JsonValue
 
 
 class _Response:
@@ -21,14 +22,21 @@ class _Response:
         return None
 
 
+class CapturedRequest(TypedDict, total=False):
+    url: str
+    json: dict[str, JsonValue]
+
+
 def test_launch_eval_run_omits_removed_custom_dataset_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured_request: dict[str, Any] = {}
+    captured_request: CapturedRequest = {}
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        captured_request["url"] = args[0]
-        captured_request["json"] = kwargs["json"]
+    def fake_post(
+        url: str, *, json: dict[str, JsonValue], headers: dict[str, str], timeout: float
+    ) -> _Response:
+        captured_request["url"] = url
+        captured_request["json"] = json
         return _Response()
 
     monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
@@ -46,6 +54,8 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
     )
 
     assert run_id == "eval-run-id"
+    assert "url" in captured_request
+    assert "json" in captured_request
     assert captured_request["url"].endswith("/llm-behavior-eval/run/model")
     assert captured_request["json"] == {
         "organization_id": None,
