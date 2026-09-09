@@ -25,7 +25,7 @@ from hirundo._run_checking import (
 )
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData, _parse_sse_payload
-from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
+from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT, SSE_TIMEOUT
 from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
 from hirundo.llm_bias_type import BBQBiasType, UnqoverBiasType
 from hirundo.logger import get_logger
@@ -375,7 +375,7 @@ class LlmBehaviorEval:
             if retry_count > max_retries:
                 raise HirundoLlmBehaviorEvalError("Max retries reached")
             last_payload = None
-            with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
+            with httpx.Client(timeout=SSE_TIMEOUT) as client:
                 for sse_event in iter_sse_retrying(
                     client,
                     "GET",
@@ -523,9 +523,7 @@ class LlmBehaviorEval:
         This generator will produce values to show progress of the run.
         """
         logger.debug("Checking run with ID: %s", run_id)
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
+        async with httpx.AsyncClient(timeout=SSE_TIMEOUT) as client:
             async_iterator = await aiter_sse_retrying(
                 client,
                 "GET",
