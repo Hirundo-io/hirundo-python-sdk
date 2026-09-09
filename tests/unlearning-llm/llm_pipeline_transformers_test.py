@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 from hirundo._llm_pipeline import get_hf_pipeline_for_run_given_model
-from hirundo._llm_sources import HuggingFaceTransformersModel
-from hirundo.unlearning_llm import LlmModel, LlmUnlearningRun
+from hirundo._llm_sources import HuggingFaceTransformersModel, LocalTransformersModel
+from hirundo.unlearning_llm import LlmModel, LlmModelOut, LlmUnlearningRun
 
 pytest.importorskip("peft")
 pytest.importorskip("transformers")
@@ -52,8 +52,18 @@ def adapter_zip_bytes() -> bytes:
     return zip_buffer.getvalue()
 
 
-def test_text_generation_pipeline_uses_transformers_loader_api(
-    monkeypatch: pytest.MonkeyPatch, adapter_zip_bytes: bytes
+@pytest.mark.parametrize(
+    ("base_model_path", "expected_model_source"),
+    [
+        (None, "org/demo-model"),
+        (Path("/models/client/demo-model"), Path("/models/client/demo-model")),
+    ],
+)
+def test_text_generation_pipeline_uses_selected_base_model_source(
+    monkeypatch: pytest.MonkeyPatch,
+    adapter_zip_bytes: bytes,
+    base_model_path: Path | None,
+    expected_model_source: str | Path,
 ) -> None:
     tokenizer = FakeTokenizer()
     config = FakeConfig(model_type="not-multimodal")
@@ -127,13 +137,14 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
         device="cpu",
         device_map="auto",
         trust_remote_code=True,
+        base_model_path=base_model_path,
     )
 
     assert pipeline_output is pipeline_result
     assert tokenizer.pad_token == tokenizer.eos_token
     assert tokenizer_calls == [
         {
-            "args": ("org/demo-model",),
+            "args": (expected_model_source,),
             "kwargs": {
                 "token": "-".join(["hf", "token"]),
                 "trust_remote_code": True,
@@ -142,7 +153,7 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
     ]
     assert config_calls == [
         {
-            "args": ("org/demo-model",),
+            "args": (expected_model_source,),
             "kwargs": {
                 "token": "-".join(["hf", "token"]),
                 "trust_remote_code": True,
@@ -151,7 +162,7 @@ def test_text_generation_pipeline_uses_transformers_loader_api(
     ]
     assert causal_lm_calls == [
         {
-            "args": ("org/demo-model",),
+            "args": (expected_model_source,),
             "kwargs": {
                 "token": "-".join(["hf", "token"]),
                 "trust_remote_code": True,
@@ -239,3 +250,34 @@ def test_multimodal_pipeline_uses_image_text_loader_when_model_type_matches(
             "kwargs": {"token": None, "trust_remote_code": False},
         }
     ]
+
+
+@pytest.mark.parametrize("model_class", [LlmModel, LlmModelOut])
+def test_public_model_classes_forward_base_model_path(
+    monkeypatch: pytest.MonkeyPatch,
+    model_class: type[LlmModel] | type[LlmModelOut],
+) -> None:
+    forwarded_calls: list[dict[str, Any]] = []
+    pipeline_result = object()
+
+    def fake_pipeline_loader(*args: Any, **kwargs: Any) -> object:
+        forwarded_calls.append({"args": args, "kwargs": kwargs})
+        return pipeline_result
+
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.get_hf_pipeline_for_run_given_model",
+        fake_pipeline_loader,
+    )
+    model = model_class.model_construct(
+        model_name="demo-model",
+        model_source=LocalTransformersModel(local_path="/server/demo-model"),
+    )
+    client_model_path = Path("/client/demo-model")
+
+    pipeline_output = model.get_hf_pipeline_for_run(
+        "run-123", base_model_path=client_model_path
+    )
+
+    assert pipeline_output is pipeline_result
+    assert forwarded_calls[0]["args"][0:2] == (model, "run-123")
+    assert forwarded_calls[0]["kwargs"]["base_model_path"] == client_model_path

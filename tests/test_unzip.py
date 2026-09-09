@@ -161,3 +161,38 @@ def test_download_and_extract_llm_behavior_eval_zip_uses_response_model_folder(
     assert results.model_name == model_name
     assert results.summary_brief is not None
     assert results.summary_full is not None
+
+
+@pytest.mark.skipif(not has_polars, reason="Requires polars")
+def test_local_model_eval_summaries_prefer_polars(monkeypatch, tmp_path):
+    import polars
+
+    zip_bytes = _build_llm_behavior_eval_results_zip("Qwen3-0.6B")
+    monkeypatch.setattr(
+        "hirundo.unzip.requests.get",
+        lambda *args, **kwargs: _FakeStreamingResponse(zip_bytes),
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    results = download_and_extract_llm_behavior_eval_zip(
+        "local-polars-run",
+        "https://example.com/results.zip",
+        "/opt/hirundo/llm-models/Qwen3-0.6B",
+    )
+
+    assert isinstance(results.summary_brief, polars.DataFrame)
+    assert isinstance(results.summary_full, polars.DataFrame)
+
+
+@pytest.mark.skipif(not has_pandas, reason="Requires pandas")
+def test_dataframe_loader_falls_back_to_pandas(monkeypatch):
+    import pandas
+
+    monkeypatch.setattr("hirundo.unzip.has_polars", False)
+    monkeypatch.setattr("hirundo.unzip.CUSTOMER_INTERCHANGE_DTYPES", {})
+
+    summary_brief = unzip.load_df(io.BytesIO(SUMMARY_BRIEF_CSV.encode()))
+    summary_full = unzip.load_df(io.BytesIO(SUMMARY_FULL_CSV.encode()))
+
+    assert isinstance(summary_brief, pandas.DataFrame)
+    assert isinstance(summary_full, pandas.DataFrame)

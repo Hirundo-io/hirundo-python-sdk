@@ -14,7 +14,11 @@ from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
-from hirundo._llm_sources import HuggingFaceTransformersModelOutput, LlmSourcesOutput
+from hirundo._llm_sources import (
+    HuggingFaceTransformersModelOutput,
+    LlmSourcesOutput,
+    LocalTransformersModel,
+)
 from hirundo._run_checking import (
     DEFAULT_MAX_RETRIES,
     STATUS_TO_PROGRESS_MAP,
@@ -344,19 +348,16 @@ class LlmBehaviorEval:
 
     @staticmethod
     def _resolve_model_name(run_info: EvalRunRecord) -> str | None:
-        if run_info.model and isinstance(
-            run_info.model.model_source, HuggingFaceTransformersModelOutput
-        ):
-            return run_info.model.model_source.model_name
-        if (
-            run_info.source_run
-            and run_info.source_run.model
-            and isinstance(
-                run_info.source_run.model.model_source,
-                HuggingFaceTransformersModelOutput,
-            )
-        ):
-            return run_info.source_run.model.model_source.model_name
+        model_source = None
+        if run_info.model:
+            model_source = run_info.model.model_source
+        elif run_info.source_run and run_info.source_run.model:
+            model_source = run_info.source_run.model.model_source
+
+        if isinstance(model_source, HuggingFaceTransformersModelOutput):
+            return model_source.model_name
+        if isinstance(model_source, LocalTransformersModel):
+            return model_source.local_path
         return None
 
     @staticmethod
