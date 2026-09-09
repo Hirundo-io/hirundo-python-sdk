@@ -133,7 +133,7 @@ class ExternalEval:
         run_info.validate_source(model_or_run_value)
         response = requests.post(
             f"{API_HOST}/external-evals/run/{model_or_run_value.value}",
-            json=run_info.model_dump(mode="json"),
+            json=run_info.model_dump(mode="json", exclude_none=True),
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

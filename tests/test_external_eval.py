@@ -56,12 +56,9 @@ def test_launch_external_eval_run_serializes_request(
     assert launch.message == "Run launched"
     assert captured_request["url"].endswith("/external-evals/run/run")
     assert captured_request["json"] == {
-        "organization_id": None,
         "name": "Inspect AIME",
-        "model_id": None,
         "source_run_id": "unlearning-run-id",
         "task_ids": ["inspect_evals/aime25"],
-        "sample_limit": None,
     }
 
 
