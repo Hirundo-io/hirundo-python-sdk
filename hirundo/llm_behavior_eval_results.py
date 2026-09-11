@@ -25,3 +25,15 @@ class LlmBehaviorEvalResults(BaseModel, typing.Generic[T]):
     """
     A polars/pandas DataFrame containing the summary_full CSV
     """
+
+
+class ExternalEvalResults(BaseModel, typing.Generic[T]):
+    """Downloaded external-evaluation archive and its summary metrics."""
+
+    model_config = {"arbitrary_types_allowed": True}
+
+    cached_zip_path: Path
+    """The path to the cached zip file of the results."""
+
+    summary_brief: T
+    """A polars or pandas DataFrame containing an external-evaluation result summary."""

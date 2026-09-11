@@ -41,6 +41,13 @@ API_HOST = _get_env_with_deprecation(
     "HIRUNDO_API_HOST", "API_HOST", default="https://api.hirundo.io"
 )
 API_KEY = _get_env_with_deprecation("HIRUNDO_API_KEY", "API_KEY")
+EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS = tuple(
+    origin.strip()
+    for origin in os.getenv("HIRUNDO_EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS", "").split(
+        ","
+    )
+    if origin.strip()
+)
 
 
 def check_api_key():

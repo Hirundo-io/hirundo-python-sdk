@@ -1,8 +1,10 @@
 import typing
 import zipfile
 from collections.abc import Mapping
+from hashlib import sha256
 from pathlib import Path
 from shutil import copyfileobj
+from tempfile import NamedTemporaryFile
 from typing import IO, cast
 from urllib.parse import quote, unquote
 
@@ -25,7 +27,10 @@ from hirundo.dataset_qa_results import (
     DataFrameType,
     DatasetQAResults,
 )
-from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
+from hirundo.llm_behavior_eval_results import (
+    ExternalEvalResults,
+    LlmBehaviorEvalResults,
+)
 from hirundo.logger import get_logger
 
 ZIP_FILE_CHUNK_SIZE = 50 * 1024 * 1024  # 50 MB
@@ -157,20 +162,40 @@ def _stream_download_to_file(response, zip_file_path: Path) -> None:
         copyfileobj(response.raw, output_file, length=ZIP_FILE_CHUNK_SIZE)
 
 
-def _download_zip_to_cache(run_id: str, zip_url: str, route_prefix: str) -> Path:
+def _download_zip_to_cache(
+    run_id: str, zip_url: str, route_prefix: str, cache_key: str | None = None
+) -> Path:
     cache_dir = Path.home() / ".hirundo" / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
-    zip_file_path = cache_dir / f"{run_id}.zip"
+    filename = f"{run_id}-{cache_key}.zip" if cache_key else f"{run_id}.zip"
+    zip_file_path = cache_dir / filename
 
-    zip_url, headers = _download_request(zip_url, route_prefix)
-    with requests.get(
-        zip_url,
-        headers=headers,
-        timeout=DOWNLOAD_READ_TIMEOUT,
-        stream=True,
-    ) as response:
-        raise_for_status_with_reason(response)
-        _stream_download_to_file(response, zip_file_path)
+    with NamedTemporaryFile(
+        dir=cache_dir,
+        prefix=f".{run_id}.",
+        suffix=".part",
+        delete=False,
+    ) as temporary_file:
+        temporary_file_path = Path(temporary_file.name)
+
+    try:
+        zip_url, headers = _download_request(zip_url, route_prefix)
+        with requests.get(
+            zip_url,
+            headers=headers,
+            timeout=DOWNLOAD_READ_TIMEOUT,
+            stream=True,
+        ) as response:
+            raise_for_status_with_reason(response)
+            _stream_download_to_file(response, temporary_file_path)
+        temporary_file_path.replace(zip_file_path)
+        if cache_key:
+            for stale_zip_path in cache_dir.glob(f"{run_id}-*.zip"):
+                if stale_zip_path != zip_file_path:
+                    stale_zip_path.unlink(missing_ok=True)
+    except Exception:
+        temporary_file_path.unlink(missing_ok=True)
+        raise
 
     return zip_file_path
 
@@ -247,7 +272,12 @@ def download_and_extract_llm_behavior_eval_zip(
     Returns:
         The LLM behavior eval results object.
     """
-    zip_file_path = _download_zip_to_cache(run_id, zip_url, "llm-behavior-eval")
+    zip_file_path = _download_zip_to_cache(
+        run_id,
+        zip_url,
+        "llm-behavior-eval",
+        cache_key=sha256(zip_url.encode()).hexdigest()[:16],
+    )
     logger.info(
         "Successfully downloaded the LLM behavior eval result zip file for run ID %s to %s",
         run_id,
@@ -282,4 +312,33 @@ def download_and_extract_llm_behavior_eval_zip(
         model_name=model_name,
         summary_brief=summary_brief_df,
         summary_full=summary_full_df,
+    )
+
+
+def download_external_eval_zip(
+    run_id: str,
+    zip_url: str,
+) -> ExternalEvalResults[DataFrameType]:
+    """Download an Inspect result archive and load its summary metrics."""
+    zip_file_path = _download_zip_to_cache(
+        run_id,
+        zip_url,
+        "llm-behavior-eval",
+        cache_key=sha256(zip_url.encode()).hexdigest()[:16],
+    )
+    logger.info(
+        "Successfully downloaded the external evaluation result zip for run ID %s to %s",
+        run_id,
+        zip_file_path,
+    )
+    summary_brief_name = "responses/summary_brief.csv"
+    with zipfile.ZipFile(zip_file_path, "r") as zip_file:
+        if summary_brief_name not in zip_file.namelist():
+            raise ValueError(
+                f"Missing {summary_brief_name} in external evaluation zip for run {run_id}"
+            )
+
+    return ExternalEvalResults[DataFrameType](
+        cached_zip_path=zip_file_path,
+        summary_brief=load_from_zip(zip_file_path, summary_brief_name),
     )

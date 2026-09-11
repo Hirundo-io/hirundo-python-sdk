@@ -1,4 +1,6 @@
+import asyncio
 import datetime
+import time
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
@@ -35,6 +37,7 @@ logger = get_logger(__name__)
 
 
 STATUS_TO_TEXT_MAP = build_status_text_map("LLM behavior eval")
+RECONNECT_DELAY_SECONDS = 1.0
 
 
 class HirundoLlmBehaviorEvalError(HirundoError):
@@ -58,6 +61,13 @@ class PresetType(str, Enum):
 
 
 REFUSAL_PRESET_TYPES = {PresetType.XSTEST, PresetType.OR_BENCH}
+
+
+class EvalFramework(str, Enum):
+    """Evaluation implementation used by a unified LLM evaluation run."""
+
+    LLM_BEHAVIOR_EVAL = "llm-behavior-eval"
+    INSPECT_EVALS = "inspect-evals"
 
 
 class JudgeModel(BaseModel):
@@ -117,6 +127,8 @@ class LlmEvalMetricRow(BaseModel):
     post_unlearning: float | str | None = None
     reduction_percent: float | None = None
     subset: str | None = None
+    score: float | str | None = None
+    runtime_seconds: float | None = None
 
 
 class LlmEvalMetrics(BaseModel):
@@ -132,9 +144,12 @@ class EvalRunRecord(BaseModel):
     model: OutputLlm | None
     source_run_id: str | None
     source_run: OutputUnlearningLlmRun | None
-    preset_type: PresetType | None
-    bias_type: BBQBiasType | UnqoverBiasType | None
-    judge_model: JudgeModel | None
+    framework: EvalFramework = EvalFramework.LLM_BEHAVIOR_EVAL
+    preset_type: PresetType | None = None
+    bias_type: BBQBiasType | UnqoverBiasType | None = None
+    task_ids: list[str] | None = None
+    sample_limit: int | None = None
+    judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
     status: str
@@ -193,8 +208,12 @@ class LlmBehaviorEval:
             model=model,
             source_run_id=response_payload.get("source_run_id"),
             source_run=source_run,
+            framework=response_payload.get("framework")
+            or EvalFramework.LLM_BEHAVIOR_EVAL,
             preset_type=response_payload.get("preset_type"),
             bias_type=response_payload.get("bias_type"),
+            task_ids=response_payload.get("task_ids"),
+            sample_limit=response_payload.get("sample_limit"),
             judge_model=judge_model,
             run_id=response_payload["run_id"],
             mlflow_run_id=response_payload.get("mlflow_run_id"),
@@ -388,7 +407,10 @@ class LlmBehaviorEval:
 
     @staticmethod
     def _check_run_by_id(
-        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+        run_id: str,
+        *,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+        stop_on_manual_approval: bool = False,
     ) -> Generator[SseRunEventData, None, None]:
         retry_count = 0
         while True:
@@ -408,8 +430,22 @@ class LlmBehaviorEval:
                     last_payload = payload
                     yield payload
             last_state = get_state(last_payload, ("state",)) if last_payload else None
-            if last_payload is None or last_state == RunStatus.PENDING.value:
+            if last_state not in {
+                RunStatus.SUCCESS.value,
+                RunStatus.FAILURE.value,
+                RunStatus.REJECTED.value,
+                RunStatus.REVOKED.value,
+                RunStatus.AWAITING_MANUAL_APPROVAL.value,
+            }:
                 retry_count += 1
+                time.sleep(RECONNECT_DELAY_SECONDS)
+                continue
+            if (
+                last_state == RunStatus.AWAITING_MANUAL_APPROVAL.value
+                and not stop_on_manual_approval
+            ):
+                retry_count += 1
+                time.sleep(RECONNECT_DELAY_SECONDS)
                 continue
             return
 
@@ -451,7 +487,9 @@ class LlmBehaviorEval:
         logger.debug("Checking run with ID: %s", run_id)
         with logging_redirect_tqdm():
             progress_bar = tqdm(total=100.0)
-            for iteration in LlmBehaviorEval._check_run_by_id(run_id):
+            for iteration in LlmBehaviorEval._check_run_by_id(
+                run_id, stop_on_manual_approval=stop_on_manual_approval
+            ):
                 state = get_state(iteration, ("state",))
                 if state in STATUS_TO_PROGRESS_MAP:
                     progress_bar.set_description(STATUS_TO_TEXT_MAP[state])
@@ -534,7 +572,9 @@ class LlmBehaviorEval:
         return self.check_run_by_id(self.run_id, stop_on_manual_approval)
 
     @staticmethod
-    async def acheck_run_by_id(run_id: str) -> AsyncGenerator[SseRunEventData, None]:
+    async def acheck_run_by_id(
+        run_id: str, *, max_retries: int = DEFAULT_MAX_RETRIES
+    ) -> AsyncGenerator[SseRunEventData, None]:
         """
         Async version of :func:`check_run_by_id`
 
@@ -543,19 +583,36 @@ class LlmBehaviorEval:
         This generator will produce values to show progress of the run.
         """
         logger.debug("Checking run with ID: %s", run_id)
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
-            async_iterator = await aiter_sse_retrying(
-                client,
-                "GET",
-                f"{API_HOST}/llm-behavior-eval/run/{run_id}",
-                headers=get_headers(),
-            )
-            async for sse_event in async_iterator:
-                if sse_event.event == "ping":
-                    continue
-                yield _parse_sse_payload(sse_event.data)
+        retry_count = 0
+        terminal_states = {
+            RunStatus.SUCCESS,
+            RunStatus.FAILURE,
+            RunStatus.REJECTED,
+            RunStatus.REVOKED,
+            RunStatus.AWAITING_MANUAL_APPROVAL,
+        }
+        while retry_count <= max_retries:
+            last_state = None
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(None, connect=5.0)
+            ) as client:
+                async_iterator = await aiter_sse_retrying(
+                    client,
+                    "GET",
+                    f"{API_HOST}/llm-behavior-eval/run/{run_id}",
+                    headers=get_headers(),
+                )
+                async for sse_event in async_iterator:
+                    if sse_event.event == "ping":
+                        continue
+                    payload = _parse_sse_payload(sse_event.data)
+                    last_state = payload.state
+                    yield payload
+            if last_state in terminal_states:
+                return
+            retry_count += 1
+            await asyncio.sleep(RECONNECT_DELAY_SECONDS)
+        raise HirundoLlmBehaviorEvalError("Max retries reached")
 
     async def acheck_run(self) -> AsyncGenerator[SseRunEventData, None]:
         """
