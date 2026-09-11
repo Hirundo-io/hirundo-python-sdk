@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: read
     strategy:
-      max-parallel: 20
+      max-parallel: 2
       matrix:
         data-qa-test:
           - test: classification/classification_aws_test.py
