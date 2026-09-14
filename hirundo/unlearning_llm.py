@@ -4,7 +4,7 @@ from collections.abc import AsyncGenerator, Generator
 from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Literal, overload
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -237,6 +237,12 @@ class SecurityBehavior(BaseModel):
     type: Literal["SECURITY"] = "SECURITY"
 
 
+class RefusalBehavior(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["REFUSAL"] = "REFUSAL"
+
+
 class CustomBehavior(BaseModel):
     type: Literal["CUSTOM"] = "CUSTOM"
     biased_dataset: CustomDataset
@@ -244,7 +250,11 @@ class CustomBehavior(BaseModel):
 
 
 TargetBehavior = Annotated[
-    BiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior,
+    BiasBehavior
+    | HallucinationBehavior
+    | SecurityBehavior
+    | RefusalBehavior
+    | CustomBehavior,
     Field(discriminator="type"),
 ]
 
@@ -255,7 +265,11 @@ class OutputBiasBehavior(BaseModel):
 
 
 OutputBehaviorOptions = (
-    OutputBiasBehavior | HallucinationBehavior | SecurityBehavior | CustomBehavior
+    OutputBiasBehavior
+    | HallucinationBehavior
+    | SecurityBehavior
+    | RefusalBehavior
+    | CustomBehavior
 )
 
 
@@ -267,6 +281,43 @@ class LlmRunInfo(BaseModel):
     target_behaviors: list[TargetBehavior]
     target_utilities: list[CustomUtility] = Field(default_factory=list)
     advanced_options: UnlearningLlmAdvancedOptions | None = None
+
+    @model_validator(mode="after")
+    def validate_refusal_utilities(self) -> "LlmRunInfo":
+        """Validate utility targets are compatible with the selected behaviors.
+
+        Args:
+            self: The `LlmRunInfo` instance to validate.
+
+        Returns:
+            The validated `LlmRunInfo` instance.
+
+        Raises:
+            ValueError: If refusal behavior is combined with non-empty target
+                utilities.
+        """
+        has_refusal = any(
+            isinstance(target_behavior, RefusalBehavior)
+            for target_behavior in self.target_behaviors
+        )
+        if has_refusal and self.target_utilities:
+            raise ValueError("Refusal behavior does not support target utilities")
+        return self
+
+
+class LlmUnlearningCapabilities(BaseModel):
+    """Features supported by the configured Hirundo API.
+
+    Omitted capability fields default to disabled. Check
+    `refusal_unlearning_enabled` before starting refusal unlearning.
+    """
+
+    refusal_unlearning_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "refusalUnlearningEnabled", "refusal_unlearning_enabled"
+        ),
+    )
 
 
 OutputLlm = dict[str, object]
@@ -312,12 +363,33 @@ class LlmUnlearningRun:
             A JSON-serializable payload derived from
             `run_info.model_dump(mode="json")`. Bias targets include the
             backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
+            Refusal targets retain their validated empty `target_utilities`
+            field for the API request schema.
         """
         payload = run_info.model_dump(mode="json")
         for target_behavior in payload["target_behaviors"]:
             if target_behavior["type"] == "BIAS":
                 target_behavior["bias_type"] = BBQBiasType.ALL.value
         return payload
+
+    @staticmethod
+    def get_capabilities() -> LlmUnlearningCapabilities:
+        """Retrieve LLM-unlearning features supported by the configured API.
+
+        Sends an unauthenticated GET request to the public `/config/config.json`
+        endpoint. HTTP failures are raised through the SDK's standard HTTP error
+        handling.
+
+        Returns:
+            An `LlmUnlearningCapabilities` model. Omitted capability fields
+            default to disabled during validation.
+        """
+        config_response = requests.get(
+            f"{API_HOST}/config/config.json",
+            timeout=READ_TIMEOUT,
+        )
+        raise_for_status_with_reason(config_response)
+        return LlmUnlearningCapabilities.model_validate(config_response.json())
 
     @staticmethod
     def launch(model_id: int, run_info: LlmRunInfo) -> str:

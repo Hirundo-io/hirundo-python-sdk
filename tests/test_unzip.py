@@ -8,6 +8,7 @@ from hirundo._dataframe import has_pandas, has_polars
 from hirundo.unzip import (
     download_and_extract_llm_behavior_eval_zip,
     download_and_extract_zip,
+    download_external_eval_zip,
 )
 
 SUSPECTS_CSV = "image_path,suspect_level\nimg_0.png,0.9\n"
@@ -37,6 +38,13 @@ def _build_llm_behavior_eval_results_zip(response_model_folder: str) -> bytes:
             f"responses/{response_model_folder}/summary_full.csv",
             SUMMARY_FULL_CSV,
         )
+    return buffer.getvalue()
+
+
+def _build_external_eval_results_zip() -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("responses/summary_brief.csv", SUMMARY_BRIEF_CSV)
     return buffer.getvalue()
 
 
@@ -161,3 +169,51 @@ def test_download_and_extract_llm_behavior_eval_zip_uses_response_model_folder(
     assert results.model_name == model_name
     assert results.summary_brief is not None
     assert results.summary_full is not None
+
+
+@pytest.mark.skipif(
+    not (has_pandas or has_polars),
+    reason="Requires pandas or polars to materialize result DataFrames",
+)
+def test_download_external_eval_zip_populates_summary_brief(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    zip_bytes = _build_external_eval_results_zip()
+    monkeypatch.setattr(
+        "hirundo.unzip.requests.get",
+        lambda *args, **kwargs: _FakeStreamingResponse(zip_bytes),
+    )
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+
+    results = download_external_eval_zip(
+        "test-run-id",
+        "https://example.com/results.zip",
+    )
+
+    assert results.summary_brief is not None
+
+
+def test_download_zip_to_cache_removes_partial_download_on_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(
+        "hirundo.unzip.requests.get",
+        lambda *args, **kwargs: _FakeStreamingResponse(b"partial archive"),
+    )
+    monkeypatch.setattr(
+        "hirundo.unzip._stream_download_to_file",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("download failed")),
+    )
+
+    with pytest.raises(OSError, match="download failed"):
+        unzip._download_zip_to_cache(
+            "test-run-id",
+            "https://example.com/results.zip",
+            "llm-behavior-eval",
+        )
+
+    assert not (tmp_path / ".hirundo" / "cache" / "test-run-id.zip").exists()
+    assert not list((tmp_path / ".hirundo" / "cache").glob("*.part"))
