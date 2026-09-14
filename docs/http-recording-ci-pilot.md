@@ -5,10 +5,17 @@ The sanity workflow separates four test selections:
 - `unit` starts immediately on every supported OS and Python version.
 - `local_transport` runs in each matrix environment with loopback as its only
   network dependency.
-- `authenticated_probe` makes one unrecorded HTTPS request in each environment.
-- `recorded_integration` runs live once on Ubuntu and Python 3.10. The other
-  environments replay only the sanitized artifact from the same commit, workflow
-  run, and attempt.
+- `authenticated_probe` makes one unrecorded HTTPS request in each environment on
+  protected `main` pushes and explicit workflow dispatches.
+- `recorded_integration` runs live once on Ubuntu and Python 3.10 on those trusted
+  events. The other environments replay only the sanitized artifact from the same
+  commit, workflow run, and attempt.
+
+Pull-request and merge-group revisions run only the non-secret unit, local transport,
+and package jobs. GitHub does not expose API or cloud credentials to code controlled
+by a pull request. Fresh deployed-server compatibility evidence is therefore produced
+only after protected `main` accepts the revision or a maintainer starts a trusted
+workflow dispatch.
 
 The tag-triggered full workflow still owns slow opt-in dataset QA and ML runs.
 Those tests are deliberately outside this pilot.
@@ -27,11 +34,20 @@ the deployment stayed unchanged throughout the recording, or that an unmerged
 platform pull request is compatible. An OpenAPI digest identifies the fetched
 schema, not the deployed implementation.
 
-The recorded lifecycle covers Git repository creation, listing, and deletion. It
-does not call `GitRepo.get_by_id`: the designated deployment currently requires a
-`git_repo_organization_id` query parameter that this SDK method cannot supply. That
-contract drift remains visible as a pilot limitation instead of being encoded into
-a supposedly portable cassette.
+The bounded recording suite covers Git repository CRUD; Git-backed storage CRUD;
+Dataset QA metadata CRUD and run listing; LLM model CRUD and unlearning run listing;
+and LLM behavior evaluation run listing. List responses retain only records created
+by the recording tests or connected to their returned identifiers. The sanitizer
+removes unrelated organization records before upload.
+
+Run launches, status streams, and result downloads remain in the opt-in full-backend
+suite because they start Dataset QA, model unlearning, or evaluation work. Required
+CI does not start inference or training. Local fixtures cover the SSE and ZIP
+transport behavior without depending on a deployed workload.
+
+Before recording, CI compares the canonical deployed OpenAPI document byte-for-byte
+with `schemas/openapi_snapshot.json`. A schema mismatch stops the job, so generated
+model validation and cassette provenance cannot refer to different contracts.
 
 ## Replay and transport limits
 

@@ -23,10 +23,12 @@ from tests.recording.support import (
     UnsafeCassetteError,
     as_cassette,
     as_json_value,
+    recalculate_content_length,
     sanitize_cassette,
+    validate_cassette_secrets,
 )
 
-PILOT_RECORD_NAME_PREFIX = "sdk-http-recording-"
+TEST_OWNED_IDENTIFIER_PREFIXES = ("sdk-http-recording-",)
 
 app = typer.Typer(add_completion=False)
 
@@ -85,33 +87,42 @@ def _replace_response_json(response: Cassette, value: JsonValue) -> None:
         response["body"] = serialized_bytes if isinstance(body, bytes) else serialized
     headers = response.get("headers")
     if isinstance(headers, dict):
-        for name, header_value in headers.items():
-            if name.lower() == "content-length":
-                headers[name] = (
-                    [str(len(serialized_bytes))]
-                    if isinstance(header_value, list)
-                    else str(len(serialized_bytes))
-                )
+        recalculate_content_length(headers, response["body"])
 
 
-def _filter_git_repo_response(response: Cassette) -> None:
+def _contains_test_owned_identifier(value: object) -> bool:
+    if isinstance(value, str):
+        return any(prefix in value for prefix in TEST_OWNED_IDENTIFIER_PREFIXES)
+    if isinstance(value, list):
+        return any(_contains_test_owned_identifier(item) for item in value)
+    if isinstance(value, dict):
+        return any(_contains_test_owned_identifier(item) for item in value.values())
+    return False
+
+
+def _filter_list_response(response: Cassette, *, request_path: str) -> None:
     payload = _response_json(response)
     if not isinstance(payload, list):
-        raise UnsafeCassetteError("git-repo list response is not a JSON list")
-    filtered_records: list[JsonValue] = []
+        if request_path.rstrip("/").split("/")[-1] == "git-repo":
+            raise UnsafeCassetteError("git-repo list response is not a JSON list")
+        return
+    records: list[dict[str, JsonValue]] = []
     for record in payload:
-        if not isinstance(record, dict) or not isinstance(record.get("name"), str):
-            raise UnsafeCassetteError("git-repo list contains a malformed record")
-        record_name = record["name"]
-        if isinstance(record_name, str) and record_name.startswith(
-            PILOT_RECORD_NAME_PREFIX
-        ):
-            filtered_records.append(record)
-    _replace_response_json(response, filtered_records)
+        if not isinstance(record, dict):
+            raise UnsafeCassetteError("record list contains a non-object record")
+        records.append(record)
+    if request_path.rstrip("/").split("/")[-1] == "git-repo" and not all(
+        isinstance(record.get("name"), str) for record in records
+    ):
+        raise UnsafeCassetteError("git-repo list contains a malformed record")
+    _replace_response_json(
+        response,
+        [record for record in records if _contains_test_owned_identifier(record)],
+    )
 
 
 def apply_pilot_privacy_policy(cassette: Cassette) -> None:
-    """Remove unrelated repositories from pilot list responses.
+    """Remove unrelated records from GET list responses.
 
     Args:
         cassette: The sanitized VCR cassette to filter in place.
@@ -135,13 +146,12 @@ def apply_pilot_privacy_policy(cassette: Cassette) -> None:
         request_url = request.get("uri", request.get("url", ""))
         if not isinstance(request_url, str):
             raise UnsafeCassetteError("cassette request URL must be text")
-        request_path = urlsplit(request_url).path
-        if (
-            str(request.get("method", "")).upper() != "GET"
-            or request_path.rstrip("/").split("/")[-1] != "git-repo"
-        ):
+        if str(request.get("method", "")).upper() != "GET":
             continue
-        _filter_git_repo_response(response)
+        _filter_list_response(
+            response,
+            request_path=urlsplit(request_url).path,
+        )
 
 
 def publish_cassettes(
@@ -203,6 +213,7 @@ def publish_cassettes(
             ) from error
         sanitized = sanitize_cassette(raw_cassette, seeded_secrets=seeded_secrets)
         apply_pilot_privacy_policy(sanitized)
+        validate_cassette_secrets(sanitized, seeded_secrets=seeded_secrets)
         sanitized_interactions = sanitized["interactions"]
         if not isinstance(sanitized_interactions, list):
             raise UnsafeCassetteError("cassette interactions must be a list")

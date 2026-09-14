@@ -5,7 +5,7 @@ from enum import Enum
 from typing import cast, overload
 
 import httpx
-from pydantic import BaseModel, ConfigDict, JsonValue, model_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -54,34 +54,32 @@ class JudgeModel(BaseModel):
     """Public evaluation judge model matching the API request fields."""
 
     path_or_repo_id: str
-    token: str | None = None
-    token_id: int | None = None
+    token: str | None = Field(default=None, min_length=1)
+    token_id: int | None = Field(default=None, gt=0)
     batch_size: int | None = None
     output_tokens: int | None = None
     use_4bit: bool | None = None
-
-    @model_validator(mode="after")
-    def _validate_token_inputs(self) -> "JudgeModel":
-        if self.token and self.token_id:
-            raise ValueError("Only one of `token` and `token_id` may be provided")
-        return self
 
 
 class EvalRunInfo(BaseModel):
     """SDK-compatible request validated against the generated wire model."""
 
-    model_config = ConfigDict(extra="forbid")
-
     organization_id: int | None = None
     name: str | None = None
     model_id: int | None = None
     source_run_id: str | None = None
-    preset_type: PresetType
+    preset_type: PresetType | None = None
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
 
     @model_validator(mode="after")
     def _validate_and_wire_public_models(self) -> "EvalRunInfo":
+        if (
+            self.judge_model is not None
+            and self.judge_model.token is not None
+            and self.judge_model.token_id is not None
+        ):
+            raise ValueError("Only one of `token` and `token_id` may be provided")
         if self.preset_type in {PresetType.XSTEST, PresetType.OR_BENCH} and (
             self.bias_type is not None
         ):

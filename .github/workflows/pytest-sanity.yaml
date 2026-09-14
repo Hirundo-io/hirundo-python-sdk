@@ -18,11 +18,11 @@ permissions:
 
 env:
   RECORDING_ARTIFACT: sdk-http-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
-  TEST_SELECTION: tests/integration/recorded_api_test.py
+  TEST_SELECTION: marker:recorded_integration
 
 jobs:
   unit-and-transport:
-    name: unit-transport-probe (${{ matrix.os }}, ${{ matrix.python-version }})
+    name: unit-transport (${{ matrix.os }}, ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -44,6 +44,25 @@ jobs:
           --allowed-hosts='^127\.0\.0\.1$'
       - name: Run localhost transport tests
         run: uv run pytest -m local_transport --block-network --allowed-hosts='^127\.0\.0\.1$'
+
+  authenticated-probe:
+    name: authenticated probe (${{ matrix.os }}, ${{ matrix.python-version }})
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Python and uv
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: uv sync --group dev
       - name: Require live probe credentials
         env:
           HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
@@ -54,6 +73,7 @@ jobs:
           os.environ.get('HIRUNDO_API_KEY') else 'live probe credentials are required')"
       - name: Run one authenticated HTTPS probe
         env:
+          HIRUNDO_LIVE_TESTS: "1"
           HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
           HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
         run: uv run pytest -m authenticated_probe --disable-recording
@@ -81,6 +101,7 @@ jobs:
 
   record-integration:
     name: record integration (ubuntu-latest, 3.10)
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -107,6 +128,9 @@ jobs:
         run: |
           digest=$(uv run python scripts/fetch_openapi_snapshot.py "${RUNNER_TEMP}/openapi.json")
           echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
+      - name: Require deployed schema to match generated models
+        shell: bash
+        run: diff --brief schemas/openapi_snapshot.json "${RUNNER_TEMP}/openapi.json"
       - name: Run bounded Schemathesis diagnostic
         continue-on-error: true
         env:
@@ -118,6 +142,7 @@ jobs:
         run: uv run python scripts/run_schemathesis_pilot.py
       - name: Record real SDK integration
         env:
+          HIRUNDO_LIVE_TESTS: "1"
           HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
           HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
           HIRUNDO_CASSETTE_DIR: ${{ runner.temp }}/raw-cassettes
@@ -131,10 +156,6 @@ jobs:
       - name: Sanitize and manifest recordings
         env:
           RECORDING_API_KEY: ${{ secrets.API_KEY2 }}
-          RECORDING_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
-          RECORDING_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          RECORDING_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          RECORDING_HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
         shell: bash
         run: |
           expires_at=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
@@ -142,10 +163,6 @@ jobs:
             "${RUNNER_TEMP}/raw-cassettes" \
             "${RUNNER_TEMP}/publish-cassettes" \
             --secrets-env RECORDING_API_KEY \
-            --secrets-env RECORDING_GCP_CREDENTIALS \
-            --secrets-env RECORDING_AWS_ACCESS_KEY \
-            --secrets-env RECORDING_AWS_SECRET_ACCESS_KEY \
-            --secrets-env RECORDING_HUGGINGFACE_TOKEN \
             --sdk-sha "${GITHUB_SHA}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}" \
@@ -167,6 +184,7 @@ jobs:
   replay-integration:
     name: replay integration (${{ matrix.os }}, ${{ matrix.python-version }})
     needs: record-integration
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false

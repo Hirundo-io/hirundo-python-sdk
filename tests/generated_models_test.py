@@ -65,25 +65,62 @@ def test_eval_request_uses_generated_fields_and_public_nested_models() -> None:
 
 
 def test_eval_request_preserves_required_and_forbidden_constraints() -> None:
+    legacy_request = EvalRunInfo.model_validate({"file_path": "legacy.json"})
+    assert legacy_request.preset_type is None
+    assert "file_path" not in legacy_request.model_dump()
     with pytest.raises(ValidationError):
-        EvalRunInfo.model_validate({})
-    with pytest.raises(ValidationError):
-        EvalRunInfo.model_validate({"preset_type": "BBQ_BIAS", "removed": True})
+        ServerUnlearningLlmModelsEvalRunInfo.model_validate(
+            legacy_request.model_dump(mode="json")
+        )
     with pytest.raises(ValidationError, match="refusal presets"):
         EvalRunInfo.model_validate(
             {"preset_type": PresetType.XSTEST, "bias_type": BBQBiasType.ALL}
         )
 
 
-def test_judge_model_accepts_token_id_and_rejects_two_token_sources() -> None:
+def test_eval_request_rejects_two_valid_token_sources() -> None:
     judge_model = JudgeModel.model_validate(
         {"path_or_repo_id": "org/judge", "token_id": 42}
     )
     assert judge_model.token_id == 42
     with pytest.raises(ValidationError, match="Only one"):
-        JudgeModel.model_validate(
-            {"path_or_repo_id": "org/judge", "token": "secret", "token_id": 42}
+        EvalRunInfo.model_validate(
+            {
+                "preset_type": "BBQ_BIAS",
+                "judge_model": {
+                    "path_or_repo_id": "org/judge",
+                    "token": "secret",
+                    "token_id": 42,
+                },
+            }
         )
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid_value"),
+    [("token", ""), ("token_id", 0), ("token_id", -1)],
+)
+def test_judge_model_rejects_invalid_token_values(
+    field: str, invalid_value: str | int
+) -> None:
+    with pytest.raises(ValidationError):
+        JudgeModel.model_validate(
+            {"path_or_repo_id": "org/judge", field: invalid_value}
+        )
+
+
+def test_response_judge_model_accepts_both_credential_references() -> None:
+    credential_reference = "response-value"
+    judge_model = JudgeModel.model_validate(
+        {
+            "path_or_repo_id": "org/judge",
+            "token": credential_reference,
+            "token_id": 42,
+        }
+    )
+
+    assert judge_model.token == credential_reference
+    assert judge_model.token_id == 42
 
 
 def test_eval_metrics_raw_rows_use_public_subclass_and_allow_extensions() -> None:

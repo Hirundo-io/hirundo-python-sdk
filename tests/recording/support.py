@@ -64,11 +64,22 @@ SENSITIVE_BODY_NAMES = frozenset(
         "api_key",
         "apikey",
         "authorization",
+        "client_secret",
+        "client_email",
         "cookie",
+        "credential",
+        "credentials",
+        "creator_name",
+        "organization_name",
         "password",
+        "private_key",
+        "private_key_id",
         "refresh_token",
         "secret",
+        "secret_key",
+        "signing_key",
         "token",
+        "username",
     }
 )
 MATCHED_HEADER_NAMES = (
@@ -393,16 +404,29 @@ def _sanitize_headers(
     return sanitized
 
 
+def _json_field_name(key: str) -> str:
+    """Normalize JSON field names before checking whether they hold secrets."""
+
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", key).replace("-", "_").lower()
+
+
+def _is_absolute_url(value: str) -> bool:
+    parts = urlsplit(value)
+    return bool(parts.scheme and parts.netloc)
+
+
 def _sanitize_json(value: JsonValue) -> JsonValue:
     if isinstance(value, dict):
         return {
             key: REDACTED
-            if key.lower() in SENSITIVE_BODY_NAMES
+            if _json_field_name(key) in SENSITIVE_BODY_NAMES
             else _sanitize_json(item)
             for key, item in value.items()
         }
     if isinstance(value, list):
         return [_sanitize_json(item) for item in value]
+    if isinstance(value, str) and _is_absolute_url(value):
+        return _sanitize_url(value, normalize_external_host=True)
     return value
 
 
@@ -499,6 +523,44 @@ def _sanitize_body(
     return sanitized_body
 
 
+def _body_byte_length(body: CassetteValue) -> int:
+    raw_body = body.get("string") if isinstance(body, dict) else body
+    if raw_body is None:
+        return 0
+    if isinstance(raw_body, bytes):
+        return len(raw_body)
+    if isinstance(raw_body, str):
+        return len(raw_body.encode("utf-8"))
+    raise UnsafeCassetteError(
+        f"unsupported cassette body type: {type(raw_body).__name__}"
+    )
+
+
+def recalculate_content_length(
+    headers: dict[str, CassetteValue], body: CassetteValue
+) -> None:
+    """Update Content-Length headers to match a rewritten UTF-8 cassette body.
+
+    Args:
+        headers: Mutable response or request headers to update.
+        body: Final sanitized body whose encoded length must be advertised.
+
+    Returns:
+        None.
+    """
+
+    content_length = str(_body_byte_length(body))
+    for name, value in tuple(headers.items()):
+        if name.lower() != "content-length":
+            continue
+        if isinstance(value, list):
+            headers[name] = [content_length]
+        elif isinstance(value, str):
+            headers[name] = content_length
+        else:
+            del headers[name]
+
+
 def _sanitize_message(message: Mapping[str, CassetteValue]) -> Cassette:
     sanitized = copy.deepcopy(dict(message))
     headers = sanitized.get("headers", {})
@@ -514,6 +576,7 @@ def _sanitize_message(message: Mapping[str, CassetteValue]) -> Cassette:
         sanitized["url"] = _sanitize_url(url, normalize_external_host=True)
     if "body" in sanitized:
         sanitized["body"] = _sanitize_body(sanitized["body"], sanitized_headers)
+        recalculate_content_length(sanitized_headers, sanitized["body"])
     return sanitized
 
 
@@ -521,6 +584,65 @@ def _json_secret_scan_default(value: object) -> str:
     if isinstance(value, bytes):
         return value.decode("utf-8")
     raise TypeError(f"unsupported secret-scan value: {type(value).__name__}")
+
+
+def _nested_string_values(value: JsonValue) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from _nested_string_values(item)
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _nested_string_values(item)
+
+
+def _secret_fragments(secret: str) -> set[str]:
+    fragments = {secret}
+    try:
+        loaded: object = json.loads(secret)
+        parsed = as_json_value(loaded)
+    except (json.JSONDecodeError, ValueError):
+        candidates = secret.splitlines()
+    else:
+        candidates = list(_nested_string_values(parsed))
+    fragments.update(candidate for candidate in candidates if len(candidate) >= 8)
+    return fragments
+
+
+def validate_cassette_secrets(
+    cassette: Mapping[str, CassetteValue], *, seeded_secrets: Sequence[str]
+) -> None:
+    """Fail when any individual seeded value survives cassette sanitization.
+
+    Args:
+        cassette: Sanitized cassette to scan.
+        seeded_secrets: Secret values and credential documents that must be absent.
+
+    Returns:
+        None.
+    """
+
+    serialized = json.dumps(
+        cassette,
+        sort_keys=True,
+        ensure_ascii=False,
+        default=_json_secret_scan_default,
+    )
+    for secret in seeded_secrets:
+        if not secret:
+            raise UnsafeCassetteError("seeded secrets must not be empty")
+        for value in _secret_fragments(secret):
+            encodings = {
+                value,
+                json.dumps(value, ensure_ascii=False)[1:-1],
+                urlencode({"value": value}).partition("=")[2],
+                base64.b64encode(value.encode()).decode(),
+            }
+            if any(encoded_value in serialized for encoded_value in encodings):
+                raise UnsafeCassetteError(
+                    "a seeded secret survived cassette sanitization"
+                )
 
 
 def sanitize_cassette(
@@ -557,22 +679,7 @@ def sanitize_cassette(
             }
         )
     sanitized["interactions"] = sanitized_interactions
-    serialized = json.dumps(
-        sanitized,
-        sort_keys=True,
-        ensure_ascii=False,
-        default=_json_secret_scan_default,
-    )
-    for secret in seeded_secrets:
-        if not secret:
-            raise UnsafeCassetteError("seeded secrets must not be empty")
-        encodings = {
-            secret,
-            urlencode({"value": secret}).partition("=")[2],
-            base64.b64encode(secret.encode()).decode(),
-        }
-        if any(encoded_secret in serialized for encoded_secret in encodings):
-            raise UnsafeCassetteError("a seeded secret survived cassette sanitization")
+    validate_cassette_secrets(sanitized, seeded_secrets=seeded_secrets)
     return sanitized
 
 
@@ -589,6 +696,7 @@ def before_record_request(request: VcrRequest) -> VcrRequest:
     request.uri = _sanitize_url(request.uri, normalize_external_host=True)
     request.headers = _sanitize_headers(request.headers)
     request.body = _sanitize_body(request.body, request.headers)
+    recalculate_content_length(request.headers, request.body)
     return request
 
 
@@ -796,7 +904,7 @@ class RecordingManifest:
         if self.run_attempt != expected_run_attempt:
             raise ManifestValidationError("run attempt does not match replay job")
         current_time = now or datetime.now(timezone.utc)
-        if current_time > _parse_utc_timestamp(self.expires_at, "expires_at"):
+        if current_time >= _parse_utc_timestamp(self.expires_at, "expires_at"):
             raise ManifestValidationError("recording artifacts have expired")
 
 

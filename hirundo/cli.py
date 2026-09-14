@@ -87,6 +87,12 @@ def setup_api_key(
     """
     Setup the API key for the Hirundo Python SDK.
     Values are saved to a .env file in the current directory for use by the library in requests.
+
+    Args:
+        api_key: API key to save for SDK requests.
+
+    Returns:
+        None.
     """
     saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
     if saved_to == EnvLocation.HOME.name:
@@ -114,6 +120,12 @@ def change_api_remote(
     """
     Change the API server address for the Hirundo Python SDK.
     This is the same address where you access the Hirundo web interface.
+
+    Args:
+        api_host: API server address to save for SDK requests.
+
+    Returns:
+        None.
     """
     api_host = fix_api_host(api_host)
 
@@ -149,6 +161,13 @@ def setup(
 ):
     """
     Setup the Hirundo Python SDK.
+
+    Args:
+        api_key: API key to save for SDK requests.
+        api_host: API server address to save for SDK requests.
+
+    Returns:
+        None.
     """
     api_host = fix_api_host(api_host)
     api_host_saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
@@ -194,6 +213,12 @@ def check_run(
 ):
     """
     Check the status of a run.
+
+    Args:
+        run_id: ID of the run to check.
+
+    Returns:
+        None.
     """
     from hirundo.dataset_qa import QADataset
 
@@ -205,6 +230,12 @@ def check_run(
 def list_runs():
     """
     List all runs available.
+
+    Args:
+        None.
+
+    Returns:
+        None.
     """
     from hirundo.dataset_qa import QADataset
 

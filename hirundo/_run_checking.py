@@ -126,6 +126,9 @@ def iter_run_events(
 
     Yields:
         Event payloads decoded from the SSE data field.
+
+    Returns:
+        None after the stream ends.
     """
     while True:
         if retry > max_retries:
@@ -184,6 +187,9 @@ async def aiter_run_events(
 
     Yields:
         Event payloads decoded from the SSE data field.
+
+    Returns:
+        None after the stream ends.
     """
     while True:
         if retry > max_retries:
@@ -277,6 +283,9 @@ def handle_run_failure(
         iteration: Payload containing error details.
         error_cls: Exception type to raise.
         run_label: Human-readable label for the run type.
+
+    Returns:
+        None.
     """
     if (
         result := iteration.get("result")

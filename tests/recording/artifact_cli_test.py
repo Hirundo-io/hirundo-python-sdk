@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import pytest
+import tests.recording.artifact_cli as artifact_cli
 import yaml
 from tests.recording.artifact_cli import _secrets, publish_cassettes, verify_cassettes
 from tests.recording.support import (
@@ -184,6 +185,15 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             now=datetime(2026, 9, 11, tzinfo=timezone.utc),
         )
 
+    with pytest.raises(ManifestValidationError, match="expired"):
+        verify_cassettes(
+            publish_directory=publish_directory,
+            expected_sdk_sha="a" * 40,
+            expected_run_id="98765",
+            expected_run_attempt=1,
+            now=datetime(2026, 9, 10, 10, tzinfo=timezone.utc),
+        )
+
     (publish_directory / "pilot.yaml").write_text("tampered", encoding="utf-8")
     with pytest.raises(ManifestValidationError, match="checksum mismatch"):
         verify_cassettes(
@@ -210,6 +220,43 @@ def test_secret_environment_is_not_required_in_function_api(
     assert "do-not-log-this" not in (publish_directory / "pilot.yaml").read_text(
         encoding="utf-8"
     )
+
+
+def test_publish_validates_each_seeded_value_after_privacy_rewrites(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    raw_directory = tmp_path / "raw"
+    publish_directory = tmp_path / "publish"
+    raw_directory.mkdir()
+    (raw_directory / "pilot.yaml").write_text(
+        yaml.safe_dump(_raw_cassette("first-seeded-value")), encoding="utf-8"
+    )
+
+    def inject_second_seeded_value(cassette: Cassette) -> None:
+        _, response = _first_exchange(cassette)
+        response["post_policy_value"] = "second-seeded-value"
+
+    monkeypatch.setattr(
+        artifact_cli, "apply_pilot_privacy_policy", inject_second_seeded_value
+    )
+
+    with pytest.raises(UnsafeCassetteError, match="seeded secret"):
+        publish_cassettes(
+            raw_directory=raw_directory,
+            publish_directory=publish_directory,
+            seeded_secrets=["first-seeded-value", "second-seeded-value"],
+            sdk_sha="a" * 40,
+            run_id="98765",
+            run_attempt=1,
+            environment="designated-test",
+            recording_started_at="2026-09-09T10:00:00Z",
+            recording_finished_at="2026-09-09T10:05:00Z",
+            expires_at="2026-09-10T10:00:00Z",
+            schema_digest="sha256:" + "b" * 64,
+            test_selection=("tests/pilot_test.py::test_download",),
+        )
+
+    assert not publish_directory.exists()
 
 
 def test_verify_rejects_unlisted_nested_yaml(tmp_path: Path) -> None:
@@ -258,6 +305,116 @@ def test_publish_filters_unrelated_git_repo_list_records(tmp_path: Path) -> None
     assert isinstance(body, str)
     assert json.loads(body) == [{"name": "sdk-http-recording-owned", "id": "pilot"}]
     assert headers["Content-Length"] == [str(len(body.encode("utf-8")))]
+
+
+def test_publish_filters_generic_lists_by_test_owned_prefix(
+    tmp_path: Path,
+) -> None:
+    raw_directory = tmp_path / "raw"
+    publish_directory = tmp_path / "publish"
+    raw_directory.mkdir()
+    raw = _raw_cassette("marker")
+    create_request, create_response = _first_exchange(raw)
+    create_request.update(
+        method="POST",
+        uri="https://api.example.test/api/model/",
+        headers={"Content-Type": ["application/json"]},
+        body={"string": json.dumps({"model_name": "sdk-http-recording-model"})},
+    )
+    create_response.update(
+        headers={"Content-Type": ["application/json"]},
+        body={"string": json.dumps({"id": "owned-model-id"})},
+    )
+    interactions = raw["interactions"]
+    assert isinstance(interactions, list)
+    interactions.append(
+        {
+            "request": {
+                "method": "GET",
+                "uri": "https://api.example.test/api/run/",
+                "headers": {},
+                "body": None,
+            },
+            "response": {
+                "status": {"code": 200, "message": "OK"},
+                "headers": {"Content-Type": ["application/json"]},
+                "body": {
+                    "string": json.dumps(
+                        [
+                            {
+                                "id": "owned-run-id",
+                                "name": "sdk-http-recording-run",
+                                "model": {"id": "owned-model-id"},
+                            },
+                            {
+                                "id": "unrelated-run-id",
+                                "model": {"id": "owned-model-id"},
+                            },
+                        ]
+                    )
+                },
+            },
+        }
+    )
+    (raw_directory / "runs.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    _publish(raw_directory, publish_directory, "marker")
+
+    loaded: object = yaml.safe_load(
+        (publish_directory / "runs.yaml").read_text(encoding="utf-8")
+    )
+    published = as_cassette(loaded)
+    published_interactions = published["interactions"]
+    assert isinstance(published_interactions, list)
+    run_exchange = published_interactions[1]
+    assert isinstance(run_exchange, dict)
+    response = run_exchange["response"]
+    assert isinstance(response, dict)
+    body = response["body"]
+    assert isinstance(body, dict)
+    response_text = body["string"]
+    assert isinstance(response_text, str)
+    assert json.loads(response_text) == [
+        {
+            "id": "owned-run-id",
+            "name": "sdk-http-recording-run",
+            "model": {"id": "owned-model-id"},
+        }
+    ]
+
+
+def test_publish_preserves_scalar_content_length_shape_when_filtering(
+    tmp_path: Path,
+) -> None:
+    raw_directory = tmp_path / "raw"
+    publish_directory = tmp_path / "publish"
+    raw_directory.mkdir()
+    raw = _git_repo_cassette(
+        [
+            {"name": "sdk-http-recording-owned", "id": "pilot"},
+            {"name": "another-team-repository", "id": "unrelated"},
+        ]
+    )
+    _, response = _first_exchange(raw)
+    headers = response["headers"]
+    assert isinstance(headers, dict)
+    headers["content-length"] = "9999"
+    del headers["Content-Length"]
+    (raw_directory / "git_repo.yaml").write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+    _publish(raw_directory, publish_directory, "marker")
+
+    loaded: object = yaml.safe_load(
+        (publish_directory / "git_repo.yaml").read_text(encoding="utf-8")
+    )
+    _, published_response = _first_exchange(as_cassette(loaded))
+    published_headers = published_response["headers"]
+    published_body = published_response["body"]
+    assert isinstance(published_headers, dict)
+    assert isinstance(published_body, dict)
+    body = published_body["string"]
+    assert isinstance(body, str)
+    assert published_headers["content-length"] == str(len(body.encode("utf-8")))
 
 
 def test_publish_preserves_vcr_response_bytes_while_filtering(tmp_path: Path) -> None:

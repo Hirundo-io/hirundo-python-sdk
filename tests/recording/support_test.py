@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, TypedDict
 from unittest.mock import patch
 
@@ -21,10 +22,12 @@ from tests.recording.support import (
     ReplayNetworkEscapeError,
     UnsafeCassetteError,
     VcrRequest,
+    before_record_request,
     block_replay_network,
     configure_vcr,
     sanitize_cassette,
     semantic_request_matcher,
+    validate_cassette_secrets,
 )
 
 if TYPE_CHECKING:
@@ -229,6 +232,106 @@ def test_sanitizer_covers_nested_json_sse_query_cookie_and_redirect() -> None:
     assert "[DONE]" not in serialized
 
 
+def test_sanitizer_redacts_nested_credentials_and_sanitizes_json_urls() -> None:
+    nested_private_key = "nested-private-key"
+    nested_credential = "nested-credential"
+    signed_url_marker = "signed-url-marker"
+    recorded = cassette()
+    request_message, response_message = first_exchange(recorded)
+    request_headers = message_headers(request_message)
+    request_headers["Content-Length"] = ["999"]
+    request_message["body"] = {
+        "string": json.dumps(
+            {
+                "connection": {
+                    "private_key": nested_private_key,
+                    "credential": nested_credential,
+                },
+                "download_url": (
+                    "https://storage.internal.example/download?"
+                    f"X-Amz-Signature={signed_url_marker}&part=1"
+                ),
+            }
+        )
+    }
+    response_headers = message_headers(response_message)
+    response_headers["content-length"] = "999"
+    response_headers["Content-Length"] = 999
+    response_headers["Content-Type"] = ["application/json"]
+    response_message["body"] = {
+        "string": json.dumps(
+            {
+                "nested": {"privateKey": nested_private_key},
+                "callback": (
+                    f"https://callback.internal.example/?signature={signed_url_marker}"
+                ),
+            }
+        )
+    }
+
+    sanitized = sanitize_cassette(
+        recorded,
+        seeded_secrets=[nested_private_key, nested_credential, signed_url_marker],
+    )
+
+    sanitized_request, sanitized_response = first_exchange(sanitized)
+    request_body = json.loads(str(body_container(sanitized_request)["string"]))
+    response_body = json.loads(str(body_container(sanitized_response)["string"]))
+    assert request_body["connection"] == {
+        "private_key": "<redacted>",
+        "credential": "<redacted>",
+    }
+    assert request_body["download_url"] == (
+        "https://api.example.test/download?X-Amz-Signature=%3Credacted%3E&part=1"
+    )
+    assert response_body["nested"] == {"privateKey": "<redacted>"}
+    assert response_body["callback"] == (
+        "https://api.example.test/?signature=%3Credacted%3E"
+    )
+    sanitized_request_headers = message_headers(sanitized_request)
+    sanitized_response_headers = message_headers(sanitized_response)
+    assert sanitized_request_headers["Content-Length"] == [
+        str(len(str(body_container(sanitized_request)["string"]).encode("utf-8")))
+    ]
+    assert sanitized_response_headers["content-length"] == str(
+        len(str(body_container(sanitized_response)["string"]).encode("utf-8"))
+    )
+    assert "Content-Length" not in sanitized_response_headers
+
+
+def test_before_record_request_recalculates_case_insensitive_content_length() -> None:
+    recorded_request = request(
+        body='{"token":"seed-secret"}',
+        headers={
+            "Content-Type": ["application/json"],
+            "CONTENT-LENGTH": ["999"],
+        },
+    )
+
+    sanitized_request = before_record_request(recorded_request)
+
+    assert sanitized_request.headers["CONTENT-LENGTH"] == [
+        str(len(b'{"token":"<redacted>"}'))
+    ]
+
+
+def test_secret_scan_extracts_json_values_without_treating_syntax_as_secret() -> None:
+    private_key = "nested-private-key-material"
+    credentials_document = json.dumps(
+        {"type": "service_account", "private_key": private_key}, indent=2
+    )
+
+    validate_cassette_secrets(
+        {"interactions": [], "safe": "{}"},
+        seeded_secrets=[credentials_document],
+    )
+    with pytest.raises(UnsafeCassetteError, match="seeded secret"):
+        validate_cassette_secrets(
+            {"interactions": [], "leaked": private_key},
+            seeded_secrets=[credentials_document],
+        )
+
+
 def test_sanitizer_preserves_binary_container_for_utf8_response_bytes() -> None:
     recorded = cassette()
     _, response_message = first_exchange(recorded)
@@ -374,6 +477,21 @@ def test_manifest_replay_requires_exact_ci_identity_and_unexpired_files(
             expected_sdk_sha="a" * 40,
             expected_run_id="123456",
             expected_run_attempt=3,
+        )
+
+
+def test_manifest_replay_rejects_expiry_equality(tmp_path: Path) -> None:
+    cassette_path = tmp_path / "pilot.yaml"
+    cassette_path.write_text("safe cassette", encoding="utf-8")
+    checksum = "sha256:" + hashlib.sha256(cassette_path.read_bytes()).hexdigest()
+
+    with pytest.raises(ManifestValidationError, match="expired"):
+        manifest(checksum).verify_replay(
+            cassette_root=tmp_path,
+            expected_sdk_sha="a" * 40,
+            expected_run_id="123456",
+            expected_run_attempt=2,
+            now=datetime(2026, 9, 10, 10, tzinfo=timezone.utc),
         )
 
 
