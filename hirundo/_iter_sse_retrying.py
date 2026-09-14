@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 
 MAX_RETRIES = 50
 RETRYABLE_SSE_EXCEPTIONS = (
+    httpx.ConnectTimeout,
     httpx.ReadError,
     httpx.RemoteProtocolError,
     ReadTimeoutError,
@@ -36,7 +37,8 @@ def iter_sse_retrying(
 
     # `stamina` will apply jitter and exponential backoff on top of
     # the `retry` reconnection delay sent by the server.
-    # httpx.ReadError is thrown when there is a network error.
+    # httpx.ConnectTimeout and httpx.ReadError are thrown when a connection
+    # cannot be established or another network error occurs.
     #   Some network errors may be temporary, hence the retries.
     # httpx.RemoteProtocolError is thrown when the server closes the connection.
     #  This may happen when the server is overloaded and closes the connection or
@@ -100,7 +102,8 @@ async def aiter_sse_retrying(
 
     # `stamina` will apply jitter and exponential backoff on top of
     # the `retry` reconnection delay sent by the server.
-    # httpx.ReadError is thrown when there is a network error.
+    # httpx.ConnectTimeout and httpx.ReadError are thrown when a connection
+    # cannot be established or another network error occurs.
     #   Some network errors may be temporary, hence the retries.
     # httpx.RemoteProtocolError is thrown when the server closes the connection.
     #  This may happen when the server is overloaded and closes the connection or
