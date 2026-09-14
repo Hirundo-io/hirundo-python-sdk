@@ -57,6 +57,15 @@ Example:
 .. literalinclude:: llm_behavior_eval_example.py
    :language: python
 
+External evaluations
+--------------------
+
+Run server-owned Inspect evaluations. The deployment catalogue determines which
+tasks are available, so applications should retrieve it before launching a run.
+
+.. literalinclude:: external_eval_example.py
+   :language: python
+
 Dataset QA
 ----------
 
