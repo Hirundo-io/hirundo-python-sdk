@@ -137,6 +137,9 @@ def test_download_and_extract_zip_populates_result_frames(monkeypatch, tmp_path)
     ("model_name", "response_model_folder", "archive_model_folder"),
     [
         ("Qwen/Qwen3-0.6B", None, "Qwen3-0.6B"),
+        ("/opt/models/Qwen3-0.6B/", None, "Qwen3-0.6B"),
+        ("C:\\models\\Qwen3-0.6B", None, "Qwen3-0.6B"),
+        ("C:\\models\\Qwen3-0.6B\\", None, "Qwen3-0.6B"),
         ("Qwen/Qwen3-0.6B", "merged_model", "merged_model"),
         (None, "merged_model", "merged_model"),
     ],
