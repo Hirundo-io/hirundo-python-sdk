@@ -32,6 +32,7 @@ def get_hf_pipeline_for_run_given_model(
     device_map: str | dict[str, int | str] | None = None,
     trust_remote_code: bool = False,
     token: str | None = None,
+    base_model_path: str | Path | None = None,
 ) -> "Pipeline":
     for package in REQUIRED_PACKAGES_FOR_PIPELINE:
         if importlib.util.find_spec(package) is None:
@@ -92,9 +93,10 @@ def get_hf_pipeline_for_run_given_model(
         temp_dir_path = Path(temp_dir)
         with zipfile.ZipFile(zip_file_path, "r") as zip_file:
             zip_file.extractall(temp_dir_path)
-        # Attempt to load the tokenizer normally
-        base_model_name = (
-            llm.model_source.model_name
+        base_model_name_or_path = (
+            base_model_path
+            if base_model_path is not None
+            else llm.model_source.model_name
             if isinstance(
                 llm.model_source,
                 HuggingFaceTransformersModel | HuggingFaceTransformersModelOutput,
@@ -110,14 +112,14 @@ def get_hf_pipeline_for_run_given_model(
             else token
         )
         tokenizer = AutoTokenizer.from_pretrained(
-            base_model_name,
+            base_model_name_or_path,
             token=token,
             trust_remote_code=trust_remote_code,
         )
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         config = AutoConfig.from_pretrained(
-            base_model_name,
+            base_model_name_or_path,
             token=token,
             trust_remote_code=trust_remote_code,
         )
@@ -128,13 +130,13 @@ def get_hf_pipeline_for_run_given_model(
         )
         if is_multimodal:
             base_model = AutoModelForImageTextToText.from_pretrained(
-                base_model_name,
+                base_model_name_or_path,
                 token=token,
                 trust_remote_code=trust_remote_code,
             )
         else:
             base_model = AutoModelForCausalLM.from_pretrained(
-                base_model_name,
+                base_model_name_or_path,
                 token=token,
                 trust_remote_code=trust_remote_code,
             )

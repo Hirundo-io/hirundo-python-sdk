@@ -3,8 +3,8 @@
 from hirundo import (
     BiasBehavior,
     HuggingFaceTransformersModel,
-    LlmRunInfo,
     LlmModel,
+    LlmRunInfo,
     LlmUnlearningRun,
 )
 
