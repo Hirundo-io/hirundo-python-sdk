@@ -156,8 +156,20 @@ class LlmModel(BaseModel):
         """Load a run's adapter on the model available to this SDK client.
 
         Args:
+            run_id: ID of the completed unlearning run whose adapter to load.
+            config: Optional Transformers configuration argument retained for API
+                compatibility. The loader reads the selected base model's
+                configuration.
+            device: Device passed to the Transformers text-generation pipeline.
+            device_map: Device mapping passed to the Transformers text-generation
+                pipeline.
+            trust_remote_code: Whether Transformers may execute custom model code.
             base_model_path: Optional client-side base-model path. Use this when the
                 SDK client cannot access the model path recorded by the server.
+
+        Returns:
+            A Transformers text-generation pipeline containing the base model and
+            the run's adapter.
         """
         return get_hf_pipeline_for_run_given_model(
             self,
@@ -195,8 +207,21 @@ class LlmModelOut(BaseModel):
         """Load a run's adapter on the model available to this SDK client.
 
         Args:
+            run_id: ID of the completed unlearning run whose adapter to load.
+            config: Optional Transformers configuration argument retained for API
+                compatibility. The loader reads the selected base model's
+                configuration.
+            device: Device passed to the Transformers text-generation pipeline.
+            device_map: Device mapping passed to the Transformers text-generation
+                pipeline.
+            trust_remote_code: Whether Transformers may execute custom model code.
+            token: Optional Hugging Face token used to load the base model.
             base_model_path: Optional client-side base-model path. Use this when the
                 SDK client cannot access the model path recorded by the server.
+
+        Returns:
+            A Transformers text-generation pipeline containing the base model and
+            the run's adapter.
         """
         return get_hf_pipeline_for_run_given_model(
             self,
