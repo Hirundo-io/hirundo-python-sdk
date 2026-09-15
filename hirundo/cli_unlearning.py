@@ -7,17 +7,15 @@ from hirundo._cli_common import (
     OutputFormat,
     OutputOption,
     WaitOption,
-    check_run_and_print,
-    emit_if_json,
+    check_and_emit_run,
     emit_rows,
     hirundo_epilog,
     make_app,
     report_run_started,
     require_exactly_one,
-    run_payload,
     set_output_format,
     validate_enum,
-    wait_or_notify,
+    wait_and_emit_run,
 )
 
 unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.")
@@ -103,10 +101,7 @@ def unlearning_run(
     run_id = LlmUnlearningRun.launch(model_id, run_info)
     report_run_started("Unlearning", run_id)
 
-    results = wait_or_notify(
-        run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait
-    )
-    emit_if_json(run_payload(run_id, results))
+    wait_and_emit_run(run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait)
 
 
 @unlearning_app.command("list", epilog=hirundo_epilog)
@@ -120,15 +115,15 @@ def unlearning_list(
     set_output_format(output)
     from hirundo.unlearning_llm import LlmUnlearningRun
 
-    runs = LlmUnlearningRun.list(archived=archived)
+    run_records = LlmUnlearningRun.list(archived=archived)
     items = [
         {
-            "name": str(run.name),
-            "run_id": str(run.run_id),
-            "status": str(run.status),
-            "created_at": run.created_at.isoformat(),
+            "name": str(run_record.name),
+            "run_id": str(run_record.run_id),
+            "status": str(run_record.status),
+            "created_at": run_record.created_at.isoformat(),
         }
-        for run in runs
+        for run_record in run_records
     ]
     emit_rows(
         "Unlearning Runs:",
@@ -153,5 +148,4 @@ def unlearning_check(
     set_output_format(output)
     from hirundo.unlearning_llm import LlmUnlearningRun
 
-    results = check_run_and_print(run_id, LlmUnlearningRun.check_run_by_id)
-    emit_if_json(run_payload(run_id, results))
+    check_and_emit_run(run_id, LlmUnlearningRun.check_run_by_id)

@@ -7,18 +7,16 @@ from hirundo._cli_common import (
     OutputFormat,
     OutputOption,
     WaitOption,
-    check_run_and_print,
-    emit_if_json,
+    check_and_emit_run,
     emit_rows,
     hirundo_epilog,
     make_app,
     report_run_started,
     require_exactly_one,
-    run_payload,
     set_output_format,
     validate_enum,
     validate_run_id,
-    wait_or_notify,
+    wait_and_emit_run,
 )
 
 eval_app = make_app("eval", "Launch and monitor LLM behavior evaluation runs.")
@@ -78,8 +76,7 @@ def eval_run(
     run_id = LlmBehaviorEval.launch_eval_run(model_or_run, run_info)
     report_run_started("Eval", run_id)
 
-    results = wait_or_notify(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
-    emit_if_json(run_payload(run_id, results))
+    wait_and_emit_run(run_id, LlmBehaviorEval.check_run_by_id, "eval", wait)
 
 
 @eval_app.command("list", epilog=hirundo_epilog)
@@ -93,16 +90,18 @@ def eval_list(
     set_output_format(output)
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-    runs = LlmBehaviorEval.list_runs(archived=archived)
+    run_records = LlmBehaviorEval.list_runs(archived=archived)
     items = [
         {
-            "run_id": str(run.run_id),
-            "name": str(run.name),
-            "status": str(run.status),
-            "preset": run.preset_type.value if run.preset_type else None,
-            "created_at": run.created_at.isoformat(),
+            "run_id": str(run_record.run_id),
+            "name": str(run_record.name),
+            "status": str(run_record.status),
+            "preset": (
+                run_record.preset_type.value if run_record.preset_type else None
+            ),
+            "created_at": run_record.created_at.isoformat(),
         }
-        for run in runs
+        for run_record in run_records
     ]
     emit_rows(
         "Eval Runs:",
@@ -128,5 +127,4 @@ def eval_check(
     set_output_format(output)
     from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-    results = check_run_and_print(run_id, LlmBehaviorEval.check_run_by_id)
-    emit_if_json(run_payload(run_id, results))
+    check_and_emit_run(run_id, LlmBehaviorEval.check_run_by_id)

@@ -5,10 +5,12 @@ import pytest
 from hirundo import _cli_common
 from hirundo._cli_common import OutputFormat, run_payload, set_output_format
 from hirundo._hirundo_error import HirundoError
+from hirundo._http import requests
+from hirundo._run_status import RunStatus
 from hirundo.cli import app
 from typer.testing import CliRunner
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 @pytest.fixture(autouse=True)
@@ -39,8 +41,8 @@ class TestRunPayload:
 
 class TestJsonOutput:
     def test_run_no_wait_emits_clean_json(self):
-        with patch("hirundo.dataset_qa.QADataset") as qa:
-            qa.launch_qa_run.return_value = "run-abc"
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.return_value = "run-abc"
             result = runner.invoke(
                 app, ["dataset-qa", "run", "42", "--no-wait", "-o", "json"]
             )
@@ -50,50 +52,193 @@ class TestJsonOutput:
             "cached_zip_path": None,
         }
 
+    def test_unlearning_bias_uses_current_behavior_model(self):
+        with patch("hirundo.unlearning_llm.LlmUnlearningRun") as unlearning_run_mock:
+            unlearning_run_mock.launch.return_value = "run-bias"
+            result = runner.invoke(
+                app,
+                [
+                    "unlearning",
+                    "run",
+                    "42",
+                    "--bias",
+                    "--no-wait",
+                    "-o",
+                    "json",
+                ],
+            )
+        assert result.exit_code == 0
+        assert json.loads(result.stdout) == {
+            "run_id": "run-bias",
+            "cached_zip_path": None,
+        }
+        run_info = unlearning_run_mock.launch.call_args.args[1]
+        assert run_info.target_behaviors[0].type == "BIAS"
+
+    @pytest.mark.parametrize(
+        ("behavior_flag", "expected_type"),
+        [("--security", "SECURITY"), ("--refusal", "REFUSAL")],
+    )
+    def test_unlearning_supports_flag_behaviors(self, behavior_flag, expected_type):
+        with patch("hirundo.unlearning_llm.LlmUnlearningRun") as unlearning_run_mock:
+            unlearning_run_mock.launch.return_value = "run-behavior"
+            result = runner.invoke(
+                app,
+                [
+                    "unlearning",
+                    "run",
+                    "42",
+                    behavior_flag,
+                    "--no-wait",
+                    "-o",
+                    "json",
+                ],
+            )
+        assert result.exit_code == 0
+        run_info = unlearning_run_mock.launch.call_args.args[1]
+        assert run_info.target_behaviors[0].type == expected_type
+
     def test_list_emits_json_array(self):
-        run = MagicMock(name="ds", run_id="r1", status="COMPLETED", run_args=None)
-        run.name = "ds"
-        run.created_at.isoformat.return_value = "2026-05-31T00:00:00"
-        with patch("hirundo.dataset_qa.QADataset") as qa:
-            qa.list_runs.return_value = [run]
+        run_record = MagicMock(
+            name="dataset", run_id="r1", status="COMPLETED", run_args=None
+        )
+        run_record.name = "dataset"
+        run_record.created_at.isoformat.return_value = "2026-05-31T00:00:00"
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.list_runs.return_value = [run_record]
             result = runner.invoke(app, ["dataset-qa", "list", "-o", "json"])
         assert result.exit_code == 0
         assert json.loads(result.stdout) == [
             {
-                "dataset_name": "ds",
+                "dataset_name": "dataset",
                 "run_id": "r1",
                 "status": "COMPLETED",
                 "created_at": "2026-05-31T00:00:00",
                 "run_args": None,
             }
         ]
+        assert result.stderr == ""
+
+    def test_list_serializes_status_enum_value(self):
+        run_record = MagicMock(
+            name="dataset", run_id="r1", status=RunStatus.SUCCESS, run_args=None
+        )
+        run_record.name = "dataset"
+        run_record.created_at.isoformat.return_value = "2026-05-31T00:00:00"
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.list_runs.return_value = [run_record]
+            result = runner.invoke(app, ["dataset-qa", "list", "-o", "json"])
+        assert json.loads(result.stdout)[0]["status"] == "SUCCESS"
+
+    def test_check_emits_clean_json(self):
+        check_results = MagicMock(cached_zip_path="cache/run-abc.zip")
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.check_run_by_id.return_value = check_results
+            result = runner.invoke(
+                app, ["dataset-qa", "check", "run-abc", "-o", "json"]
+            )
+        assert result.exit_code == 0
+        assert json.loads(result.stdout) == {
+            "run_id": "run-abc",
+            "cached_zip_path": "cache/run-abc.zip",
+        }
+        assert "Dataset QA Runs" not in result.stderr
 
     def test_sdk_error_emits_json_error_and_exits_1(self):
-        with patch("hirundo.dataset_qa.QADataset") as qa:
-            qa.launch_qa_run.side_effect = HirundoError("boom")
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = HirundoError("boom")
             result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
         assert result.exit_code == 1
         assert json.loads(result.stdout) == {"error": "boom"}
         assert result.stderr == ""
+
+    def test_http_error_emits_safe_json(self):
+        sdk_error = requests.HTTPError("token=secret upstream detail")
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = sdk_error
+            result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
+        assert result.exit_code == 1
+        assert json.loads(result.stdout) == {"error": "HTTP request failed."}
+        assert "secret" not in result.stdout
+
+    def test_value_error_emits_json(self):
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = ValueError("missing run ID")
+            result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
+        assert result.exit_code == 1
+        assert json.loads(result.stdout) == {"error": "missing run ID"}
 
     def test_validation_error_emits_json_error(self):
         result = runner.invoke(app, ["dataset-qa", "check", "bad/id", "-o", "json"])
         assert result.exit_code == 1
         assert "Invalid run ID" in json.loads(result.stdout)["error"]
 
+    @pytest.mark.parametrize(
+        "arguments",
+        [
+            ["dataset-qa", "run", "not-an-int", "-o", "json"],
+            ["dataset-qa", "run", "-o", "json"],
+        ],
+    )
+    def test_typer_parse_error_emits_json(self, arguments):
+        result = runner.invoke(app, arguments)
+        assert result.exit_code == 2
+        assert "error" in json.loads(result.stdout)
+        assert result.stderr == ""
+
+    def test_missing_prompt_value_emits_json_without_prompting(self):
+        result = runner.invoke(app, ["set-api-key", "-o", "json"])
+        assert result.exit_code == 2
+        assert json.loads(result.stdout) == {
+            "error": "Missing required value for set-api-key in JSON mode."
+        }
+        assert "Please enter" not in result.stdout
+
+    def test_json_help_is_wrapped_in_json(self):
+        result = runner.invoke(app, ["dataset-qa", "run", "-o", "json", "--help"])
+        assert result.exit_code == 0
+        assert "Usage:" in json.loads(result.stdout)["help"]
+
+    def test_json_help_precedes_prompt_validation(self):
+        result = runner.invoke(app, ["set-api-key", "--help", "-o", "json"])
+        assert result.exit_code == 0
+        assert "Usage:" in json.loads(result.stdout)["help"]
+
+    def test_root_positioned_output_option_is_not_treated_as_leaf_json(self):
+        result = runner.invoke(app, ["-o", "json", "dataset-qa", "list"])
+        assert result.exit_code == 2
+        assert not result.stdout.lstrip().startswith("{")
+
+    def test_json_mode_does_not_leak_into_later_text_invocation(self):
+        json_result = runner.invoke(
+            app, ["dataset-qa", "run", "not-an-int", "-o", "json"]
+        )
+        text_result = runner.invoke(app, ["dataset-qa", "check", "bad/id"])
+        assert "error" in json.loads(json_result.stdout)
+        assert "Invalid run ID" in text_result.stdout
+        assert not text_result.stdout.lstrip().startswith("{")
+
 
 class TestTextOutputUnaffected:
-    def test_error_goes_to_stderr_not_stdout(self):
-        with patch("hirundo.dataset_qa.QADataset") as qa:
-            qa.launch_qa_run.side_effect = HirundoError("boom")
+    def test_error_preserves_stdout_contract(self):
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = HirundoError("boom")
             result = runner.invoke(app, ["dataset-qa", "run", "42"])
         assert result.exit_code == 1
-        assert result.stdout == ""
-        assert "boom" in result.stderr
+        assert "boom" in result.stdout
+        assert result.stderr == ""
+
+    def test_check_result_preserves_plain_stdout_contract(self):
+        check_results = MagicMock(cached_zip_path="cache/run-abc.zip")
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.check_run_by_id.return_value = check_results
+            result = runner.invoke(app, ["check-run", "run-abc", "-t", "dataset-qa"])
+        assert result.exit_code == 0
+        assert result.stdout == "Run results saved to cache/run-abc.zip\n"
 
     def test_success_message_on_stdout(self):
-        with patch("hirundo.dataset_qa.QADataset") as qa:
-            qa.launch_qa_run.return_value = "run-abc"
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.return_value = "run-abc"
             result = runner.invoke(app, ["dataset-qa", "run", "42", "--no-wait"])
         assert result.exit_code == 0
         assert "run-abc" in result.stdout

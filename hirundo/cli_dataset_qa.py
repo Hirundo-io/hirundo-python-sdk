@@ -7,15 +7,13 @@ from hirundo._cli_common import (
     OutputFormat,
     OutputOption,
     WaitOption,
-    check_run_and_print,
-    emit_if_json,
+    check_and_emit_run,
     emit_rows,
     hirundo_epilog,
     make_app,
     report_run_started,
-    run_payload,
     set_output_format,
-    wait_or_notify,
+    wait_and_emit_run,
 )
 
 dataset_qa_app = make_app("dataset-qa", "Launch and monitor Dataset QA runs.")
@@ -36,8 +34,7 @@ def dataset_qa_run(
     run_id = QADataset.launch_qa_run(dataset_id)
     report_run_started("Dataset QA", run_id)
 
-    results = wait_or_notify(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
-    emit_if_json(run_payload(run_id, results))
+    wait_and_emit_run(run_id, QADataset.check_run_by_id, "dataset-qa", wait)
 
 
 @dataset_qa_app.command("list", epilog=hirundo_epilog)
@@ -51,16 +48,20 @@ def dataset_qa_list(
     set_output_format(output)
     from hirundo.dataset_qa import QADataset
 
-    runs = QADataset.list_runs(archived=archived)
+    run_records = QADataset.list_runs(archived=archived)
     items = [
         {
-            "dataset_name": str(run.name),
-            "run_id": str(run.run_id),
-            "status": str(run.status),
-            "created_at": run.created_at.isoformat(),
-            "run_args": run.run_args.model_dump(mode="json") if run.run_args else None,
+            "dataset_name": str(run_record.name),
+            "run_id": str(run_record.run_id),
+            "status": getattr(run_record.status, "value", run_record.status),
+            "created_at": run_record.created_at.isoformat(),
+            "run_args": (
+                run_record.run_args.model_dump(mode="json")
+                if run_record.run_args
+                else None
+            ),
         }
-        for run in runs
+        for run_record in run_records
     ]
     emit_rows(
         "Dataset QA Runs:",
@@ -86,5 +87,4 @@ def dataset_qa_check(
     set_output_format(output)
     from hirundo.dataset_qa import QADataset
 
-    results = check_run_and_print(run_id, QADataset.check_run_by_id)
-    emit_if_json(run_payload(run_id, results))
+    check_and_emit_run(run_id, QADataset.check_run_by_id)

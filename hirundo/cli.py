@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum
 from io import StringIO
 from pathlib import Path
-from typing import Annotated, TypeAlias, cast
+from typing import Annotated, Any, TypeAlias, cast
 from urllib.parse import urlparse
 
 import typer
@@ -16,12 +16,11 @@ from hirundo._cli_common import (
     HirundoCliGroup,
     OutputFormat,
     OutputOption,
-    check_run_and_print,
+    check_and_emit_run,
     docs,
     emit_if_json,
     emit_rows,
     hirundo_epilog,
-    run_payload,
     set_output_format,
     success,
     warn,
@@ -382,14 +381,13 @@ def check_run(
 
         check_function = QADataset.check_run_by_id
 
-    results = check_run_and_print(
+    results = check_and_emit_run(
         run_id,
         check_function,
         validate=run_type is not RunType.EXTERNAL_EVALUATION,
     )
     if run_type is RunType.LLM_UNLEARNING and output is OutputFormat.text:
         print(results)
-    emit_if_json(run_payload(run_id, results))
 
 
 @app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -431,12 +429,12 @@ def list_runs(
         ("Status", "status"),
         ("Created At", "created_at"),
     ]
-    items = []
+    items: list[dict[str, Any]] = []
     for run_record in runs:
-        item = {
+        item: dict[str, Any] = {
             "name": str(run_record.name),
             "run_id": str(run_record.run_id),
-            "status": str(run_record.status),
+            "status": getattr(run_record.status, "value", run_record.status),
             "created_at": run_record.created_at.isoformat(),
         }
         if run_type is RunType.DATASET_QA:
