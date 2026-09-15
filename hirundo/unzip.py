@@ -316,7 +316,15 @@ def download_external_eval_zip(
     run_id: str,
     zip_url: str,
 ) -> ExternalEvalResults[DataFrameType]:
-    """Download an Inspect result archive and load its summary metrics."""
+    """Download an Inspect result archive and load its summary metrics.
+
+    Args:
+        run_id: Identifier used for logging and the local cache filename.
+        zip_url: Remote URL of the external evaluation result archive.
+
+    Returns:
+        The cached archive path and parsed summary metrics.
+    """
     zip_file_path = _download_zip_to_cache(
         run_id,
         zip_url,

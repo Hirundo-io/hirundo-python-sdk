@@ -308,6 +308,9 @@ class StorageConfig(BaseModel):
 
         Args:
             storage_config_id: The ID of the :code:`StorageConfig` to retrieve
+
+        Returns:
+            The storage configuration returned by the server.
         """
         storage_config = requests.get(
             f"{API_HOST}/storage-config/{storage_config_id}",
@@ -327,6 +330,9 @@ class StorageConfig(BaseModel):
             storage_type: The type of the :code:`StorageConfig` to retrieve
 
             Note: The type is required because the name is not unique across different storage types
+
+        Returns:
+            The storage configuration returned by the server.
         """
         storage_config = requests.get(
             f"{API_HOST}/storage-config/by-name/{name}?storage_type={storage_type.value}",
@@ -347,6 +353,9 @@ class StorageConfig(BaseModel):
         Args:
             organization_id: The ID of the organization to list :code:`StorageConfig`'s for.
             If not provided, it will list :code:`StorageConfig`'s for the default organization.
+
+        Returns:
+            Storage configurations available to the requested organization.
         """
         storage_configs = requests.get(
             f"{API_HOST}/storage-config/",
@@ -364,6 +373,9 @@ class StorageConfig(BaseModel):
 
         Args:
             storage_config_id: The ID of the :code:`StorageConfig` to delete
+
+        Returns:
+            None.
         """
         storage_config = requests.delete(
             f"{API_HOST}/storage-config/{storage_config_id}",
@@ -376,6 +388,12 @@ class StorageConfig(BaseModel):
     def delete(self) -> None:
         """
         Deletes the :code:`StorageConfig` instance from the server
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.id:
             raise ValueError("No StorageConfig has been created")

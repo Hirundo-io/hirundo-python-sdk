@@ -120,6 +120,9 @@ class GitRepo(BaseModel):
         Args:
             organization_id (optional): The ID of the organization to create the Git repository for.
             replace_if_exists: If a Git repository with the same name already exists, replace it.
+
+        Returns:
+            The ID of the created Git repository.
         """
         git_repo_info = self.model_dump(mode="json")
         if organization_id is not None:
@@ -145,6 +148,9 @@ class GitRepo(BaseModel):
 
         Args:
             git_repo_id: The ID of the `GitRepo` to retrieve
+
+        Returns:
+            The Git repository returned by the server.
         """
         git_repo = requests.get(
             f"{API_HOST}/git-repo/{git_repo_id}",
@@ -163,6 +169,9 @@ class GitRepo(BaseModel):
 
         Args:
             name: The name of the `GitRepo` to retrieve
+
+        Returns:
+            The Git repository returned by the server.
         """
         git_repo = requests.get(
             f"{API_HOST}/git-repo/by-name/{name}",
@@ -176,6 +185,12 @@ class GitRepo(BaseModel):
     def list() -> list["GitRepoOut"]:
         """
         List all Git repositories in the Hirundo system.
+
+        Args:
+            None.
+
+        Returns:
+            All Git repositories available to the current organization.
         """
         git_repos = requests.get(
             f"{API_HOST}/git-repo/",
@@ -198,6 +213,9 @@ class GitRepo(BaseModel):
 
         Args:
             git_repo_id: The ID of the Git repository to delete
+
+        Returns:
+            None.
         """
         git_repo = requests.delete(
             f"{API_HOST}/git-repo/{git_repo_id}",
@@ -209,6 +227,12 @@ class GitRepo(BaseModel):
     def delete(self):
         """
         Delete the Git repository created by this instance.
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.id:
             raise ValueError("No GitRepo has been created")

@@ -132,6 +132,9 @@ def validate_labeling_type(
     Args:
         labeling_type: The type of labeling that will be performed
         labeling_info: The labeling info to validate
+
+    Returns:
+        None.
     """
     dataset_metadata_types = LABELING_TYPES_TO_DATASET_METADATA_TYPES[labeling_type]
     if labeling_info.type not in dataset_metadata_types:
@@ -165,6 +168,9 @@ def validate_labeling_info(
         labeling_info: The labeling info to validate
         storage_config: The storage configuration for the dataset.
             StorageConfig is used to validate the URLs in the labeling info
+
+    Returns:
+        None.
     """
     if isinstance(labeling_info, list):
         for labeling in labeling_info:

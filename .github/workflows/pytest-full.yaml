@@ -11,7 +11,7 @@ jobs:
     permissions:
       contents: read
     strategy:
-      max-parallel: 2
+      max-parallel: 20
       matrix:
         data-qa-test:
           - test: classification/classification_aws_test.py
@@ -24,19 +24,22 @@ jobs:
             env: RUN_AWS_OD_DATA_QA
           - test: object-detection/od_git_test.py
             env: RUN_OD_GIT_DATA_QA
-          - test: tests/object-detection/sama_coco_test.py
+          - test: object-detection/sama_coco_test.py
             env: RUN_COCO_OD_GCP_SANITY_DATA_QA
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v7
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
       - name: Install dependencies on Linux and macOS
         run: |
           uv venv
           source .venv/bin/activate
           uv sync --group dev
       - name: Run PyTest
-        run: .venv/bin/pytest tests/${{ matrix.data-qa-test['test'] }}
+        run: >-
+          .venv/bin/pytest tests/${{ matrix.data-qa-test['test'] }}
+          --disable-recording
         env:
+          HIRUNDO_LIVE_TESTS: "1"
           API_HOST: ${{ secrets.API_HOST }}
           API_KEY: ${{ secrets.API_KEY }}
           GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
