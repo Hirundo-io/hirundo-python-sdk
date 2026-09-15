@@ -17,8 +17,9 @@ by a pull request. Fresh deployed-server compatibility evidence is therefore pro
 only after protected `main` accepts the revision or a maintainer starts a trusted
 workflow dispatch.
 
-The tag-triggered full workflow still owns slow opt-in dataset QA and ML runs.
-Those tests are deliberately outside this pilot.
+The tag-triggered full workflow still owns slow opt-in dataset QA and ML runs,
+including actual dataset loading through GCP, AWS S3, and authenticated Hugging Face
+storage. Those workload launches are deliberately outside this pilot.
 
 ## What the recording proves
 
@@ -34,11 +35,14 @@ the deployment stayed unchanged throughout the recording, or that an unmerged
 platform pull request is compatible. An OpenAPI digest identifies the fetched
 schema, not the deployed implementation.
 
-The bounded recording suite covers Git repository CRUD; Git-backed storage CRUD;
-Dataset QA metadata CRUD and run listing; LLM model CRUD and unlearning run listing;
-and LLM behavior evaluation run listing. List responses retain only records created
-by the recording tests or connected to their returned identifiers. The sanitizer
-removes unrelated organization records before upload.
+The bounded recording suite covers Git repository CRUD; Git, GCP, AWS S3, and
+authenticated Hugging Face storage-backed dataset metadata CRUD; Dataset QA run
+listing; LLM model CRUD and unlearning run listing; and LLM behavior evaluation run
+listing. The live recording therefore checks that the backend accepts each supported
+storage contract, while the tag-triggered full tests check that workers can load the
+datasets. List responses retain only records created by the recording tests or
+connected to their returned identifiers. The sanitizer removes unrelated
+organization records and provider credentials before upload.
 
 Run launches, status streams, and result downloads remain in the opt-in full-backend
 suite because they start Dataset QA, model unlearning, or evaluation work. Required

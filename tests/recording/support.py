@@ -46,6 +46,7 @@ SENSITIVE_HEADER_NAMES = frozenset(
 SENSITIVE_QUERY_NAMES = frozenset(
     {
         "access_token",
+        "access_key_id",
         "api_key",
         "apikey",
         "credential",
@@ -61,6 +62,7 @@ SENSITIVE_QUERY_NAMES = frozenset(
 SENSITIVE_BODY_NAMES = frozenset(
     {
         "access_token",
+        "access_key_id",
         "api_key",
         "apikey",
         "authorization",
@@ -69,6 +71,7 @@ SENSITIVE_BODY_NAMES = frozenset(
         "cookie",
         "credential",
         "credentials",
+        "credentials_json",
         "creator_name",
         "organization_name",
         "password",
@@ -76,6 +79,7 @@ SENSITIVE_BODY_NAMES = frozenset(
         "private_key_id",
         "refresh_token",
         "secret",
+        "secret_access_key",
         "secret_key",
         "signing_key",
         "token",

@@ -299,6 +299,44 @@ def test_sanitizer_redacts_nested_credentials_and_sanitizes_json_urls() -> None:
     assert "Content-Length" not in sanitized_response_headers
 
 
+def test_sanitizer_redacts_storage_provider_credentials() -> None:
+    recorded = cassette()
+    request_message, _ = first_exchange(recorded)
+    request_message["body"] = {
+        "string": json.dumps(
+            {
+                "gcp": {"credentials_json": {"private_key": "gcp-private-key"}},
+                "s3": {
+                    "access_key_id": "aws-access-key",
+                    "secret_access_key": "aws-secret-key",
+                },
+                "git": {"password": "huggingface-token"},
+            }
+        )
+    }
+
+    sanitized = sanitize_cassette(
+        recorded,
+        seeded_secrets=[
+            "gcp-private-key",
+            "aws-access-key",
+            "aws-secret-key",
+            "huggingface-token",
+        ],
+    )
+
+    sanitized_request, _ = first_exchange(sanitized)
+    request_body = json.loads(str(body_container(sanitized_request)["string"]))
+    assert request_body == {
+        "gcp": {"credentials_json": "<redacted>"},
+        "s3": {
+            "access_key_id": "<redacted>",
+            "secret_access_key": "<redacted>",
+        },
+        "git": {"password": "<redacted>"},
+    }
+
+
 def test_before_record_request_recalculates_case_insensitive_content_length() -> None:
     recorded_request = request(
         body='{"token":"seed-secret"}',

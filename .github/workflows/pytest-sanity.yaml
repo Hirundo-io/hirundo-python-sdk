@@ -115,10 +115,16 @@ jobs:
         env:
           HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
           HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
         run: >-
           uv run python -c "import os, sys;
-          sys.exit(0 if os.environ.get('HIRUNDO_API_HOST') and
-          os.environ.get('HIRUNDO_API_KEY') else 'recording credentials are required')"
+          required = ('HIRUNDO_API_HOST', 'HIRUNDO_API_KEY', 'GCP_CREDENTIALS',
+          'AWS_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY', 'HUGGINGFACE_ACCESS_TOKEN');
+          missing = [name for name in required if not os.environ.get(name)];
+          sys.exit('missing recording credentials: ' + ', '.join(missing) if missing else 0)"
       - name: Fetch deployed OpenAPI snapshot
         id: schema
         env:
@@ -145,6 +151,10 @@ jobs:
           HIRUNDO_LIVE_TESTS: "1"
           HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
           HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+          GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
           HIRUNDO_CASSETTE_DIR: ${{ runner.temp }}/raw-cassettes
           UNIQUE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         shell: bash
@@ -156,6 +166,10 @@ jobs:
       - name: Sanitize and manifest recordings
         env:
           RECORDING_API_KEY: ${{ secrets.API_KEY2 }}
+          RECORDING_GCP_CREDENTIALS: ${{ secrets.GCP_CREDENTIALS }}
+          RECORDING_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          RECORDING_AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          RECORDING_HUGGINGFACE_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
         shell: bash
         run: |
           expires_at=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
@@ -163,6 +177,10 @@ jobs:
             "${RUNNER_TEMP}/raw-cassettes" \
             "${RUNNER_TEMP}/publish-cassettes" \
             --secrets-env RECORDING_API_KEY \
+            --secrets-env RECORDING_GCP_CREDENTIALS \
+            --secrets-env RECORDING_AWS_ACCESS_KEY \
+            --secrets-env RECORDING_AWS_SECRET_ACCESS_KEY \
+            --secrets-env RECORDING_HUGGINGFACE_TOKEN \
             --sdk-sha "${GITHUB_SHA}" \
             --run-id "${GITHUB_RUN_ID}" \
             --run-attempt "${GITHUB_RUN_ATTEMPT}" \
