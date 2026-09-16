@@ -1,11 +1,13 @@
 import os
 import re
+import stat
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, TypeAlias, cast
 from urllib.parse import urlparse
 
 import typer
+from dotenv import set_key
 
 from hirundo._cli_common import (
     docs,
@@ -53,7 +55,7 @@ def _location_label(saved_to: str) -> str:
     return "~/.hirundo.conf" if saved_to == EnvLocation.HOME.name else ".env"
 
 
-def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
+def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str) -> None:
     """
     Change an environment variable in the .env file.
     If the variable does not exist, it will be added.
@@ -62,17 +64,25 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
         var_name: The name of the environment variable to change.
         var_value: The new value of the environment variable.
     """
-    regex = re.compile(rf"^{var_name}=.*$")
-    lines = []
-    if os.path.exists(dotenv_filepath):
-        with open(dotenv_filepath) as f:
-            lines = f.readlines()
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", var_name) is None:
+        raise ValueError(f"Invalid environment variable name: {var_name!r}")
+    if any(character in var_value for character in ("\r", "\n", "\0")):
+        raise ValueError(f"{var_name} must not contain line breaks or null bytes")
 
-    with open(dotenv_filepath, "w") as f:
-        f.writelines(line for line in lines if not regex.search(line) and line != "\n")
+    dotenv_path = Path(dotenv_filepath)
+    try:
+        existing_mode = dotenv_path.lstat().st_mode
+    except FileNotFoundError:
+        pass
+    else:
+        if not stat.S_ISREG(existing_mode):
+            raise ValueError(
+                f"Configuration path must be a regular file: {dotenv_path}"
+            )
+        dotenv_path.chmod(0o600)
 
-    with open(dotenv_filepath, "a") as f:
-        f.writelines(f"\n{var_name}={var_value}")
+    set_key(dotenv_path, var_name, var_value, quote_mode="always")
+    dotenv_path.chmod(0o600)
 
 
 def _preferred_env_location() -> EnvLocation:
@@ -84,7 +94,9 @@ def _preferred_env_location() -> EnvLocation:
     )
 
 
-def upsert_env(var_name: str, var_value: str, location: EnvLocation | None = None):
+def upsert_env(
+    var_name: str, var_value: str, location: EnvLocation | None = None
+) -> str:
     location = location or _preferred_env_location()
     _upsert_env(location.value, var_name, var_value)
     return location.name
@@ -95,6 +107,7 @@ _API_KEY_OPTION: TypeAlias = Annotated[
     str,
     typer.Option(
         prompt="Please enter the API key value",
+        hide_input=True,
         help="" if docs else f"Visit '{API_HOST}/api-key' to generate your API key.",
     ),
 ]
