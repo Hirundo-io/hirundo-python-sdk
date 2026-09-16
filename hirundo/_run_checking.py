@@ -7,6 +7,7 @@ from tqdm import tqdm
 from hirundo._iter_sse_retrying import aiter_sse_retrying, iter_sse_retrying
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
+from hirundo._timeouts import SSE_TIMEOUT
 from hirundo.logger import get_logger
 
 _logger = get_logger(__name__)
@@ -118,7 +119,9 @@ def iter_run_events(
         url: SSE endpoint URL.
         headers: Optional HTTP headers.
         retry: Internal retry counter (do not set manually).
-        max_retries: Maximum number of retry attempts.
+        max_retries: Maximum reconnections after a stream closes without a
+            terminal state. SSE connection failures use the shared connection
+            retry policy separately.
         pending_state_value: State value that triggers a re-check loop.
         status_keys: Payload keys to search for the run state.
         error_cls: Exception type to raise on errors.
@@ -131,7 +134,7 @@ def iter_run_events(
         if retry > max_retries:
             raise error_cls("Max retries reached")
         last_event = None
-        with httpx.Client(timeout=httpx.Timeout(None, connect=5.0)) as client:
+        with httpx.Client(timeout=SSE_TIMEOUT) as client:
             for sse in iter_sse_retrying(
                 client,
                 "GET",
@@ -176,7 +179,9 @@ async def aiter_run_events(
         url: SSE endpoint URL.
         headers: Optional HTTP headers.
         retry: Internal retry counter (do not set manually).
-        max_retries: Maximum number of retry attempts.
+        max_retries: Maximum reconnections after a stream closes without a
+            terminal state. SSE connection failures use the shared connection
+            retry policy separately.
         pending_state_value: State value that triggers a re-check loop.
         status_keys: Payload keys to search for the run state.
         error_cls: Exception type to raise on errors.
@@ -189,9 +194,7 @@ async def aiter_run_events(
         if retry > max_retries:
             raise error_cls("Max retries reached")
         last_event = None
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(None, connect=5.0)
-        ) as client:
+        async with httpx.AsyncClient(timeout=SSE_TIMEOUT) as client:
             async_iterator = await aiter_sse_retrying(
                 client,
                 "GET",

@@ -8,14 +8,41 @@ from hirundo import (
     JudgeModel,
     LlmBehaviorEval,
     LlmModel,
+    LocalTransformersModel,
     ModelOrRun,
     PresetType,
 )
+from hirundo.llm_behavior_eval import EvalRunRecord, OutputLlm
 from tests.testing_utils import get_unique_id
 
 logger = logging.getLogger(__name__)
 
 unique_id = get_unique_id()
+
+
+def test_run_sourced_evaluation_uses_merged_model_response_folder():
+    run_info = EvalRunRecord.model_construct(source_run_id="source-run-id")
+
+    assert LlmBehaviorEval._resolve_response_model_folder(run_info) == "merged_model"
+
+
+def test_model_sourced_evaluation_uses_model_response_folder():
+    run_info = EvalRunRecord.model_construct(source_run_id=None)
+
+    assert LlmBehaviorEval._resolve_response_model_folder(run_info) is None
+
+
+def test_local_model_source_resolves_archive_model_name():
+    local_path = "/opt/hirundo/llm-models/Qwen3-0.6B"
+    run_info = EvalRunRecord.model_construct(
+        model=OutputLlm.model_construct(
+            model_source=LocalTransformersModel(local_path=local_path)
+        ),
+        source_run_id=None,
+        source_run=None,
+    )
+
+    assert LlmBehaviorEval._resolve_model_name(run_info) == local_path
 
 
 def test_llm_behavior_eval():

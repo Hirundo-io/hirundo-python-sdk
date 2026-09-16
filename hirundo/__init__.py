@@ -22,6 +22,17 @@ from .dataset_qa import (
     RunArgs,
 )
 from .dataset_qa_results import DatasetQAResults
+from .external_eval import (
+    CanonicalTaskReference,
+    ExternalEval,
+    ExternalEvalCatalog,
+    ExternalEvalCatalogBenchmark,
+    ExternalEvalCatalogSource,
+    ExternalEvalCatalogTask,
+    ExternalEvalLaunchResponse,
+    ExternalEvalRunInfo,
+    HirundoExternalEvalError,
+)
 from .git import GitPlainAuth, GitRepo, GitSSHAuth
 from .labeling import (
     COCO,
@@ -37,6 +48,7 @@ from .labeling import (
     MultimodalModalityType,
 )
 from .llm_behavior_eval import (
+    EvalFramework,
     EvalRunInfo,
     EvalRunRecord,
     HirundoLlmBehaviorEvalError,
@@ -45,7 +57,7 @@ from .llm_behavior_eval import (
     ModelOrRun,
     PresetType,
 )
-from .llm_behavior_eval_results import LlmBehaviorEvalResults
+from .llm_behavior_eval_results import ExternalEvalResults, LlmBehaviorEvalResults
 from .llm_bias_type import BBQBiasType, UnqoverBiasType
 from .storage import (
     StorageConfig,
@@ -60,7 +72,9 @@ from .unlearning_llm import (
     HallucinationBehavior,
     LlmModel,
     LlmRunInfo,
+    LlmUnlearningCapabilities,
     LlmUnlearningRun,
+    RefusalBehavior,
     SecurityBehavior,
 )
 from .unzip import load_df, load_from_zip
@@ -75,6 +89,7 @@ __all__ = [
     "HirundoError",
     "HirundoDatasetQaError",
     "HirundoLlmBehaviorEvalError",
+    "HirundoExternalEvalError",
     "KeylabsAuth",
     "KeylabsObjDetImages",
     "KeylabsObjDetVideo",
@@ -85,6 +100,16 @@ __all__ = [
     "QADataset",
     "EvalRunInfo",
     "EvalRunRecord",
+    "EvalFramework",
+    "ExternalEval",
+    "ExternalEvalCatalog",
+    "ExternalEvalCatalogBenchmark",
+    "ExternalEvalCatalogSource",
+    "ExternalEvalCatalogTask",
+    "ExternalEvalLaunchResponse",
+    "ExternalEvalRunInfo",
+    "ExternalEvalResults",
+    "CanonicalTaskReference",
     "JudgeModel",
     "LlmBehaviorEval",
     "LlmBehaviorEvalResults",
@@ -112,11 +137,13 @@ __all__ = [
     "HuggingFaceTransformersModel",
     "HuggingFaceTransformersModelOutput",
     "LlmRunInfo",
+    "LlmUnlearningCapabilities",
     "LlmModel",
     "LlmSources",
     "LlmSourcesOutput",
     "LlmUnlearningRun",
     "LocalTransformersModel",
+    "RefusalBehavior",
     "SecurityBehavior",
     "load_df",
     "load_from_zip",
@@ -125,4 +152,4 @@ __all__ = [
 ]
 
 # Keep this literal in sync with pyproject.toml; release workflows read it.
-__version__ = "0.3.0"
+__version__ = "0.3.2"

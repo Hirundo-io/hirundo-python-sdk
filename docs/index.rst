@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 .. meta::
-   :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
+   :http-equiv=Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
 
 Hirundo Python SDK
 ==================
@@ -55,6 +55,15 @@ behavior changes (bias, hallucination, prompt injections, and more).
 Example:
 
 .. literalinclude:: llm_behavior_eval_example.py
+   :language: python
+
+External evaluations
+--------------------
+
+Run server-owned Inspect evaluations. The deployment catalogue determines which
+tasks are available, so applications should retrieve it before launching a run.
+
+.. literalinclude:: external_eval_example.py
    :language: python
 
 Dataset QA

@@ -1,5 +1,5 @@
 .. meta::
-   :http-equiv=Content-Security-Policy: default-src 'self', frame-ancestors 'none'
+   :http-equiv=Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
 
 hirundo package
 ===============
@@ -14,6 +14,7 @@ Submodules
    hirundo.dataset_enum
    hirundo.dataset_qa
    hirundo.dataset_qa_results
+   hirundo.external_eval
    hirundo.git
    hirundo.labeling
    hirundo.logger
