@@ -79,6 +79,11 @@ def unlearning_run(
     elif security:
         target_behavior = SecurityBehavior()
     elif refusal:
+        if not LlmUnlearningRun.get_capabilities().refusal_unlearning_enabled:
+            raise typer.BadParameter(
+                "Refusal unlearning is not enabled by the configured Hirundo API.",
+                param_hint="--refusal",
+            )
         target_behavior = RefusalBehavior()
     else:  # unreachable: require_exactly_one guarantees one is set
         raise typer.Exit(code=1) from None

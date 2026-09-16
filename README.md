@@ -41,7 +41,28 @@ You can set environment variables directly or use the CLI helper:
 hirundo setup
 ```
 
-This writes `HIRUNDO_API_KEY` (and optionally `HIRUNDO_API_HOST`) to `.env` in the current directory or `~/.hirundo.conf`.
+The CLI stores the API key in the operating system's credential store and keeps
+the API host in `.env` or `~/.hirundo.conf`. On Linux, a keyring usually requires
+a desktop Secret Service or KWallet session. When no usable keyring is available,
+`auto` mode warns and stores the key in the selected configuration file with
+owner-only permissions.
+
+For CI, containers, SSH sessions, and headless servers, avoid persistent local
+credentials and provide `HIRUNDO_API_KEY` through the environment or your secret
+manager. Environment variables take precedence over the keyring and configuration
+files.
+
+Use `--key-storage keyring` to require secure storage and fail if no backend is
+available. Use `--key-storage file` to choose the private-file fallback explicitly:
+
+```bash
+hirundo setup --key-storage keyring
+hirundo set-api-key --key-storage file
+```
+
+When a key is saved successfully to the keyring, the CLI removes
+`HIRUNDO_API_KEY` from the active configuration file. Existing configuration
+files remain readable for backward compatibility.
 
 ## Quickstart examples
 
