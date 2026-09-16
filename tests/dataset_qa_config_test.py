@@ -16,6 +16,7 @@ from hirundo import (
     StorageGit,
     StorageTypes,
 )
+from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from pydantic_core import Url
 
 
@@ -122,14 +123,51 @@ def _capture_create_and_run_payloads(
 ) -> list[dict[str, Any] | None]:
     request_payloads: list[dict[str, Any] | None] = []
 
+    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+        return _Response(_build_dataset_payload())
+
     def fake_post(*args: Any, **kwargs: Any) -> _Response:
         request_payloads.append(kwargs.get("json"))
         if str(args[0]).endswith("/dataset-qa/run/123"):
             return _Response({"run_id": "run-123"})
         return _create_dataset_response()
 
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
     return request_payloads
+
+
+def _record_dataset_qa_requests(
+    monkeypatch: pytest.MonkeyPatch,
+    dataset_payload: dict[str, Any],
+) -> list[tuple[str, dict[str, Any] | None]]:
+    requests_made: list[tuple[str, dict[str, Any] | None]] = []
+    api_host = "https://api.example.test"
+    headers = {"Authorization": "Bearer test-token"}
+    monkeypatch.setattr("hirundo.dataset_qa.API_HOST", api_host)
+    monkeypatch.setattr("hirundo.dataset_qa.get_headers", lambda: headers)
+
+    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+        assert args == (f"{api_host}/dataset-qa/dataset/123",)
+        assert kwargs == {"headers": headers, "timeout": READ_TIMEOUT}
+        requests_made.append(("get", None))
+        return _Response(dataset_payload)
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        request_url = str(args[0])
+        assert kwargs["headers"] == headers
+        assert kwargs["timeout"] == MODIFY_TIMEOUT
+        request_payload = kwargs["json"]
+        if request_url == f"{api_host}/dataset-qa/dataset/":
+            requests_made.append(("create", request_payload))
+            return _create_dataset_response()
+        assert request_url == f"{api_host}/dataset-qa/run/123"
+        requests_made.append(("run", request_payload))
+        return _Response({"run_id": "run-123"})
+
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
+    monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
+    return requests_made
 
 
 def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]:
@@ -554,71 +592,140 @@ def test_multimodal_dataset_creation_payload(
 def test_multimodal_dataset_run_launches_after_create(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    dataset_payload = _build_dataset_payload(
+        name="multimodal dataset",
+        modality=ModalityType.MULTIMODAL,
+        data_root_url=None,
+        labeling_info=_build_multimodal_labeling_info_payload(),
+    )
+    requests_made = _record_dataset_qa_requests(monkeypatch, dataset_payload)
     dataset = _build_multimodal_dataset()
 
-    assert dataset.run_qa(organization_id=4) == "run-123"
+    run_args = ClassificationRunArgs(image_size=(640, 480), upsample=True)
+    assert dataset.run_qa(organization_id=4, run_args=run_args) == "run-123"
     assert dataset.run_id == "run-123"
-    create_payload = request_payloads[0]
-    run_payload = request_payloads[1]
+    assert [request_type for request_type, _ in requests_made] == [
+        "create",
+        "get",
+        "run",
+    ]
+    create_payload = requests_made[0][1]
+    run_payload = requests_made[2][1]
     assert create_payload is not None
     assert create_payload["organization_id"] == 4
     assert create_payload["modality"] == ModalityType.MULTIMODAL
     assert run_payload == {
         "organization_id": 4,
-        "run_args": {"image_size": [224, 224], "upsample": False},
+        "run_args": {"image_size": [640, 480], "upsample": True},
     }
 
 
 def test_launch_qa_run_uses_default_run_args_for_non_speech_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
-    dataset = _build_dataset()
-    monkeypatch.setattr(
-        "hirundo.dataset_qa.QADataset.get_by_id",
-        staticmethod(lambda dataset_id: dataset),
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
     )
 
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
-    assert request_payloads == [
-        {
-            "organization_id": 4,
-            "run_args": {"image_size": [224, 224], "upsample": False},
-        }
+    assert requests_made == [
+        ("get", None),
+        (
+            "run",
+            {
+                "organization_id": 4,
+                "run_args": {"image_size": [224, 224], "upsample": False},
+            },
+        ),
     ]
 
 
 def test_launch_qa_run_omits_run_args_for_speech_to_text_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
-    speech_dataset = _build_dataset(
+    speech_dataset_payload = _build_dataset_payload(
         labeling_type=LabelingType.SPEECH_TO_TEXT,
         language="en",
         modality=ModalityType.SPEECH,
     )
-    monkeypatch.setattr(
-        "hirundo.dataset_qa.QADataset.get_by_id",
-        staticmethod(lambda dataset_id: speech_dataset),
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
     )
 
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
-    assert request_payloads == [{"organization_id": 4}]
+    assert requests_made == [
+        ("get", None),
+        ("run", {"organization_id": 4}),
+    ]
 
 
 def test_launch_qa_run_serializes_explicit_run_args(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
+    )
+    run_args = ClassificationRunArgs(image_size=(640, 480), upsample=True)
 
-    assert QADataset.launch_qa_run(123, run_args=ClassificationRunArgs()) == "run-123"
+    assert QADataset.launch_qa_run(123, run_args=run_args) == "run-123"
 
-    assert request_payloads == [
-        {"run_args": {"image_size": [224, 224], "upsample": False}}
+    assert requests_made == [
+        ("get", None),
+        ("run", {"run_args": {"image_size": [640, 480], "upsample": True}}),
     ]
+
+
+def test_run_qa_omits_run_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    speech_dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
+    )
+    speech_dataset = _build_dataset(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+
+    assert speech_dataset.run_qa(organization_id=4) == "run-123"
+
+    assert speech_dataset.run_id == "run-123"
+    assert [request_type for request_type, _ in requests_made] == [
+        "create",
+        "get",
+        "run",
+    ]
+    assert requests_made[2] == ("run", {"organization_id": 4})
+
+
+def test_launch_qa_run_rejects_explicit_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    speech_dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
+    )
+
+    with pytest.raises(Exception, match="Speech to text cannot have `run_args` set"):
+        QADataset.launch_qa_run(123, run_args=ClassificationRunArgs())
+
+    assert requests_made == [("get", None)]
 
 
 @pytest.mark.parametrize("modality", (ModalityType.TABULAR, ModalityType.TIMESERIES))

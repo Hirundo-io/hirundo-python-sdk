@@ -326,7 +326,7 @@ class QADataset(BaseModel):
         if self.storage_config == StorageTypes.LOCAL:
             return False
         if (
-            isinstance(self.storage_config, (StorageConfig, ResponseStorageConfig))
+            isinstance(self.storage_config, StorageConfig | ResponseStorageConfig)
             and self.storage_config.type == StorageTypes.LOCAL
         ):
             return False
@@ -619,10 +619,12 @@ class QADataset(BaseModel):
         Returns:
             ID of the run (`run_id`).
         """
+        dataset = QADataset.get_by_id(dataset_id)
         if run_args is None:
-            dataset = QADataset.get_by_id(dataset_id)
             if dataset.labeling_type != LabelingType.SPEECH_TO_TEXT:
                 run_args = ClassificationRunArgs()
+        else:
+            dataset._validate_run_args(run_args)
         run_info: dict[str, typing.Any] = {}
         if run_args is not None:
             run_info["run_args"] = run_args.model_dump(mode="json")
