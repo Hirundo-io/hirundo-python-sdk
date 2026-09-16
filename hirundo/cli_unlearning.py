@@ -21,13 +21,10 @@ unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.
 @unlearning_app.command("run", epilog=hirundo_epilog)
 def unlearning_run(
     model_id: Annotated[int, typer.Argument(help="ID of the LLM model to unlearn.")],
-    bias_type: Annotated[
-        str | None,
-        typer.Option(
-            "--bias-type",
-            help="Bias type for unlearning. One of: ALL, RACE, NATIONALITY, GENDER, PHYSICAL_APPEARANCE, RELIGION, AGE",
-        ),
-    ] = None,
+    bias: Annotated[
+        bool,
+        typer.Option("--bias", help="Run bias unlearning."),
+    ] = False,
     hallucination_type: Annotated[
         str | None,
         typer.Option(
@@ -44,9 +41,8 @@ def unlearning_run(
     """
     Launch an LLM unlearning run.
 
-    Exactly one of --bias-type or --hallucination-type must be provided.
+    Exactly one of --bias or --hallucination-type must be provided.
     """
-    from hirundo.llm_bias_type import BBQBiasType
     from hirundo.unlearning_llm import (
         BiasBehavior,
         HallucinationBehavior,
@@ -56,13 +52,12 @@ def unlearning_run(
     )
 
     require_exactly_one(
-        ("--bias-type", bias_type), ("--hallucination-type", hallucination_type)
+        ("--bias", True if bias else None),
+        ("--hallucination-type", hallucination_type),
     )
 
-    if bias_type is not None:
-        target_behavior = BiasBehavior(
-            bias_type=validate_enum(bias_type, BBQBiasType, "bias type")
-        )
+    if bias:
+        target_behavior = BiasBehavior()
     elif hallucination_type is not None:
         target_behavior = HallucinationBehavior(
             hallucination_type=validate_enum(

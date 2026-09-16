@@ -75,13 +75,17 @@ def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
         f.writelines(f"\n{var_name}={var_value}")
 
 
-def upsert_env(var_name: str, var_value: str):
+def _preferred_env_location() -> EnvLocation:
     # Re-use a local `.env` if present, otherwise fall back to `~/.hirundo.conf`.
-    location = (
+    return (
         EnvLocation.DOTENV
         if os.path.exists(EnvLocation.DOTENV.value)
         else EnvLocation.HOME
     )
+
+
+def upsert_env(var_name: str, var_value: str, location: EnvLocation | None = None):
+    location = location or _preferred_env_location()
     _upsert_env(location.value, var_name, var_value)
     return location.name
 
@@ -120,15 +124,15 @@ def fix_api_host(api_host: str):
     return api_host
 
 
-def _save_api_key(api_key: str) -> None:
-    location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key))
+def _save_api_key(api_key: str, env_location: EnvLocation | None = None) -> None:
+    location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key, env_location))
     success(f"API key saved to [bold]{location}[/bold].")
     warn(f"Keep [bold]{location}[/bold] private — it contains your secret API key.")
 
 
-def _save_api_host(api_host: str) -> None:
+def _save_api_host(api_host: str, env_location: EnvLocation | None = None) -> None:
     location = _location_label(
-        upsert_env("HIRUNDO_API_HOST", fix_api_host(api_host))
+        upsert_env("HIRUNDO_API_HOST", fix_api_host(api_host), env_location)
     )
     success(f"API host saved to [bold]{location}[/bold].")
 
@@ -157,8 +161,9 @@ def setup(api_key: _API_KEY_OPTION, api_host: _API_HOST_OPTION):
     """
     Setup the Hirundo Python SDK.
     """
-    _save_api_host(api_host)
-    _save_api_key(api_key)
+    env_location = _preferred_env_location()
+    _save_api_host(api_host, env_location)
+    _save_api_key(api_key, env_location)
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -172,7 +177,9 @@ def check_run(
     """
     Check the status of a run.
     """
-    validated_run_id = validate_run_id(run_id)
+    validated_run_id = (
+        run_id if run_type is RunType.EXTERNAL_EVALUATION else validate_run_id(run_id)
+    )
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
