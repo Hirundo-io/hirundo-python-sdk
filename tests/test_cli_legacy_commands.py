@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+import pytest
 from hirundo._env import EnvLocation
 from hirundo.cli import RunType, check_run, setup
+from hirundo.cli_unlearning import unlearning_run
 
 
 def test_setup_uses_one_environment_location_for_both_values() -> None:
@@ -27,3 +29,18 @@ def test_legacy_check_allows_dotted_external_run_id() -> None:
         check_run("inspect.run-1", RunType.EXTERNAL_EVALUATION)
 
     external_eval_mock.check_run_by_id.assert_called_once_with("inspect.run-1")
+
+
+@pytest.mark.parametrize(
+    ("security", "refusal", "expected_type"),
+    [(True, False, "SECURITY"), (False, True, "REFUSAL")],
+)
+def test_unlearning_run_supports_flag_behaviors(
+    security: bool, refusal: bool, expected_type: str
+) -> None:
+    with patch("hirundo.unlearning_llm.LlmUnlearningRun") as unlearning_run_mock:
+        unlearning_run_mock.launch.return_value = "behavior-run"
+        unlearning_run(42, security=security, refusal=refusal, wait=False)
+
+    run_info = unlearning_run_mock.launch.call_args.args[1]
+    assert run_info.target_behaviors[0].type == expected_type

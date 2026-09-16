@@ -32,6 +32,14 @@ def unlearning_run(
             help="Hallucination type for unlearning. One of: GENERAL, MEDICAL, LEGAL, DEFENSE",
         ),
     ] = None,
+    security: Annotated[
+        bool,
+        typer.Option("--security", help="Run security unlearning."),
+    ] = False,
+    refusal: Annotated[
+        bool,
+        typer.Option("--refusal", help="Run refusal unlearning."),
+    ] = False,
     name: Annotated[
         str | None,
         typer.Option("--name", help="Optional name for this unlearning run."),
@@ -41,7 +49,7 @@ def unlearning_run(
     """
     Launch an LLM unlearning run.
 
-    Exactly one of --bias or --hallucination-type must be provided.
+    Exactly one behavior option must be provided.
     """
     from hirundo.unlearning_llm import (
         BiasBehavior,
@@ -49,11 +57,15 @@ def unlearning_run(
         HallucinationType,
         LlmRunInfo,
         LlmUnlearningRun,
+        RefusalBehavior,
+        SecurityBehavior,
     )
 
     require_exactly_one(
         ("--bias", True if bias else None),
         ("--hallucination-type", hallucination_type),
+        ("--security", True if security else None),
+        ("--refusal", True if refusal else None),
     )
 
     if bias:
@@ -64,6 +76,10 @@ def unlearning_run(
                 hallucination_type, HallucinationType, "hallucination type"
             )
         )
+    elif security:
+        target_behavior = SecurityBehavior()
+    elif refusal:
+        target_behavior = RefusalBehavior()
     else:  # unreachable: require_exactly_one guarantees one is set
         raise typer.Exit(code=1) from None
 
