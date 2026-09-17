@@ -148,7 +148,8 @@ class HirundoCliGroup(TyperGroup):
             **extra: Additional context settings forwarded to Typer.
 
         Returns:
-            The command callback result when execution completes without exiting.
+            The command callback result, or an exit code when JSON-mode execution
+            fails with ``standalone_mode=False``.
         """
         arguments = list(sys.argv[1:] if args is None else args)
         output_format = _detect_output_format(arguments)
@@ -163,18 +164,17 @@ class HirundoCliGroup(TyperGroup):
                 **extra,
             )
 
-        if self._handle_json_preflight(
-            arguments,
-            args,
-            prog_name,
-            complete_var,
-            standalone_mode,
-            windows_expand_args,
-            extra,
-        ):
-            return None
-
         try:
+            if self._handle_json_preflight(
+                arguments,
+                args,
+                prog_name,
+                complete_var,
+                windows_expand_args,
+                extra,
+            ):
+                return None
+
             result = super().main(
                 args=args,
                 prog_name=prog_name,
@@ -186,17 +186,17 @@ class HirundoCliGroup(TyperGroup):
             if isinstance(result, int) and result != 0:
                 if standalone_mode:
                     raise SystemExit(result)
-                raise click.exceptions.Exit(result)
+                return result
             return result
         except click.ClickException as error_value:
             _emit_error(error_value.format_message())
             if standalone_mode:
                 raise SystemExit(error_value.exit_code) from error_value
-            raise click.exceptions.Exit(error_value.exit_code) from error_value
+            return error_value.exit_code
         except click.exceptions.Exit as exit_value:
             if standalone_mode:
                 raise SystemExit(exit_value.exit_code) from exit_value
-            raise
+            return exit_value.exit_code
 
     def _handle_json_preflight(
         self,
@@ -204,7 +204,6 @@ class HirundoCliGroup(TyperGroup):
         args: Sequence[str] | None,
         prog_name: str | None,
         complete_var: str | None,
-        standalone_mode: bool,
         windows_expand_args: bool,
         extra: dict[str, Any],
     ) -> bool:
@@ -228,10 +227,7 @@ class HirundoCliGroup(TyperGroup):
         prompted_error = _missing_json_prompt_value(arguments)
         if prompted_error is None:
             return False
-        _emit_error(prompted_error)
-        if standalone_mode:
-            raise SystemExit(2)
-        raise click.exceptions.Exit(2)
+        raise click.exceptions.UsageError(prompted_error)
 
     def invoke(self, ctx: click.Context) -> Any:
         try:
@@ -428,7 +424,7 @@ def _cell(value: Any) -> str | None:
     """Render a value for a table cell (objects become compact JSON)."""
     if value is None or isinstance(value, str):
         return value
-    return json.dumps(value)
+    return json.dumps(value, separators=(",", ":"))
 
 
 def emit_rows(

@@ -2,12 +2,15 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+import typer
 from hirundo import _cli_common
 from hirundo._cli_common import OutputFormat, run_payload, set_output_format
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import requests
 from hirundo._run_status import RunStatus
 from hirundo.cli import app
+from typer import _click as click
+from typer.core import TyperGroup
 from typer.testing import CliRunner
 
 runner = CliRunner()
@@ -194,6 +197,37 @@ class TestJsonOutput:
         }
         assert "Please enter" not in result.stdout
 
+    def test_missing_prompt_value_returns_exit_code_without_standalone_mode(
+        self, capsys
+    ):
+        command = typer.main.get_command(app)
+
+        exit_code = command.main(
+            args=["set-api-key", "-o", "json"], standalone_mode=False
+        )
+
+        assert exit_code == 2
+        assert json.loads(capsys.readouterr().out) == {
+            "error": "Missing required value for set-api-key in JSON mode."
+        }
+
+    def test_malformed_json_help_uses_json_error_boundary(self, capsys):
+        command = typer.main.get_command(app)
+        with patch.object(
+            TyperGroup,
+            "main",
+            side_effect=click.exceptions.UsageError("Malformed help arguments."),
+        ):
+            exit_code = command.main(
+                args=["dataset-qa", "run", "-o", "json", "--help"],
+                standalone_mode=False,
+            )
+
+        assert exit_code == 2
+        assert json.loads(capsys.readouterr().out) == {
+            "error": "Malformed help arguments."
+        }
+
     def test_json_help_is_wrapped_in_json(self):
         result = runner.invoke(app, ["dataset-qa", "run", "-o", "json", "--help"])
         assert result.exit_code == 0
@@ -244,6 +278,12 @@ class TestTextOutputUnaffected:
         assert "run-abc" in result.stdout
         # no JSON document in text mode
         assert "{" not in result.stdout
+
+
+def test_table_cell_uses_compact_json():
+    assert _cli_common._cell({"model": "gpt", "temperature": 0}) == (
+        '{"model":"gpt","temperature":0}'
+    )
 
 
 def test_human_chatter_routes_to_stderr_in_json_mode():
