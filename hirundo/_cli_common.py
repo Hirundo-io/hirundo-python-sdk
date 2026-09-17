@@ -239,6 +239,9 @@ class HirundoCliGroup(TyperGroup):
             )
             _emit_error(f"HTTP request failed{status_suffix}.")
             raise typer.Exit(code=1) from error_value
+        except (requests.ConnectionError, requests.Timeout) as error_value:
+            _emit_error("Could not connect to the Hirundo API.")
+            raise typer.Exit(code=1) from error_value
         except (HirundoError, ValueError) as error_value:
             _emit_error(str(error_value))
             raise typer.Exit(code=1) from error_value

@@ -164,6 +164,22 @@ class TestJsonOutput:
         assert json.loads(result.stdout) == {"error": "HTTP request failed."}
         assert "secret" not in result.stdout
 
+    @pytest.mark.parametrize(
+        "transport_error", [requests.ConnectionError, requests.Timeout]
+    )
+    def test_transport_error_emits_safe_json(self, transport_error):
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = transport_error("secret detail")
+            result = runner.invoke(
+                app, ["dataset-qa", "run", "42", "--no-wait", "-o", "json"]
+            )
+
+        assert result.exit_code == 1
+        assert json.loads(result.stdout) == {
+            "error": "Could not connect to the Hirundo API."
+        }
+        assert "secret" not in result.stdout
+
     def test_value_error_emits_json(self):
         with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
             dataset_qa_mock.launch_qa_run.side_effect = ValueError("missing run ID")
