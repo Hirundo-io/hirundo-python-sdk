@@ -515,6 +515,8 @@ def test_manifest_replay_requires_exact_ci_identity_and_unexpired_files(
             expected_sdk_sha="a" * 40,
             expected_run_id="123456",
             expected_run_attempt=3,
+            expected_schema_digest="sha256:" + "b" * 64,
+            expected_test_selection=("tests/pilot_test.py::test_stream",),
         )
 
 
@@ -529,6 +531,8 @@ def test_manifest_replay_rejects_expiry_equality(tmp_path: Path) -> None:
             expected_sdk_sha="a" * 40,
             expected_run_id="123456",
             expected_run_attempt=2,
+            expected_schema_digest="sha256:" + "b" * 64,
+            expected_test_selection=("tests/pilot_test.py::test_stream",),
             now=datetime(2026, 9, 10, 10, tzinfo=timezone.utc),
         )
 

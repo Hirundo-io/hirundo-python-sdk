@@ -11,6 +11,7 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from hirundo._column_options import validate_column_options
 from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
+from hirundo._generated.wire_models import ServerDatasetQaModelsRunRunInfo
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
@@ -632,13 +633,17 @@ class QADataset(BaseModel):
         Returns:
             ID of the run (`run_id`).
         """
-        run_info: dict[str, JsonValue] = {
-            "run_args": cast("dict[str, JsonValue]", run_args.model_dump(mode="json"))
+        wire_run_args = (
+            cast("dict[str, JsonValue]", run_args.model_dump(mode="json"))
             if run_args
-            else {},
-        }
+            else {}
+        )
+        if "image_size" in wire_run_args:
+            wire_run_args["img_size"] = wire_run_args.pop("image_size")
+        run_info: dict[str, JsonValue] = {"run_args": wire_run_args}
         if organization_id is not None:
             run_info["organization_id"] = organization_id
+        ServerDatasetQaModelsRunRunInfo.model_validate(run_info)
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
             json=run_info,

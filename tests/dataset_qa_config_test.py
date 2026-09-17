@@ -16,7 +16,8 @@ from hirundo import (
     StorageGit,
     StorageTypes,
 )
-from pydantic import JsonValue
+from hirundo.dataset_qa import ClassificationRunArgs, ObjectDetectionRunArgs
+from pydantic import JsonValue, ValidationError
 from pydantic_core import Url
 
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -154,6 +155,44 @@ def _capture_create_and_run_payloads(
 
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
     return request_payloads
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        ClassificationRunArgs(image_size=(128, 128)),
+        ObjectDetectionRunArgs(image_size=(64, 96), min_abs_bbox_size=8),
+        ClassificationRunArgs(image_size=None),
+        None,
+    ],
+)
+def test_launch_qa_run_adapts_image_size_without_changing_public_model(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: ClassificationRunArgs | None,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+    public_payload = run_args.model_dump(mode="json") if run_args else {}
+    expected_args = dict(public_payload)
+    if "image_size" in expected_args:
+        expected_args["img_size"] = expected_args.pop("image_size")
+
+    assert QADataset.launch_qa_run(123, organization_id=7, run_args=run_args) == (
+        "run-123"
+    )
+    assert payloads == [{"run_args": expected_args, "organization_id": 7}]
+    if run_args:
+        assert run_args.model_dump(mode="json") == public_payload
+
+
+def test_launch_qa_run_validates_complete_payload_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    with pytest.raises(ValidationError):
+        QADataset.launch_qa_run(123, organization_id=cast("int", "not-an-id"))
+
+    assert payloads == []
 
 
 def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]:

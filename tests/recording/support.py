@@ -885,6 +885,8 @@ class RecordingManifest:
         expected_sdk_sha: str,
         expected_run_id: str,
         expected_run_attempt: int,
+        expected_schema_digest: str,
+        expected_test_selection: tuple[str, ...],
         now: datetime | None = None,
     ) -> None:
         """Validate the files and exact CI identity before enabling replay.
@@ -894,6 +896,8 @@ class RecordingManifest:
             expected_sdk_sha: Exact SDK commit expected by the replay job.
             expected_run_id: Exact CI run identifier expected by the replay job.
             expected_run_attempt: Exact CI attempt expected by the replay job.
+            expected_schema_digest: Digest of the checked-out schema snapshot.
+            expected_test_selection: Exact test selection used by the replay job.
             now: UTC time used for expiry validation, or the current time when omitted.
 
         Returns:
@@ -907,6 +911,10 @@ class RecordingManifest:
             raise ManifestValidationError("run ID does not match replay job")
         if self.run_attempt != expected_run_attempt:
             raise ManifestValidationError("run attempt does not match replay job")
+        if self.schema_digest != expected_schema_digest:
+            raise ManifestValidationError("schema digest does not match replay job")
+        if self.test_selection != expected_test_selection:
+            raise ManifestValidationError("test selection does not match replay job")
         current_time = now or datetime.now(timezone.utc)
         if current_time >= _parse_utc_timestamp(self.expires_at, "expires_at"):
             raise ManifestValidationError("recording artifacts have expired")
