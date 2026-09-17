@@ -20,7 +20,12 @@ from hirundo._cli_common import (
     validate_run_id,
     warn,
 )
-from hirundo._credentials import KeyringUnavailableError, save_api_key_to_keyring
+from hirundo._credentials import (
+    KeyringUnavailableError,
+    delete_api_key_from_keyring,
+    normalize_api_host,
+    save_api_key_to_keyring,
+)
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
@@ -103,9 +108,21 @@ def _rewrite_env(
     dotenv_filepath: str | Path,
     mutation: Callable[[Path], None],
 ) -> None:
-    dotenv_path, original_status, contents = _read_secure_config(dotenv_filepath)
+    unresolved_path = Path(dotenv_filepath)
+    dotenv_path = unresolved_path.resolve(strict=False)
+    lock_path = dotenv_path.with_name(f".{dotenv_path.name}.hirundo.lock")
+    try:
+        lock_descriptor = os.open(
+            lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
+        )
+    except FileExistsError:
+        raise RuntimeError(
+            f"Configuration file is already being updated: {dotenv_path}"
+        ) from None
     temporary_path: Path | None = None
     try:
+        os.close(lock_descriptor)
+        dotenv_path, original_status, contents = _read_secure_config(dotenv_path)
         with tempfile.NamedTemporaryFile(
             mode="w",
             encoding="utf-8",
@@ -117,28 +134,26 @@ def _rewrite_env(
             temporary_path = Path(temporary_file.name)
         temporary_path.chmod(0o600)
         mutation(temporary_path)
-
-        try:
-            current_status = dotenv_path.lstat()
-        except FileNotFoundError:
-            if original_status is not None:
-                raise RuntimeError(
-                    f"Configuration file changed while updating it: {dotenv_path}"
-                ) from None
-        else:
-            if original_status is None or (
+        _, current_status, current_contents = _read_secure_config(dotenv_path)
+        if (
+            (original_status is None) != (current_status is None)
+            or (original_status is not None and current_status is not None)
+            and (
                 current_status.st_dev != original_status.st_dev
                 or current_status.st_ino != original_status.st_ino
-            ):
-                raise RuntimeError(
-                    f"Configuration file changed while updating it: {dotenv_path}"
-                )
+            )
+            or current_contents != contents
+        ):
+            raise RuntimeError(
+                f"Configuration file changed while updating it: {dotenv_path}"
+            )
 
         os.replace(temporary_path, dotenv_path)
         temporary_path = None
     finally:
         if temporary_path is not None:
             temporary_path.unlink(missing_ok=True)
+        lock_path.unlink(missing_ok=True)
 
 
 def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str) -> None:
@@ -216,13 +231,16 @@ _API_HOST_OPTION: TypeAlias = Annotated[
 
 
 def fix_api_host(api_host: str) -> str:
-    if not api_host.startswith(("http://", "https://")):
-        api_host = f"https://{api_host}"
+    original_api_host = api_host
+    has_http_scheme = original_api_host.lower().startswith(("http://", "https://"))
+    if not has_http_scheme:
         warn("API host must start with 'http://' or 'https://'. Added 'https://'.")
-    if (url := urlparse(api_host)) and url.path != "":
+    url = urlparse(
+        original_api_host if has_http_scheme else f"https://{original_api_host}"
+    )
+    if url.path not in {"", "/"}:
         warn("API host should not contain a path. Removing it.")
-        api_host = f"{url.scheme}://{url.hostname}"
-    return api_host
+    return normalize_api_host(original_api_host)
 
 
 def _save_api_key_to_file(
@@ -264,6 +282,8 @@ def _save_api_key(
             return
 
     _save_api_key_to_file(api_key, env_location)
+    if key_storage is KeyStorage.FILE:
+        delete_api_key_from_keyring(api_host)
 
 
 def _save_api_host(api_host: str, env_location: EnvLocation | None = None) -> str:

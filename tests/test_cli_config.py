@@ -74,6 +74,29 @@ def test_rewrite_env_rejects_destination_changed_during_update(
     assert dotenv_values(dotenv_path) == {"ATTACKER": "value"}
 
 
+def test_rewrite_env_rejects_in_place_change_during_update(tmp_path: Path) -> None:
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("ORIGINAL='value'\n")
+
+    def modify_destination(_: Path) -> None:
+        dotenv_path.write_text("CONCURRENT='value'\n")
+
+    with pytest.raises(RuntimeError, match="changed while updating"):
+        _rewrite_env(dotenv_path, modify_destination)
+
+    assert dotenv_values(dotenv_path) == {"CONCURRENT": "value"}
+
+
+def test_rewrite_env_rejects_concurrent_sdk_update(tmp_path: Path) -> None:
+    dotenv_path = tmp_path / ".env"
+    dotenv_path.write_text("ORIGINAL='value'\n")
+    lock_path = tmp_path / "..env.hirundo.lock"
+    lock_path.write_text("")
+
+    with pytest.raises(RuntimeError, match="already being updated"):
+        _upsert_env(dotenv_path, "NEW", "value")
+
+
 @pytest.mark.parametrize("invalid_character", ["\r", "\n", "\0"])
 def test_upsert_env_rejects_unsafe_api_key_characters(
     tmp_path: Path, invalid_character: str
@@ -161,7 +184,7 @@ def test_save_api_key_auto_falls_back_to_private_file(tmp_path: Path) -> None:
     assert stat.S_IMODE(dotenv_path.stat().st_mode) == 0o600
 
 
-def test_save_api_key_explicit_file_does_not_access_keyring(
+def test_save_api_key_explicit_file_removes_stale_keyring_value(
     tmp_path: Path,
 ) -> None:
     dotenv_path = tmp_path / ".hirundo.conf"
@@ -170,6 +193,7 @@ def test_save_api_key_explicit_file_does_not_access_keyring(
     with (
         patch.object(location, "_value_", dotenv_path),
         patch("hirundo.cli.save_api_key_to_keyring") as save_to_keyring_mock,
+        patch("hirundo.cli.delete_api_key_from_keyring") as delete_keyring_mock,
     ):
         _save_api_key(
             "secret",
@@ -179,6 +203,7 @@ def test_save_api_key_explicit_file_does_not_access_keyring(
         )
 
     save_to_keyring_mock.assert_not_called()
+    delete_keyring_mock.assert_called_once_with("https://api.hirundo.io")
     assert dotenv_values(dotenv_path)["HIRUNDO_API_KEY"] == "secret"
 
 

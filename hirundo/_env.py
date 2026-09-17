@@ -6,7 +6,7 @@ from typing import cast
 
 from dotenv import find_dotenv, load_dotenv
 
-from hirundo._credentials import load_api_key_from_keyring
+from hirundo._credentials import load_api_key_from_keyring, normalize_api_host
 
 
 class EnvLocation(enum.Enum):
@@ -67,11 +67,13 @@ def _resolve_api_key(
     return _get_env_with_deprecation("HIRUNDO_API_KEY", "API_KEY")
 
 
-API_HOST = cast(
-    "str",
-    _get_env_with_deprecation(
-        "HIRUNDO_API_HOST", "API_HOST", default="https://api.hirundo.io"
-    ),
+API_HOST = normalize_api_host(
+    cast(
+        "str",
+        _get_env_with_deprecation(
+            "HIRUNDO_API_HOST", "API_HOST", default="https://api.hirundo.io"
+        ),
+    )
 )
 API_KEY = _resolve_api_key(
     API_HOST, api_key_from_environment, legacy_api_key_from_environment

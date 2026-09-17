@@ -53,7 +53,10 @@ manager. Environment variables take precedence over the keyring and configuratio
 files.
 
 Use `--key-storage keyring` to require secure storage and fail if no backend is
-available. Use `--key-storage file` to choose the private-file fallback explicitly:
+available. Hirundo accepts the native macOS Keychain, Windows Credential Locker,
+Linux Secret Service, KWallet, and libsecret backends; plaintext and unknown
+third-party keyring backends are rejected. Use `--key-storage file` to choose the
+private-file fallback explicitly:
 
 ```bash
 hirundo setup --key-storage keyring
@@ -62,7 +65,9 @@ hirundo set-api-key --key-storage file
 
 When a key is saved successfully to the keyring, the CLI removes
 `HIRUNDO_API_KEY` from the active configuration file. Existing configuration
-files remain readable for backward compatibility.
+files remain readable for backward compatibility. Conversely, selecting file
+storage removes any older keyring entry for the same normalized API host so a
+stale key cannot take precedence.
 
 ## Quickstart examples
 
