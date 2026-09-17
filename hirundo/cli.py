@@ -1,31 +1,55 @@
 import os
 import re
-import sys
+import stat
+import tempfile
+from collections.abc import Callable
 from enum import Enum
+from io import StringIO
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, TypeAlias, cast
 from urllib.parse import urlparse
 
 import typer
-from rich.console import Console
-from rich.table import Table
+from dotenv import dotenv_values, set_key, unset_key
 
-from hirundo._env import API_HOST, EnvLocation
-
-docs = "sphinx" in sys.modules
-hirundo_epilog = (
-    None
-    if docs
-    else "Made with ❤️ by Hirundo. Visit https://www.hirundo.io for more information."
+from hirundo._cli_common import (
+    docs,
+    hirundo_epilog,
+    print_runs_table,
+    success,
+    validate_run_id,
+    warn,
 )
+from hirundo._credentials import (
+    KeyringUnavailableError,
+    delete_api_key_from_keyring,
+    normalize_api_host,
+    save_api_key_to_keyring,
+)
+from hirundo._env import API_HOST, EnvLocation
+from hirundo.cli_dataset_qa import dataset_qa_app
+from hirundo.cli_eval import eval_app
+from hirundo.cli_unlearning import unlearning_app
 
+_CONFIG_PANEL = "Configuration"
+_RUNS_PANEL = "Runs"
+_PIPELINES_PANEL = "Pipelines"
 
 app = typer.Typer(
     name="hirundo",
     no_args_is_help=True,
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
+    help=(
+        "Launch and monitor Hirundo data-quality, unlearning, and evaluation "
+        "runs. Run `hirundo setup` once to store your API key, then use the "
+        "eval, dataset-qa, and unlearning command groups."
+    ),
 )
+
+app.add_typer(eval_app, name="eval", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(dataset_qa_app, name="dataset-qa", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(unlearning_app, name="unlearning", rich_help_panel=_PIPELINES_PANEL)
 
 
 class RunType(str, Enum):
@@ -35,168 +59,279 @@ class RunType(str, Enum):
     EXTERNAL_EVALUATION = "external-evaluation"
 
 
-def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str):
-    """
-    Change an environment variable in the .env file.
-    If the variable does not exist, it will be added.
-
-    Args:
-        var_name: The name of the environment variable to change.
-        var_value: The new value of the environment variable.
-    """
-    regex = re.compile(rf"^{var_name}=.*$")
-    lines = []
-    if os.path.exists(dotenv_filepath):
-        with open(dotenv_filepath) as f:
-            lines = f.readlines()
-
-    with open(dotenv_filepath, "w") as f:
-        f.writelines(line for line in lines if not regex.search(line) and line != "\n")
-
-    with open(dotenv_filepath, "a") as f:
-        f.writelines(f"\n{var_name}={var_value}")
+class KeyStorage(str, Enum):
+    AUTO = "auto"
+    KEYRING = "keyring"
+    FILE = "file"
 
 
-def upsert_env(var_name: str, var_value: str):
-    if os.path.exists(EnvLocation.DOTENV.value):
-        # If a `.env` file exists, re-use it
-        _upsert_env(EnvLocation.DOTENV.value, var_name, var_value)
-        return EnvLocation.DOTENV.name
-    else:
-        # Create a `.hirundo.conf` file with environment variables in the home directory
-        _upsert_env(EnvLocation.HOME.value, var_name, var_value)
-        return EnvLocation.HOME.name
+def _location_label(saved_to: str) -> str:
+    """Return the display name for an environment-file location."""
+    return "~/.hirundo.conf" if saved_to == EnvLocation.HOME.name else ".env"
 
 
-def fix_api_host(api_host: str):
-    if not api_host.startswith("http") and not api_host.startswith("https"):
-        api_host = f"https://{api_host}"
-        print(
-            "API host must start with 'http://' or 'https://'. Automatically added 'https://'."
+def _validate_env_value(var_name: str, var_value: str) -> None:
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", var_name) is None:
+        raise ValueError(f"Invalid environment variable name: {var_name!r}")
+    if any(character in var_value for character in ("\r", "\n", "\0")):
+        raise ValueError(f"{var_name} must not contain line breaks or null bytes")
+
+
+def _read_secure_config(
+    dotenv_filepath: str | Path,
+) -> tuple[Path, os.stat_result | None, str]:
+    dotenv_path = Path(dotenv_filepath).resolve(strict=False)
+    open_flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        file_descriptor = os.open(dotenv_path, open_flags)
+    except FileNotFoundError:
+        return dotenv_path, None, ""
+
+    try:
+        file_status = os.fstat(file_descriptor)
+        if not stat.S_ISREG(file_status.st_mode):
+            raise ValueError(
+                f"Configuration path must be a regular file: {dotenv_path}"
+            )
+        if hasattr(os, "fchmod"):
+            os.fchmod(file_descriptor, 0o600)
+        with os.fdopen(file_descriptor, encoding="utf-8") as config_file:
+            file_descriptor = -1
+            contents = config_file.read()
+    finally:
+        if file_descriptor >= 0:
+            os.close(file_descriptor)
+    return dotenv_path, file_status, contents
+
+
+def _rewrite_env(
+    dotenv_filepath: str | Path,
+    mutation: Callable[[Path], None],
+) -> None:
+    unresolved_path = Path(dotenv_filepath)
+    dotenv_path = unresolved_path.resolve(strict=False)
+    lock_path = dotenv_path.with_name(f".{dotenv_path.name}.hirundo.lock")
+    try:
+        lock_descriptor = os.open(
+            lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600
         )
-    if (url := urlparse(api_host)) and url.path != "":
-        print("API host should not contain a path. Removing path.")
-        api_host = f"{url.scheme}://{url.hostname}"
+    except FileExistsError:
+        raise RuntimeError(
+            f"Configuration file is already being updated: {dotenv_path}"
+        ) from None
+    temporary_path: Path | None = None
+    try:
+        os.close(lock_descriptor)
+        dotenv_path, original_status, contents = _read_secure_config(dotenv_path)
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            prefix=".hirundo-",
+            dir=dotenv_path.parent,
+        ) as temporary_file:
+            temporary_file.write(contents)
+            temporary_path = Path(temporary_file.name)
+        temporary_path.chmod(0o600)
+        mutation(temporary_path)
+        _, current_status, current_contents = _read_secure_config(dotenv_path)
+        if (
+            (original_status is None) != (current_status is None)
+            or (original_status is not None and current_status is not None)
+            and (
+                current_status.st_dev != original_status.st_dev
+                or current_status.st_ino != original_status.st_ino
+            )
+            or current_contents != contents
+        ):
+            raise RuntimeError(
+                f"Configuration file changed while updating it: {dotenv_path}"
+            )
+
+        os.replace(temporary_path, dotenv_path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        lock_path.unlink(missing_ok=True)
+
+
+def _upsert_env(dotenv_filepath: str | Path, var_name: str, var_value: str) -> None:
+    """Add or replace an environment variable in a private dotenv file."""
+    _validate_env_value(var_name, var_value)
+
+    def set_value(temporary_path: Path) -> None:
+        set_key(temporary_path, var_name, var_value, quote_mode="always")
+
+    _rewrite_env(dotenv_filepath, set_value)
+
+
+def _preferred_env_location() -> EnvLocation:
+    # Re-use a local `.env` if present, otherwise fall back to `~/.hirundo.conf`.
+    return (
+        EnvLocation.DOTENV
+        if os.path.exists(EnvLocation.DOTENV.value)
+        else EnvLocation.HOME
+    )
+
+
+def upsert_env(
+    var_name: str, var_value: str, location: EnvLocation | None = None
+) -> str:
+    location = location or _preferred_env_location()
+    _upsert_env(location.value, var_name, var_value)
+    return location.name
+
+
+def _remove_env_key(dotenv_filepath: str | Path, var_name: str) -> None:
+    dotenv_path, _, contents = _read_secure_config(dotenv_filepath)
+    if var_name not in dotenv_values(stream=StringIO(contents)):
+        return
+
+    def remove_value(temporary_path: Path) -> None:
+        unset_key(temporary_path, var_name)
+
+    _rewrite_env(dotenv_path, remove_value)
+
+
+# Shared option definitions reused across set-api-key, change-remote, and setup.
+_API_KEY_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API key value",
+        hide_input=True,
+        help="" if docs else f"Visit '{API_HOST}/api-key' to generate your API key.",
+    ),
+]
+
+_KEY_STORAGE_OPTION: TypeAlias = Annotated[
+    KeyStorage,
+    typer.Option(
+        "--key-storage",
+        help=(
+            "Where to persist the API key. 'auto' prefers the operating-system "
+            "keyring and falls back to a private configuration file."
+        ),
+    ),
+]
+
+# TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
+_API_HOST_OPTION: TypeAlias = Annotated[
+    str,
+    typer.Option(
+        prompt="Please enter the API server address",
+        help=""
+        if docs
+        else (
+            f"Current API server address: '{API_HOST}'. "
+            "This is the same address where you access the Hirundo web interface."
+        ),
+    ),
+]
+
+
+def fix_api_host(api_host: str) -> str:
+    original_api_host = api_host
+    has_http_scheme = original_api_host.lower().startswith(("http://", "https://"))
+    if not has_http_scheme:
+        warn("API host must start with 'http://' or 'https://'. Added 'https://'.")
+    url = urlparse(
+        original_api_host if has_http_scheme else f"https://{original_api_host}"
+    )
+    if url.path not in {"", "/"}:
+        warn("API host should not contain a path. Removing it.")
+    return normalize_api_host(original_api_host)
+
+
+def _save_api_key_to_file(
+    api_key: str, env_location: EnvLocation | None = None
+) -> None:
+    location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key, env_location))
+    success(f"API key saved to [bold]{location}[/bold].")
+    warn(f"Keep [bold]{location}[/bold] private; it contains your secret API key.")
+
+
+def _save_api_key(
+    api_key: str,
+    api_host: str,
+    key_storage: KeyStorage,
+    env_location: EnvLocation | None = None,
+) -> None:
+    if key_storage is not KeyStorage.FILE:
+        try:
+            backend_name = save_api_key_to_keyring(api_host, api_key)
+        except KeyringUnavailableError:
+            if key_storage is KeyStorage.KEYRING:
+                raise typer.BadParameter(
+                    "No usable operating-system keyring is available. Use "
+                    "HIRUNDO_API_KEY for non-interactive environments or select "
+                    "--key-storage file."
+                ) from None
+            warn(
+                "No usable operating-system keyring is available; falling back "
+                "to a private configuration file. For CI, containers, SSH "
+                "sessions, and headless servers, prefer HIRUNDO_API_KEY."
+            )
+        else:
+            location = env_location or _preferred_env_location()
+            _remove_env_key(location.value, "HIRUNDO_API_KEY")
+            success(
+                "API key saved to the operating-system keyring "
+                f"([bold]{backend_name}[/bold])."
+            )
+            return
+
+    _save_api_key_to_file(api_key, env_location)
+    if key_storage is KeyStorage.FILE:
+        delete_api_key_from_keyring(api_host)
+
+
+def _save_api_host(api_host: str, env_location: EnvLocation | None = None) -> str:
+    api_host = fix_api_host(api_host)
+    location = _location_label(upsert_env("HIRUNDO_API_HOST", api_host, env_location))
+    success(f"API host saved to [bold]{location}[/bold].")
     return api_host
 
 
-@app.command("set-api-key", epilog=hirundo_epilog)
+@app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup_api_key(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
+    api_key: _API_KEY_OPTION,
+    key_storage: _KEY_STORAGE_OPTION = KeyStorage.AUTO,
 ):
     """
-    Setup the API key for the Hirundo Python SDK.
-    Values are saved to a .env file in the current directory for use by the library in requests.
+    Save the API key for the Hirundo SDK.
+
+    The key is stored in the operating-system keyring when one is available.
+    Headless environments fall back to a private configuration file.
     """
-    saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-        )
+    _save_api_key(api_key, API_HOST, key_storage)
 
 
-@app.command("change-remote", epilog=hirundo_epilog)
-def change_api_remote(
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl when https://github.com/tiangolo/typer/pull/723 is merged
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
-):
+@app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
+def change_api_remote(api_host: _API_HOST_OPTION):
     """
-    Change the API server address for the Hirundo Python SDK.
-    This is the same address where you access the Hirundo web interface.
+    Change the API server address (same URL as the Hirundo web interface).
     """
-    api_host = fix_api_host(api_host)
-
-    saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
-    if saved_to == EnvLocation.HOME.name:
-        print(
-            "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-        )
-    elif saved_to == EnvLocation.DOTENV.name:
-        print("API host saved to .env for future use. Please do not share this file")
+    _save_api_host(api_host)
 
 
-@app.command("setup", epilog=hirundo_epilog)
+@app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup(
-    api_key: Annotated[
-        str,
-        typer.Option(
-            prompt="Please enter the API key value",
-            help=""
-            if docs
-            else f"Visit '{API_HOST}/api-key' to generate your API key.",
-        ),
-    ],
-    api_host: Annotated[
-        str,  # TODO: Change to HttpUrl as above
-        typer.Option(
-            prompt="Please enter the API server address",
-            help=""
-            if docs
-            else f"Current API server address: '{API_HOST}'. This is the same address where you access the Hirundo web interface.",
-        ),
-    ],
+    api_key: _API_KEY_OPTION,
+    api_host: _API_HOST_OPTION,
+    key_storage: _KEY_STORAGE_OPTION = KeyStorage.AUTO,
 ):
     """
     Setup the Hirundo Python SDK.
     """
-    api_host = fix_api_host(api_host)
-    api_host_saved_to = upsert_env("HIRUNDO_API_HOST", api_host)
-    api_key_saved_to = upsert_env("HIRUNDO_API_KEY", api_key)
-    if api_host_saved_to != api_key_saved_to:
-        print(
-            "API host and API key saved to different locations. This should not happen. Please report this issue."
-        )
-        if (
-            api_host_saved_to == EnvLocation.HOME.name
-            and api_key_saved_to == EnvLocation.DOTENV.name
-        ):
-            print(
-                "API host saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file"
-            )
-            print(
-                "API key saved to local .env file for future use. Please do not share the .env file since it contains your secret API key."
-            )
-        elif (
-            api_host_saved_to == EnvLocation.DOTENV.name
-            and api_key_saved_to == EnvLocation.HOME.name
-        ):
-            print(
-                "API host saved to .env for future use. Please do not share this file"
-            )
-            print(
-                "API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-            )
-        return
-    if api_host_saved_to == EnvLocation.HOME.name:
-        print(
-            "API host and API key saved to ~/.hirundo.conf for future use. Please do not share the ~/.hirundo.conf file since it contains your secret API key."
-        )
-    elif api_host_saved_to == EnvLocation.DOTENV.name:
-        print(
-            "API host and API key saved to .env for future use. Please do not share this file since it contains your secret API key."
-        )
+    _validate_env_value("HIRUNDO_API_HOST", api_host)
+    _validate_env_value("HIRUNDO_API_KEY", api_key)
+    env_location = _preferred_env_location()
+    normalized_api_host = _save_api_host(api_host, env_location)
+    _save_api_key(api_key, normalized_api_host, key_storage, env_location)
 
 
-@app.command("check-run", epilog=hirundo_epilog)
+@app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def check_run(
     run_id: str,
     run_type: Annotated[
@@ -207,28 +342,34 @@ def check_run(
     """
     Check the status of a run.
     """
+    validated_run_id = (
+        run_id if run_type is RunType.EXTERNAL_EVALUATION else validate_run_id(run_id)
+    )
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
-        print(LlmUnlearningRun.check_run_by_id(run_id))
+        print(LlmUnlearningRun.check_run_by_id(validated_run_id))
     elif run_type is RunType.LLM_EVALUATION:
         from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-        results = LlmBehaviorEval.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = LlmBehaviorEval.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
     elif run_type is RunType.EXTERNAL_EVALUATION:
         from hirundo.external_eval import ExternalEval
 
-        results = ExternalEval.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = ExternalEval.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
     else:
         from hirundo.dataset_qa import QADataset
 
-        results = QADataset.check_run_by_id(run_id)
-        print(f"Run results saved to {results.cached_zip_path}")
+        results = QADataset.check_run_by_id(validated_run_id)
+        if results is not None:
+            print(f"Run results saved to {results.cached_zip_path}")
 
 
-@app.command("list-runs", epilog=hirundo_epilog)
+@app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
 def list_runs(
     run_type: Annotated[
         RunType,
@@ -259,36 +400,28 @@ def list_runs(
             if run.framework is EvalFramework.INSPECT_EVALS
         ]
 
-    console = Console()
-    table = Table(
-        title="Runs:",
-        expand=True,
-    )
-    cols = ["Name", "Run ID", "Status", "Created At"]
-    if run_type is RunType.DATASET_QA:
-        cols.append("Run Args")
-    for col in cols:
-        table.add_column(
-            col,
-            overflow="fold",
+    columns = ("Name", "Run ID", "Status", "Created At")
+    rows = []
+    for run_record in runs:
+        row = (
+            str(run_record.name),
+            str(run_record.run_id),
+            str(run_record.status),
+            run_record.created_at.isoformat(),
         )
-    for run in runs:
-        row = [
-            str(run.name),
-            str(run.run_id),
-            str(run.status),
-            run.created_at.isoformat(),
-        ]
         if run_type is RunType.DATASET_QA:
             from hirundo.dataset_qa import DataQARunOut
 
-            dataset_qa_run = cast("DataQARunOut", run)
+            dataset_qa_run = cast("DataQARunOut", run_record)
             if hasattr(dataset_qa_run, "run_args") and dataset_qa_run.run_args:
-                row.append(dataset_qa_run.run_args.model_dump_json())
+                row += (dataset_qa_run.run_args.model_dump_json(),)
             else:
-                row.append("")
-        table.add_row(*row)
-    console.print(table)
+                row += ("",)
+        rows.append(row)
+
+    if run_type is RunType.DATASET_QA:
+        columns += ("Run Args",)
+    print_runs_table("Runs:", columns, rows)
 
 
 typer_click_object = typer.main.get_command(app)

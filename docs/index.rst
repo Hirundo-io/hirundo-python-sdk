@@ -31,8 +31,20 @@ Configure API access:
 
    hirundo setup
 
-This writes ``HIRUNDO_API_KEY`` (and optionally ``HIRUNDO_API_HOST``) to a local ``.env`` file or
-``~/.hirundo.conf`` for subsequent SDK usage.
+The CLI stores the API key in the operating system's credential store and keeps
+the API host in ``.env`` or ``~/.hirundo.conf``. If no usable credential store
+is available, the default ``auto`` mode warns and writes the key to the selected
+configuration file with owner-only permissions.
+
+For CI, containers, SSH sessions, and headless servers, set
+``HIRUNDO_API_KEY`` through the environment or a secret manager instead of
+persisting it locally. Environment variables take precedence over the keyring
+and configuration files. Use ``--key-storage keyring`` to require a keyring or
+``--key-storage file`` to choose the private-file fallback explicitly. Native
+macOS, Windows, Secret Service, KWallet, and libsecret stores are accepted;
+plaintext and unknown backends are rejected. Selecting file storage removes an
+older keyring entry for the same API host to prevent stale credentials from
+taking precedence.
 
 LLM behavior unlearning
 -----------------------
