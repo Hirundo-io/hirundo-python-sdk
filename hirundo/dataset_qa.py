@@ -1022,3 +1022,18 @@ class DataQARunOut(BaseModel):
     run_args: RunArgs | None
 
     deleted_at: datetime.datetime | None = None
+
+    @field_validator("run_args", mode="before")
+    @classmethod
+    def parse_wire_run_args(cls, value: object) -> object:
+        """Adapt server image dimensions without changing public serialization.
+
+        Args:
+            value: Server run arguments or an already-public representation.
+
+        Returns:
+            Arguments using the public image-size field name.
+        """
+        if isinstance(value, dict) and "img_size" in value:
+            return {**value, "image_size": value["img_size"]}
+        return value
