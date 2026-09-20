@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 if os.environ.get("HIRUNDO_LIVE_TESTS") != "1":
     os.environ.update(
         {
-            "HIRUNDO_API_HOST": "https://api.invalid",
+            "HIRUNDO_API_HOST": "https://api.example.test",
             "HIRUNDO_API_KEY": "synthetic-replay-key",
-            "API_HOST": "https://api.invalid",
+            "API_HOST": "https://api.example.test",
             "API_KEY": "synthetic-replay-key",
             "GCP_CREDENTIALS": json.dumps({"type": "service_account"}),
             "AWS_ACCESS_KEY": "synthetic-access-key",

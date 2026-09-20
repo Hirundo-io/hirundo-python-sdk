@@ -9,7 +9,7 @@ from hirundo._generated.wire_models import (
     CreateLlm,
     ServerUnlearningLlmModelsEvalRunInfo,
 )
-from hirundo._llm_sources import HuggingFaceTransformersModel
+from hirundo._llm_sources import HuggingFaceTransformersModel, LocalTransformersModel
 from hirundo.llm_behavior_eval import (
     EvalRunInfo,
     JudgeModel,
@@ -28,10 +28,38 @@ from hirundo.unlearning_llm import (
     LlmRunInfo,
     UnlearningLlmAdvancedOptions,
 )
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
+from requests import Response
 from scripts.generate_models import DEFAULT_SCHEMA
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+
+LOCAL_TRANSFORMERS_MODEL_RESPONSE: dict[str, JsonValue] = {
+    "id": 1,
+    "organization_id": 2,
+    "creator_id": 3,
+    "creator_name": "creator",
+    "created_at": "2026-01-01T00:00:00",
+    "updated_at": "2026-01-02T00:00:00",
+    "model_name": "local-example",
+    "model_source": {
+        "type": "local_transformers",
+        "local_path": "/models/example",
+        "revision": "model-commit",
+        "code_revision": "code-commit",
+        "parameter_count": 7000000000,
+        "trust_remote_code": False,
+    },
+}
+
+
+def _json_response(payload: JsonValue) -> Response:
+    response = Response()
+    response.status_code = 200
+    response._content = json.dumps(payload).encode()
+    response.headers["Content-Type"] = "application/json"
+    return response
 
 
 def test_generation_input_is_the_complete_openapi_document() -> None:
@@ -177,6 +205,44 @@ def test_llm_output_retains_naive_datetime_compatibility() -> None:
         }
     )
     assert output.created_at.tzinfo is None
+
+
+def test_local_transformers_model_response_fields_are_retained() -> None:
+    model = LlmModelOut.model_validate(LOCAL_TRANSFORMERS_MODEL_RESPONSE)
+
+    assert isinstance(model.model_source, LocalTransformersModel)
+    assert model.model_source.revision == "model-commit"
+    assert model.model_source.code_revision == "code-commit"
+    assert model.model_source.parameter_count == 7000000000
+    assert model.model_source.trust_remote_code is False
+
+
+def test_llm_model_read_methods_retain_local_transformers_response_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_get(url: str, **_request_options: JsonValue) -> Response:
+        payload: JsonValue = (
+            [LOCAL_TRANSFORMERS_MODEL_RESPONSE]
+            if url.endswith("/unlearning-llm/llm/")
+            else LOCAL_TRANSFORMERS_MODEL_RESPONSE
+        )
+        return _json_response(payload)
+
+    monkeypatch.setattr("hirundo.unlearning_llm.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.unlearning_llm.requests.get", fake_get)
+
+    models = (
+        LlmModel.get_by_id(1),
+        LlmModel.get_by_name("local-example"),
+        LlmModel.list()[0],
+    )
+
+    for model in models:
+        assert isinstance(model.model_source, LocalTransformersModel)
+        assert model.model_source.revision == "model-commit"
+        assert model.model_source.code_revision == "code-commit"
+        assert model.model_source.parameter_count == 7000000000
+        assert model.model_source.trust_remote_code is False
 
 
 def test_unlearning_raw_nested_models_and_defaults_round_trip() -> None:

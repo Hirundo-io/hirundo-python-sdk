@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any
+from typing import TypedDict
 
 import pytest
 from hirundo import (
@@ -13,17 +13,24 @@ from hirundo import (
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
 from hirundo.llm_behavior_eval import HirundoLlmBehaviorEvalError
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 from requests import HTTPError
+
+JsonObject = dict[str, JsonValue]
+
+
+class CapturedRequest(TypedDict, total=False):
+    url: str
+    json: JsonObject
 
 
 class _Response:
     status_code = 200
 
-    def __init__(self, payload: dict[str, Any]):
+    def __init__(self, payload: JsonObject) -> None:
         self.payload = payload
 
-    def json(self) -> dict[str, Any]:
+    def json(self) -> JsonObject:
         return self.payload
 
     def raise_for_status(self) -> None:
@@ -33,11 +40,17 @@ class _Response:
 def test_launch_external_eval_run_serializes_request(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured_request: dict[str, Any] = {}
+    captured_request: CapturedRequest = {}
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        captured_request["url"] = args[0]
-        captured_request["json"] = kwargs["json"]
+    def fake_post(
+        url: str,
+        *,
+        json: JsonObject,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> _Response:
+        captured_request["url"] = url
+        captured_request["json"] = json
         return _Response({"message": "Run launched", "run_id": "inspect-run-id"})
 
     monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
@@ -54,6 +67,8 @@ def test_launch_external_eval_run_serializes_request(
 
     assert launch.run_id == "inspect-run-id"
     assert launch.message == "Run launched"
+    assert "url" in captured_request
+    assert "json" in captured_request
     assert captured_request["url"].endswith("/external-evals/run/run")
     assert captured_request["json"] == {
         "name": "Inspect AIME",
@@ -63,8 +78,8 @@ def test_launch_external_eval_run_serializes_request(
 
 
 def test_get_external_eval_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
-        assert args[0].endswith("/external-evals/catalog")
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _Response:
+        assert url.endswith("/external-evals/catalog")
         return _Response(
             {
                 "schema_version": 1,
@@ -117,10 +132,22 @@ def test_external_eval_http_errors_are_raised(
         def raise_for_status(self) -> None:
             raise HTTPError("service unavailable")
 
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> ErrorResponse:
+        return ErrorResponse()
+
+    def fake_post(
+        url: str,
+        *,
+        json: JsonObject,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> ErrorResponse:
+        return ErrorResponse()
+
     monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    request_handler = fake_get if request_name == "get" else fake_post
     monkeypatch.setattr(
-        f"hirundo.external_eval.requests.{request_name}",
-        lambda *args, **kwargs: ErrorResponse(),
+        f"hirundo.external_eval.requests.{request_name}", request_handler
     )
 
     with pytest.raises(HTTPError, match="service unavailable"):
@@ -178,10 +205,19 @@ def test_external_eval_run_info_rejects_noncanonical_task_ids() -> None:
 def test_launch_external_eval_run_requires_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def fake_post(
+        url: str,
+        *,
+        json: JsonObject,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> _Response:
+        return _Response({"message": "Run launched"})
+
     monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
     monkeypatch.setattr(
         "hirundo.external_eval.requests.post",
-        lambda *args, **kwargs: _Response({"message": "Run launched"}),
+        fake_post,
     )
 
     with pytest.raises(HirundoExternalEvalError, match="run ID"):
@@ -197,10 +233,19 @@ def test_launch_external_eval_run_requires_run_id(
 def test_launch_external_eval_run_rejects_empty_run_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def fake_post(
+        url: str,
+        *,
+        json: JsonObject,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> _Response:
+        return _Response({"message": "Run launched", "run_id": ""})
+
     monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
     monkeypatch.setattr(
         "hirundo.external_eval.requests.post",
-        lambda *args, **kwargs: _Response({"message": "Run launched", "run_id": ""}),
+        fake_post,
     )
 
     with pytest.raises(HirundoExternalEvalError, match="run ID"):

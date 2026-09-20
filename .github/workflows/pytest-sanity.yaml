@@ -137,6 +137,16 @@ jobs:
       - name: Require deployed schema to match generated models
         shell: bash
         run: diff --brief schemas/openapi_snapshot.json "${RUNNER_TEMP}/openapi.json"
+      - name: Select an organization for scoped Git API checks
+        env:
+          HIRUNDO_API_HOST: ${{ secrets.API_HOST2 }}
+          HIRUNDO_API_KEY: ${{ secrets.API_KEY2 }}
+        shell: bash
+        run: |
+          organization_id=$(uv run python -c "from hirundo._env import API_HOST; from hirundo._generated.wire_models import OrganizationOut; from hirundo._headers import get_headers; from hirundo._http import raise_for_status_with_reason, requests; from hirundo._timeouts import READ_TIMEOUT; response = requests.get(f'{API_HOST}/organization/', headers=get_headers(), timeout=READ_TIMEOUT); raise_for_status_with_reason(response); organizations = [OrganizationOut.model_validate(value) for value in response.json()]; print(organizations[0].id if organizations else '')")
+          test -n "${organization_id}"
+          echo "::add-mask::${organization_id}"
+          echo "RECORDING_ORGANIZATION_ID=${organization_id}" >> "${GITHUB_ENV}"
       - name: Run bounded Schemathesis diagnostic
         continue-on-error: true
         env:
@@ -233,10 +243,13 @@ jobs:
           --sdk-sha "${{ github.sha }}"
           --run-id "${{ github.run_id }}"
           --run-attempt "${{ github.run_attempt }}"
+          --schema-path schemas/openapi_snapshot.json
+          --test "${TEST_SELECTION}"
       - name: Replay with synthetic credentials and no network
         env:
           HIRUNDO_API_HOST: https://api.example.test
           HIRUNDO_API_KEY: synthetic-replay-key
           HIRUNDO_CASSETTE_DIR: ${{ runner.temp }}/replay-cassettes
+          RECORDING_ORGANIZATION_ID: "1"
           UNIQUE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
         run: uv run pytest -m recorded_integration --record-mode=none --block-network

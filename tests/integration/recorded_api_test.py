@@ -32,6 +32,10 @@ MODEL_SOURCE_NAME = "Qwen/Qwen3-0.6B"
 GCP_CREDENTIALS_ADAPTER = TypeAdapter(dict[str, JsonValue])
 
 
+def _recording_organization_id() -> int:
+    return int(os.environ.get("RECORDING_ORGANIZATION_ID", "1"))
+
+
 def _resource_name(resource_type: str) -> str:
     unique_id = os.environ.get("UNIQUE_ID", "local-recording")
     return f"sdk-http-recording-{resource_type}-{unique_id}"
@@ -79,15 +83,19 @@ def _assert_dataset_metadata_crud(dataset: QADataset) -> None:
 
 
 def test_git_repository_crud_sequence() -> None:
+    organization_id = _recording_organization_id()
     repository = GitRepo(
         name=_resource_name("git-repository"),
         repository_url=REPOSITORY_URL,
+        organization_id=organization_id,
     )
     try:
-        repository_id = repository.create(replace_if_exists=True)
-        by_id = GitRepo.get_by_id(repository_id)
-        by_name = GitRepo.get_by_name(repository.name)
-        listed_repositories = GitRepo.list()
+        repository_id = repository.create(
+            organization_id=organization_id, replace_if_exists=True
+        )
+        by_id = GitRepo.get_by_id(repository_id, organization_id=organization_id)
+        by_name = GitRepo.get_by_name(repository.name, organization_id=organization_id)
+        listed_repositories = GitRepo.list(organization_id=organization_id)
 
         assert by_id.id == repository_id
         assert by_name.id == repository_id

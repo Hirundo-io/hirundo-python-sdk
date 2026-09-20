@@ -1,18 +1,17 @@
 import datetime
-from typing import Any
 
 import pytest
 from hirundo import BBQBiasType, EvalRunInfo, LlmBehaviorEval, ModelOrRun, PresetType
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 
 class _Response:
     status_code = 200
 
-    def __init__(self, payload: dict[str, Any]) -> None:
+    def __init__(self, payload: dict[str, JsonValue]) -> None:
         self.payload = payload
 
-    def json(self) -> dict[str, Any]:
+    def json(self) -> dict[str, JsonValue]:
         return self.payload
 
     def raise_for_status(self) -> None:
@@ -33,10 +32,16 @@ def test_refusal_preset_launch_serializes_platform_contract(
     model_id: int | None,
     source_run_id: str | None,
 ) -> None:
-    requests_made: list[tuple[str, dict[str, Any]]] = []
+    requests_made: list[tuple[str, dict[str, JsonValue]]] = []
 
-    def fake_post(url: str, **kwargs: Any) -> _Response:
-        requests_made.append((url, kwargs["json"]))
+    def fake_post(
+        url: str,
+        *,
+        json: dict[str, JsonValue],
+        headers: dict[str, str],
+        timeout: float,
+    ) -> _Response:
+        requests_made.append((url, json))
         return _Response({"run_id": "eval-run-id"})
 
     monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)

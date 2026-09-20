@@ -1,6 +1,7 @@
 name: Run all tests with PyTest
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -13,7 +14,7 @@ jobs:
     strategy:
       max-parallel: 20
       matrix:
-        data-qa-test:
+        full-backend-test:
           - test: classification/classification_aws_test.py
             env: RUN_CLASSIFICATION_AWS_DATA_QA
           - test: classification/classification_gcp_test.py
@@ -26,6 +27,20 @@ jobs:
             env: RUN_OD_GIT_DATA_QA
           - test: object-detection/sama_coco_test.py
             env: RUN_COCO_OD_GCP_SANITY_DATA_QA
+          - test: get_by_name_test.py
+            env: FULL_TEST
+          - test: object-detection/rockpaperscisssors_yolo_test.py
+            env: RUN_YOLO_OD_GCP_SANITY_DATA_QA
+          - test: object-detection/sanity_aws_test.py
+            env: RUN_AWS_OD_SANITY_DATA_QA
+          - test: speech-to-text/sanity_stt_git_test.py
+            env: RUN_STT_GIT_DATA_QA
+          - test: speech-to-text/stt_git_test.py
+            env: RUN_STT_GIT_DATA_QA
+          - test: llm-behavior-eval/llm_behavior_eval_test.py
+            env: FULL_TEST
+          - test: unlearning-llm/unlearn_llm_behavior_test.py
+            env: FULL_TEST
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9 # v7
@@ -36,7 +51,8 @@ jobs:
           uv sync --group dev
       - name: Run PyTest
         run: >-
-          .venv/bin/pytest tests/${{ matrix.data-qa-test['test'] }}
+          .venv/bin/pytest tests/${{ matrix.full-backend-test['test'] }}
+          -m full_backend
           --disable-recording
         env:
           HIRUNDO_LIVE_TESTS: "1"
@@ -47,4 +63,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           HUGGINGFACE_ACCESS_TOKEN: ${{ secrets.HUGGINGFACE_ACCESS_TOKEN }}
           UNIQUE_ID: ${{ github.ref }}-${{ github.run_number }}
-          ${{ matrix.data-qa-test['env'] }}: true
+          ${{ matrix.full-backend-test['env'] }}: true

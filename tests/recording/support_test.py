@@ -152,7 +152,10 @@ def cassette() -> Cassette:
             {
                 "request": {
                     "method": "POST",
-                    "uri": "https://api.example.test/jobs?token=seed-secret&limit=2",
+                    "uri": (
+                        "https://api.example.test/jobs?token=seed-secret&limit=2"
+                        "&git_repo_organization_id=741"
+                    ),
                     "headers": {
                         "Authorization": ["Bearer seed-secret"],
                         "Cookie": ["session=seed-secret"],
@@ -160,7 +163,11 @@ def cassette() -> Cassette:
                     },
                     "body": {
                         "string": json.dumps(
-                            {"token": "seed-secret", "nested": {"keep": None}}
+                            {
+                                "token": "seed-secret",
+                                "organization_id": 741,
+                                "nested": {"keep": None},
+                            }
                         )
                     },
                 },
@@ -226,8 +233,10 @@ def test_sanitizer_covers_nested_json_sse_query_cookie_and_redirect() -> None:
     request_uri = request_message["uri"]
     assert isinstance(request_uri, str)
     assert "%3Credacted%3E" in request_uri
+    assert "git_repo_organization_id=1" in request_uri
     assert message_headers(request_message)["Authorization"] == ["Bearer <redacted>"]
     assert nested["keep"] is None
+    assert request_body["organization_id"] == 1
     assert '"keep":7' in response_body
     assert "[DONE]" not in serialized
 
@@ -515,6 +524,8 @@ def test_manifest_replay_requires_exact_ci_identity_and_unexpired_files(
             expected_sdk_sha="a" * 40,
             expected_run_id="123456",
             expected_run_attempt=3,
+            expected_schema_digest="sha256:" + "b" * 64,
+            expected_test_selection=("tests/pilot_test.py::test_stream",),
         )
 
 
@@ -529,6 +540,8 @@ def test_manifest_replay_rejects_expiry_equality(tmp_path: Path) -> None:
             expected_sdk_sha="a" * 40,
             expected_run_id="123456",
             expected_run_attempt=2,
+            expected_schema_digest="sha256:" + "b" * 64,
+            expected_test_selection=("tests/pilot_test.py::test_stream",),
             now=datetime(2026, 9, 10, 10, tzinfo=timezone.utc),
         )
 

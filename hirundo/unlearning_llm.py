@@ -472,6 +472,9 @@ class LlmUnlearningRun:
         endpoint. HTTP failures are raised through the SDK's standard HTTP error
         handling.
 
+        Args:
+            None.
+
         Returns:
             An `LlmUnlearningCapabilities` model. Omitted capability fields
             default to disabled during validation.

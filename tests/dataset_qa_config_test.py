@@ -3,6 +3,7 @@ from typing import TypeAlias, cast
 
 import pytest
 from hirundo import (
+    ClassificationRunArgs,
     GitRepo,
     HirundoCSV,
     LabelingType,
@@ -10,6 +11,7 @@ from hirundo import (
     MultimodalHirundoCSV,
     MultimodalModalityCSV,
     MultimodalModalityType,
+    ObjectDetectionRunArgs,
     QADataset,
     StorageConfig,
     StorageGCP,
@@ -605,6 +607,44 @@ def test_launch_qa_run_includes_default_run_args_with_organization(
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
     assert request_payloads == [{"organization_id": 4, "run_args": {}}]
+
+
+def test_launch_qa_run_uses_generated_wire_field_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    QADataset.launch_qa_run(
+        123,
+        run_args=ObjectDetectionRunArgs(
+            image_size=(320, 240),
+            upsample=True,
+            min_abs_bbox_size=12,
+        ),
+    )
+
+    assert request_payloads == [
+        {
+            "run_args": {
+                "img_size": [320, 240],
+                "upsample": True,
+                "min_abs_bbox_size": 12,
+            }
+        }
+    ]
+
+
+def test_launch_qa_run_rejects_image_size_outside_wire_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    invalid_run_args = ClassificationRunArgs.model_construct(image_size=(224, 224, 3))
+
+    with pytest.warns(UserWarning, match="Unexpected extra items"):
+        with pytest.raises(ValueError, match="2 items"):
+            QADataset.launch_qa_run(123, run_args=invalid_run_args)
+
+    assert request_payloads == []
 
 
 @pytest.mark.parametrize("modality", (ModalityType.TABULAR, ModalityType.TIMESERIES))

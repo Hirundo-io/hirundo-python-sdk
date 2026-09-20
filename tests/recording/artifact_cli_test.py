@@ -21,6 +21,9 @@ if TYPE_CHECKING:
 
     from _pytest.monkeypatch import MonkeyPatch
 
+EXPECTED_SCHEMA_DIGEST = "sha256:" + "b" * 64
+EXPECTED_TEST_SELECTION = ("tests/pilot_test.py::test_download",)
+
 
 def _raw_cassette(secret: str) -> Cassette:
     return {
@@ -164,6 +167,8 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
         expected_sdk_sha="a" * 40,
         expected_run_id="98765",
         expected_run_attempt=1,
+        expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+        expected_test_selection=EXPECTED_TEST_SELECTION,
         now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc),
     )
     assert verified.test_selection == ("tests/pilot_test.py::test_download",)
@@ -174,6 +179,8 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             expected_sdk_sha="c" * 40,
             expected_run_id="98765",
             expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
         )
 
     with pytest.raises(ManifestValidationError, match="expired"):
@@ -182,6 +189,8 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             expected_sdk_sha="a" * 40,
             expected_run_id="98765",
             expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
             now=datetime(2026, 9, 11, tzinfo=timezone.utc),
         )
 
@@ -191,7 +200,29 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             expected_sdk_sha="a" * 40,
             expected_run_id="98765",
             expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
             now=datetime(2026, 9, 10, 10, tzinfo=timezone.utc),
+        )
+
+    with pytest.raises(ManifestValidationError, match="schema digest"):
+        verify_cassettes(
+            publish_directory=publish_directory,
+            expected_sdk_sha="a" * 40,
+            expected_run_id="98765",
+            expected_run_attempt=1,
+            expected_schema_digest="sha256:" + "c" * 64,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
+        )
+
+    with pytest.raises(ManifestValidationError, match="test selection"):
+        verify_cassettes(
+            publish_directory=publish_directory,
+            expected_sdk_sha="a" * 40,
+            expected_run_id="98765",
+            expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=("marker:other",),
         )
 
     (publish_directory / "pilot.yaml").write_text("tampered", encoding="utf-8")
@@ -201,6 +232,8 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             expected_sdk_sha="a" * 40,
             expected_run_id="98765",
             expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
         )
 
 
@@ -277,6 +310,8 @@ def test_verify_rejects_unlisted_nested_yaml(tmp_path: Path) -> None:
             expected_sdk_sha="a" * 40,
             expected_run_id="98765",
             expected_run_attempt=1,
+            expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
+            expected_test_selection=EXPECTED_TEST_SELECTION,
         )
 
 
@@ -348,7 +383,11 @@ def test_publish_filters_generic_lists_by_test_owned_prefix(
                             },
                             {
                                 "id": "unrelated-run-id",
+                                "name": "another-team-run",
                                 "model": {"id": "owned-model-id"},
+                                "metadata": {
+                                    "description": "mentions sdk-http-recording-run"
+                                },
                             },
                         ]
                     )

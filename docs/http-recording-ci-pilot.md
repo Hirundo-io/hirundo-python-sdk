@@ -40,9 +40,10 @@ authenticated Hugging Face storage-backed dataset metadata CRUD; Dataset QA run
 listing; LLM model CRUD and unlearning run listing; and LLM behavior evaluation run
 listing. The live recording therefore checks that the backend accepts each supported
 storage contract, while the tag-triggered full tests check that workers can load the
-datasets. List responses retain only records created by the recording tests or
-connected to their returned identifiers. The sanitizer removes unrelated
-organization records and provider credentials before upload.
+datasets. List responses retain only records containing the recording suite's
+test-owned name prefix. The sanitizer removes unrelated organization records and
+provider credentials before upload; identifiers alone are not trusted because they
+can collide across resource namespaces.
 
 Run launches, status streams, and result downloads remain in the opt-in full-backend
 suite because they start Dataset QA, model unlearning, or evaluation work. Required

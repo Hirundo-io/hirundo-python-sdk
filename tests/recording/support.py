@@ -32,6 +32,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 REDACTED = "<redacted>"
 INERT_API_ORIGIN = "https://api.example.test"
+SANITIZED_ORGANIZATION_ID = 1
 SENSITIVE_HEADER_NAMES = frozenset(
     {
         "authorization",
@@ -361,7 +362,14 @@ def _is_loopback(hostname: str | None) -> bool:
 def _sanitize_url(url: str, *, normalize_external_host: bool = False) -> str:
     parts = urlsplit(url)
     sanitized_query = [
-        (name, REDACTED if name.lower() in SENSITIVE_QUERY_NAMES else value)
+        (
+            name,
+            REDACTED
+            if name.lower() in SENSITIVE_QUERY_NAMES
+            else str(SANITIZED_ORGANIZATION_ID)
+            if _json_field_name(name).endswith("organization_id") and value
+            else value,
+        )
         for name, value in parse_qsl(parts.query, keep_blank_values=True)
     ]
     scheme = parts.scheme
@@ -424,6 +432,10 @@ def _sanitize_json(value: JsonValue) -> JsonValue:
         return {
             key: REDACTED
             if _json_field_name(key) in SENSITIVE_BODY_NAMES
+            else SANITIZED_ORGANIZATION_ID
+            if _json_field_name(key).endswith("organization_id")
+            and isinstance(item, int)
+            and not isinstance(item, bool)
             else _sanitize_json(item)
             for key, item in value.items()
         }
@@ -824,7 +836,9 @@ class RecordingManifest:
         if not self.test_selection or any(
             not test.strip() for test in self.test_selection
         ):
-            raise ManifestValidationError("test_selection must contain pytest node IDs")
+            raise ManifestValidationError(
+                "test_selection must contain pytest selection identifiers"
+            )
         if self.cassette_format != "vcrpy-yaml-v1":
             raise ManifestValidationError("unsupported cassette format")
         self._validate_measurements()
@@ -885,6 +899,8 @@ class RecordingManifest:
         expected_sdk_sha: str,
         expected_run_id: str,
         expected_run_attempt: int,
+        expected_schema_digest: str,
+        expected_test_selection: tuple[str, ...],
         now: datetime | None = None,
     ) -> None:
         """Validate the files and exact CI identity before enabling replay.
@@ -894,6 +910,8 @@ class RecordingManifest:
             expected_sdk_sha: Exact SDK commit expected by the replay job.
             expected_run_id: Exact CI run identifier expected by the replay job.
             expected_run_attempt: Exact CI attempt expected by the replay job.
+            expected_schema_digest: Exact OpenAPI digest expected by the replay job.
+            expected_test_selection: Exact pytest selection expected by the replay job.
             now: UTC time used for expiry validation, or the current time when omitted.
 
         Returns:
@@ -907,6 +925,10 @@ class RecordingManifest:
             raise ManifestValidationError("run ID does not match replay job")
         if self.run_attempt != expected_run_attempt:
             raise ManifestValidationError("run attempt does not match replay job")
+        if self.schema_digest != expected_schema_digest:
+            raise ManifestValidationError("schema digest does not match replay job")
+        if self.test_selection != expected_test_selection:
+            raise ManifestValidationError("test selection does not match replay job")
         current_time = now or datetime.now(timezone.utc)
         if current_time >= _parse_utc_timestamp(self.expires_at, "expires_at"):
             raise ManifestValidationError("recording artifacts have expired")

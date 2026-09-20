@@ -11,6 +11,9 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 from hirundo._column_options import validate_column_options
 from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
+from hirundo._generated.wire_models import (
+    ServerDatasetQaModelsRunRunInfo as GeneratedRunInfo,
+)
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
@@ -52,7 +55,9 @@ STATUS_TO_TEXT_MAP = build_status_text_map(
 
 
 class ClassificationRunArgs(BaseModel):
-    image_size: tuple[int, int] | None = (224, 224)
+    image_size: tuple[int, int] | None = Field(
+        default=(224, 224), serialization_alias="img_size"
+    )
     """
     Size (width, height) to which to resize classification images.
     It is recommended to keep this value at (224, 224) unless your classes are differentiated by very small differences.
@@ -633,15 +638,19 @@ class QADataset(BaseModel):
             ID of the run (`run_id`).
         """
         run_info: dict[str, JsonValue] = {
-            "run_args": cast("dict[str, JsonValue]", run_args.model_dump(mode="json"))
+            "run_args": cast(
+                "dict[str, JsonValue]",
+                run_args.model_dump(mode="json", by_alias=True),
+            )
             if run_args
             else {},
         }
         if organization_id is not None:
             run_info["organization_id"] = organization_id
+        wire_run_info = GeneratedRunInfo.model_validate(run_info)
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
-            json=run_info,
+            json=wire_run_info.model_dump(mode="json", exclude_none=True),
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

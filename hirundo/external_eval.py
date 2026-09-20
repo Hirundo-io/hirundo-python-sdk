@@ -123,6 +123,9 @@ class ExternalEval:
     def get_catalog() -> ExternalEvalCatalog:
         """Return the Inspect tasks available on the current deployment.
 
+        Args:
+            None.
+
         Returns:
             The deployment's validated Inspect evaluation catalogue.
         """

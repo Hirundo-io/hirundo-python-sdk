@@ -90,13 +90,13 @@ def _replace_response_json(response: Cassette, value: JsonValue) -> None:
         recalculate_content_length(headers, response["body"])
 
 
-def _contains_test_owned_identifier(value: object) -> bool:
-    if isinstance(value, str):
-        return any(prefix in value for prefix in TEST_OWNED_IDENTIFIER_PREFIXES)
-    if isinstance(value, list):
-        return any(_contains_test_owned_identifier(item) for item in value)
-    if isinstance(value, dict):
-        return any(_contains_test_owned_identifier(item) for item in value.values())
+def _is_test_owned_record(record: dict[str, JsonValue]) -> bool:
+    for ownership_field in ("name", "model_name"):
+        field_value = record.get(ownership_field)
+        if isinstance(field_value, str) and field_value.startswith(
+            TEST_OWNED_IDENTIFIER_PREFIXES
+        ):
+            return True
     return False
 
 
@@ -117,7 +117,7 @@ def _filter_list_response(response: Cassette, *, request_path: str) -> None:
         raise UnsafeCassetteError("git-repo list contains a malformed record")
     _replace_response_json(
         response,
-        [record for record in records if _contains_test_owned_identifier(record)],
+        [record for record in records if _is_test_owned_record(record)],
     )
 
 
@@ -183,7 +183,7 @@ def publish_cassettes(
         recording_finished_at: UTC ISO 8601 recording finish time.
         expires_at: UTC ISO 8601 artifact expiry time.
         schema_digest: SHA-256 digest of the API schema.
-        test_selection: Pytest node IDs included in the recording job.
+        test_selection: Pytest selection identifier used by the recording job.
 
     Returns:
         The validated manifest written beside the sanitized cassettes.
@@ -267,6 +267,8 @@ def verify_cassettes(
     expected_sdk_sha: str,
     expected_run_id: str,
     expected_run_attempt: int,
+    expected_schema_digest: str,
+    expected_test_selection: tuple[str, ...],
     now: datetime | None = None,
 ) -> RecordingManifest:
     """Verify artifact provenance and contents before cassette replay.
@@ -276,6 +278,8 @@ def verify_cassettes(
         expected_sdk_sha: Exact SDK commit expected by the replay job.
         expected_run_id: Exact CI run identifier expected by the replay job.
         expected_run_attempt: Exact CI attempt expected by the replay job.
+        expected_schema_digest: Exact OpenAPI digest expected by the replay job.
+        expected_test_selection: Exact pytest selection expected by the replay job.
         now: UTC time used for expiry validation, or the current time when omitted.
 
     Returns:
@@ -295,6 +299,8 @@ def verify_cassettes(
         expected_sdk_sha=expected_sdk_sha,
         expected_run_id=expected_run_id,
         expected_run_attempt=expected_run_attempt,
+        expected_schema_digest=expected_schema_digest,
+        expected_test_selection=expected_test_selection,
         now=now,
     )
     return manifest
@@ -333,7 +339,7 @@ def publish_command(
         recording_finished_at: UTC ISO 8601 recording finish time.
         expires_at: UTC ISO 8601 artifact expiry time.
         schema_digest: SHA-256 digest of the API schema.
-        tests: Pytest node IDs included in the recording job.
+        tests: Pytest selection identifiers used by the recording job.
         secrets_env: Repeatable environment-variable name containing one secret.
         secrets_file: Optional file containing newline-separated secrets.
 
@@ -367,6 +373,10 @@ def verify_command(
     sdk_sha: Annotated[str, typer.Option("--sdk-sha")],
     run_id: Annotated[str, typer.Option("--run-id")],
     run_attempt: Annotated[int, typer.Option("--run-attempt")],
+    schema_path: Annotated[
+        Path, typer.Option("--schema-path", help="Canonical OpenAPI schema file.")
+    ],
+    tests: Annotated[list[str], typer.Option("--test")],
 ) -> None:
     """Verify artifact provenance, expiry, and checksums before replay.
 
@@ -375,6 +385,8 @@ def verify_command(
         sdk_sha: Exact SDK commit expected by the replay job.
         run_id: Exact CI run identifier expected by the replay job.
         run_attempt: Exact CI attempt expected by the replay job.
+        schema_path: Canonical OpenAPI schema used by the replay job.
+        tests: Pytest selection expected by the replay job.
 
     Returns:
         None.
@@ -384,6 +396,8 @@ def verify_command(
         expected_sdk_sha=sdk_sha,
         expected_run_id=run_id,
         expected_run_attempt=run_attempt,
+        expected_schema_digest=_checksum(schema_path),
+        expected_test_selection=tuple(tests),
         now=datetime.now(timezone.utc),
     )
 
