@@ -243,8 +243,8 @@ jobs:
           --sdk-sha "${{ github.sha }}"
           --run-id "${{ github.run_id }}"
           --run-attempt "${{ github.run_attempt }}"
-          --schema-path schemas/openapi_snapshot.json
-          --test "${TEST_SELECTION}"
+          --schema-file schemas/openapi_snapshot.json
+          --test "${{ env.TEST_SELECTION }}"
       - name: Replay with synthetic credentials and no network
         env:
           HIRUNDO_API_HOST: https://api.example.test

@@ -213,6 +213,8 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # OpenAPI names and enum values must remain identical to the server contract.
 "hirundo/_generated/*.py" = ["N815", "S105"]
 "tests/**/*.py" = ["S101"]
+# This test executes only sys.executable and a repository-owned inline script.
+"tests/test_environment_test.py" = ["S603"]
 "notebooks/**/*.ipynb" = ["S324"]
 "docs/**/*.py" = ["E402"]
 

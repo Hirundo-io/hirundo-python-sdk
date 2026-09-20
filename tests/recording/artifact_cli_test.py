@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from unittest.mock import Mock
 
 import pytest
 import tests.recording.artifact_cli as artifact_cli
@@ -15,6 +17,7 @@ from tests.recording.support import (
     UnsafeCassetteError,
     as_cassette,
 )
+from typer.testing import CliRunner
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -235,6 +238,72 @@ def test_verify_checks_exact_identity_expiry_and_checksums(tmp_path: Path) -> No
             expected_schema_digest=EXPECTED_SCHEMA_DIGEST,
             expected_test_selection=EXPECTED_TEST_SELECTION,
         )
+
+
+@pytest.mark.parametrize("mismatch", ["schema digest", "test selection"])
+def test_verify_rejects_unexpected_schema_or_test_selection(
+    tmp_path: Path, mismatch: str
+) -> None:
+    raw_directory = tmp_path / "raw"
+    publish_directory = tmp_path / "publish"
+    raw_directory.mkdir()
+    (raw_directory / "pilot.yaml").write_text(
+        yaml.safe_dump(_raw_cassette("secret")), encoding="utf-8"
+    )
+    _publish(raw_directory, publish_directory, "secret")
+
+    with pytest.raises(ManifestValidationError, match=mismatch):
+        verify_cassettes(
+            publish_directory=publish_directory,
+            expected_sdk_sha="a" * 40,
+            expected_run_id="98765",
+            expected_run_attempt=1,
+            expected_schema_digest="sha256:"
+            + ("c" if mismatch == "schema digest" else "b") * 64,
+            expected_test_selection=(
+                "tests/other_test.py::test_other"
+                if mismatch == "test selection"
+                else "tests/pilot_test.py::test_download",
+            ),
+            now=datetime(2026, 9, 9, 12, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_verify_cli_binds_checked_out_schema_and_test_selection(
+    tmp_path: Path, monkeypatch: MonkeyPatch, newline: str
+) -> None:
+    schema_file = tmp_path / "schema.json"
+    schema_file.write_bytes(("{}" + newline).encode())
+    verifier = Mock()
+    monkeypatch.setattr(artifact_cli, "verify_cassettes", verifier)
+
+    result = CliRunner().invoke(
+        artifact_cli.app,
+        [
+            "verify",
+            str(tmp_path),
+            "--sdk-sha",
+            "a" * 40,
+            "--run-id",
+            "98765",
+            "--run-attempt",
+            "1",
+            "--schema-file",
+            str(schema_file),
+            "--test",
+            "marker:recorded_integration",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    verifier.assert_called_once()
+    assert verifier.call_args.kwargs["expected_schema_digest"] == (
+        "sha256:" + hashlib.sha256(b"{}\n").hexdigest()
+    )
+    assert verifier.call_args.kwargs["expected_test_selection"] == (
+        "marker:recorded_integration",
+    )
 
 
 def test_secret_environment_is_not_required_in_function_api(

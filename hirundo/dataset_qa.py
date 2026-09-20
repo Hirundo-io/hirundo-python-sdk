@@ -643,7 +643,7 @@ class QADataset(BaseModel):
                 run_args.model_dump(mode="json", by_alias=True),
             )
             if run_args
-            else {},
+            else {}
         }
         if organization_id is not None:
             run_info["organization_id"] = organization_id
@@ -1026,3 +1026,18 @@ class DataQARunOut(BaseModel):
     run_args: RunArgs | None
 
     deleted_at: datetime.datetime | None = None
+
+    @field_validator("run_args", mode="before")
+    @classmethod
+    def parse_wire_run_args(cls, value: JsonValue | RunArgs) -> JsonValue | RunArgs:
+        """Adapt server image dimensions without changing public serialization.
+
+        Args:
+            value: Server run arguments or an already-public representation.
+
+        Returns:
+            Arguments using the public image-size field name.
+        """
+        if isinstance(value, dict) and "img_size" in value:
+            return {**value, "image_size": value["img_size"]}
+        return value

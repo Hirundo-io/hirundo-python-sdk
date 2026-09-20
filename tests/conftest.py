@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from tests.recording.support import INERT_API_ORIGIN
 
 if TYPE_CHECKING:
     from tests.recording.support import VcrConfiguration, VcrController
@@ -15,9 +16,9 @@ if TYPE_CHECKING:
 if os.environ.get("HIRUNDO_LIVE_TESTS") != "1":
     os.environ.update(
         {
-            "HIRUNDO_API_HOST": "https://api.example.test",
+            "HIRUNDO_API_HOST": INERT_API_ORIGIN,
             "HIRUNDO_API_KEY": "synthetic-replay-key",
-            "API_HOST": "https://api.example.test",
+            "API_HOST": INERT_API_ORIGIN,
             "API_KEY": "synthetic-replay-key",
             "GCP_CREDENTIALS": json.dumps({"type": "service_account"}),
             "AWS_ACCESS_KEY": "synthetic-access-key",

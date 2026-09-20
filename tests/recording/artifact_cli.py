@@ -373,8 +373,8 @@ def verify_command(
     sdk_sha: Annotated[str, typer.Option("--sdk-sha")],
     run_id: Annotated[str, typer.Option("--run-id")],
     run_attempt: Annotated[int, typer.Option("--run-attempt")],
-    schema_path: Annotated[
-        Path, typer.Option("--schema-path", help="Canonical OpenAPI schema file.")
+    schema_file: Annotated[
+        Path, typer.Option("--schema-file", help="Canonical OpenAPI schema file.")
     ],
     tests: Annotated[list[str], typer.Option("--test")],
 ) -> None:
@@ -385,8 +385,8 @@ def verify_command(
         sdk_sha: Exact SDK commit expected by the replay job.
         run_id: Exact CI run identifier expected by the replay job.
         run_attempt: Exact CI attempt expected by the replay job.
-        schema_path: Canonical OpenAPI schema used by the replay job.
-        tests: Pytest selection expected by the replay job.
+        schema_file: Canonical OpenAPI schema used by the replay job.
+        tests: Exact pytest selection used by the replay job.
 
     Returns:
         None.
@@ -396,7 +396,9 @@ def verify_command(
         expected_sdk_sha=sdk_sha,
         expected_run_id=run_id,
         expected_run_attempt=run_attempt,
-        expected_schema_digest=_checksum(schema_path),
+        # Normalize checkout line endings so Windows verifies the same snapshot.
+        expected_schema_digest="sha256:"
+        + hashlib.sha256(schema_file.read_text(encoding="utf-8").encode()).hexdigest(),
         expected_test_selection=tuple(tests),
         now=datetime.now(timezone.utc),
     )

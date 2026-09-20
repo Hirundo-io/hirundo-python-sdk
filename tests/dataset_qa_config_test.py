@@ -18,7 +18,7 @@ from hirundo import (
     StorageGit,
     StorageTypes,
 )
-from pydantic import JsonValue
+from pydantic import JsonValue, ValidationError
 from pydantic_core import Url
 
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -156,6 +156,51 @@ def _capture_create_and_run_payloads(
 
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
     return request_payloads
+
+
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        ClassificationRunArgs(image_size=(128, 128)),
+        ObjectDetectionRunArgs(image_size=(64, 96), min_abs_bbox_size=8),
+        ClassificationRunArgs(image_size=None),
+        None,
+    ],
+)
+def test_launch_qa_run_adapts_image_size_without_changing_public_model(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: ClassificationRunArgs | None,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+    public_payload = run_args.model_dump(mode="json") if run_args else {}
+
+    assert QADataset.launch_qa_run(123, organization_id=7, run_args=run_args) == (
+        "run-123"
+    )
+    assert len(payloads) == 1
+    sent_payload = payloads[0]
+    assert sent_payload is not None
+    assert sent_payload["organization_id"] == 7
+    sent_run_args = sent_payload["run_args"]
+    assert isinstance(sent_run_args, dict)
+    assert "image_size" not in sent_run_args
+    if run_args and run_args.image_size is not None:
+        assert sent_run_args["img_size"] == list(run_args.image_size)
+    else:
+        assert "img_size" not in sent_run_args
+    if run_args:
+        assert run_args.model_dump(mode="json") == public_payload
+
+
+def test_launch_qa_run_validates_complete_payload_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    with pytest.raises(ValidationError):
+        QADataset.launch_qa_run(123, organization_id=cast("int", "not-an-id"))
+
+    assert payloads == []
 
 
 def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]:
