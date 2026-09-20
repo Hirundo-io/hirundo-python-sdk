@@ -55,9 +55,7 @@ STATUS_TO_TEXT_MAP = build_status_text_map(
 
 
 class ClassificationRunArgs(BaseModel):
-    image_size: tuple[int, int] | None = Field(
-        default=(224, 224), serialization_alias="img_size"
-    )
+    img_size: tuple[int, int] | None = (224, 224)
     """
     Size (width, height) to which to resize classification images.
     It is recommended to keep this value at (224, 224) unless your classes are differentiated by very small differences.
@@ -640,7 +638,7 @@ class QADataset(BaseModel):
         run_info: dict[str, JsonValue] = {
             "run_args": cast(
                 "dict[str, JsonValue]",
-                run_args.model_dump(mode="json", by_alias=True),
+                run_args.model_dump(mode="json"),
             )
             if run_args
             else {}
@@ -1026,18 +1024,3 @@ class DataQARunOut(BaseModel):
     run_args: RunArgs | None
 
     deleted_at: datetime.datetime | None = None
-
-    @field_validator("run_args", mode="before")
-    @classmethod
-    def parse_wire_run_args(cls, value: JsonValue | RunArgs) -> JsonValue | RunArgs:
-        """Adapt server image dimensions without changing public serialization.
-
-        Args:
-            value: Server run arguments or an already-public representation.
-
-        Returns:
-            Arguments using the public image-size field name.
-        """
-        if isinstance(value, dict) and "img_size" in value:
-            return {**value, "image_size": value["img_size"]}
-        return value

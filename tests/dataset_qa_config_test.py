@@ -161,13 +161,13 @@ def _capture_create_and_run_payloads(
 @pytest.mark.parametrize(
     "run_args",
     [
-        ClassificationRunArgs(image_size=(128, 128)),
-        ObjectDetectionRunArgs(image_size=(64, 96), min_abs_bbox_size=8),
-        ClassificationRunArgs(image_size=None),
+        ClassificationRunArgs(img_size=(128, 128)),
+        ObjectDetectionRunArgs(img_size=(64, 96), min_abs_bbox_size=8),
+        ClassificationRunArgs(img_size=None),
         None,
     ],
 )
-def test_launch_qa_run_adapts_image_size_without_changing_public_model(
+def test_launch_qa_run_uses_server_field_names(
     monkeypatch: pytest.MonkeyPatch,
     run_args: ClassificationRunArgs | None,
 ) -> None:
@@ -184,8 +184,8 @@ def test_launch_qa_run_adapts_image_size_without_changing_public_model(
     sent_run_args = sent_payload["run_args"]
     assert isinstance(sent_run_args, dict)
     assert "image_size" not in sent_run_args
-    if run_args and run_args.image_size is not None:
-        assert sent_run_args["img_size"] == list(run_args.image_size)
+    if run_args and run_args.img_size is not None:
+        assert sent_run_args["img_size"] == list(run_args.img_size)
     else:
         assert "img_size" not in sent_run_args
     if run_args:
@@ -662,7 +662,7 @@ def test_launch_qa_run_uses_generated_wire_field_names(
     QADataset.launch_qa_run(
         123,
         run_args=ObjectDetectionRunArgs(
-            image_size=(320, 240),
+            img_size=(320, 240),
             upsample=True,
             min_abs_bbox_size=12,
         ),
@@ -679,11 +679,11 @@ def test_launch_qa_run_uses_generated_wire_field_names(
     ]
 
 
-def test_launch_qa_run_rejects_image_size_outside_wire_contract(
+def test_launch_qa_run_rejects_img_size_outside_wire_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_payloads = _capture_create_and_run_payloads(monkeypatch)
-    invalid_run_args = ClassificationRunArgs.model_construct(image_size=(224, 224, 3))
+    invalid_run_args = ClassificationRunArgs.model_construct(img_size=(224, 224, 3))
 
     with pytest.warns(UserWarning, match="Unexpected extra items"):
         with pytest.raises(ValueError, match="2 items"):

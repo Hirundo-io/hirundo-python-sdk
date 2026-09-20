@@ -12,7 +12,7 @@ from pydantic import JsonValue
     [
         (
             {"img_size": [128, 96], "upsample": True},
-            ClassificationRunArgs(image_size=(128, 96), upsample=True),
+            ClassificationRunArgs(img_size=(128, 96), upsample=True),
         ),
         (
             {
@@ -26,7 +26,7 @@ from pydantic import JsonValue
                 "add_mask_channel": True,
             },
             ObjectDetectionRunArgs(
-                image_size=(64, 80),
+                img_size=(64, 80),
                 upsample=True,
                 min_abs_bbox_size=8,
                 min_abs_bbox_area=64,
@@ -36,13 +36,16 @@ from pydantic import JsonValue
                 add_mask_channel=True,
             ),
         ),
-        ({"img_size": None}, ClassificationRunArgs(image_size=None)),
-        ({"image_size": [48, 72]}, ClassificationRunArgs(image_size=(48, 72))),
+        ({"img_size": None}, ClassificationRunArgs(img_size=None)),
+        (
+            {"img_size": [48, 72], "image_size": [128, 96]},
+            ClassificationRunArgs(img_size=(48, 72)),
+        ),
         ({}, ClassificationRunArgs()),
         (None, None),
     ],
 )
-def test_list_runs_preserves_wire_and_public_run_args(
+def test_list_runs_preserves_server_run_args(
     monkeypatch: pytest.MonkeyPatch,
     wire_args: JsonValue,
     expected: ClassificationRunArgs | None,
@@ -87,3 +90,15 @@ def test_list_runs_preserves_wire_and_public_run_args(
             mode="json"
         )
     assert payload["run_args"] == wire_args
+
+
+@pytest.mark.parametrize("model", [ClassificationRunArgs, ObjectDetectionRunArgs])
+def test_run_args_expose_only_server_image_size_field(
+    model: type[ClassificationRunArgs],
+) -> None:
+    properties = model.model_json_schema()["properties"]
+    assert "img_size" in properties
+    assert "image_size" not in properties
+    args = model.model_validate({"image_size": [48, 72]})
+    assert args.img_size == (224, 224)
+    assert "image_size" not in args.model_dump()
