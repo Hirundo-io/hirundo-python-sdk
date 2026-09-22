@@ -685,17 +685,21 @@ class QADataset(BaseModel):
             self.labeling_type != LabelingType.OBJECT_DETECTION
             and isinstance(run_args, ObjectDetectionRunArgs)
             and any(
-                (
-                    run_args.min_abs_bbox_size != 0,
-                    run_args.min_abs_bbox_area != 0,
-                    run_args.min_rel_bbox_size != 0,
-                    run_args.min_rel_bbox_area != 0,
+                value is not None
+                for value in (
+                    run_args.min_abs_bbox_size,
+                    run_args.min_abs_bbox_area,
+                    run_args.min_rel_bbox_size,
+                    run_args.min_rel_bbox_area,
+                    run_args.crop_ratio,
+                    run_args.add_mask_channel,
                 )
             )
         ):
             raise Exception(
                 "Cannot set `min_abs_bbox_size`, `min_abs_bbox_area`, "
-                + "`min_rel_bbox_size`, or `min_rel_bbox_area` for "
+                + "`min_rel_bbox_size`, `min_rel_bbox_area`, `crop_ratio`, "
+                + "or `add_mask_channel` for "
                 + f"labeling type {self.labeling_type}"
             )
 

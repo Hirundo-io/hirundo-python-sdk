@@ -1427,3 +1427,28 @@ def test_list_runs_preserves_explicit_and_server_default_wire_values(
     )
     assert isinstance(detection.run_args, ObjectDetectionRunArgs)
     assert detection.run_args.crop_ratio == 1.0
+
+
+@pytest.mark.parametrize(
+    "field_name,value",
+    [
+        ("min_abs_bbox_size", 0),
+        ("min_abs_bbox_area", 0),
+        ("min_rel_bbox_size", 0.0),
+        ("min_rel_bbox_area", 0.0),
+        ("crop_ratio", 1.0),
+        ("add_mask_channel", False),
+    ],
+)
+def test_classification_rejects_detection_fields_before_post(
+    monkeypatch: pytest.MonkeyPatch,
+    field_name: str,
+    value: JsonValue,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+    run_args = ObjectDetectionRunArgs.model_validate(
+        {"crop_ratio": None, field_name: value}
+    )
+    with pytest.raises(Exception, match="Cannot set"):
+        QADataset.launch_qa_run(123, run_args=run_args)
+    assert payloads == []
