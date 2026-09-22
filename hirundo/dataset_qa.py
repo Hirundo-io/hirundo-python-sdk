@@ -2,15 +2,18 @@ import datetime
 import typing
 from collections.abc import AsyncGenerator, Generator
 from enum import Enum
-from typing import overload
+from typing import cast, overload
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
 from hirundo._column_options import validate_column_options
 from hirundo._constraints import validate_labeling_info, validate_url
 from hirundo._env import API_HOST
+from hirundo._generated.wire_models import (
+    ServerDatasetQaModelsRunRunInfo as GeneratedRunInfo,
+)
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import raise_for_status_with_reason, requests
@@ -52,7 +55,7 @@ STATUS_TO_TEXT_MAP = build_status_text_map(
 
 
 class ClassificationRunArgs(BaseModel):
-    image_size: tuple[int, int] | None = (224, 224)
+    img_size: tuple[int, int] | None = (224, 224)
     """
     Size (width, height) to which to resize classification images.
     It is recommended to keep this value at (224, 224) unless your classes are differentiated by very small differences.
@@ -83,7 +86,7 @@ class ObjectDetectionRunArgs(ClassificationRunArgs):
     """
     Minimum valid relative area (as a fraction of the image area) of a bounding box to keep it in the dataset for QA.
     """
-    crop_ratio: float | None = None
+    crop_ratio: float | None = 1.0
     """
     Ratio of the bounding box to crop.
     Change this value at your own risk. It is recommended to keep it at 1.0 unless you know what you are doing.
@@ -417,6 +420,9 @@ class QADataset(BaseModel):
 
         Args:
             dataset_id: The ID of the `QADataset` instance to get
+
+        Returns:
+            The requested dataset.
         """
         response = requests.get(
             f"{API_HOST}/dataset-qa/dataset/{dataset_id}",
@@ -434,6 +440,9 @@ class QADataset(BaseModel):
 
         Args:
             name: The name of the `QADataset` instance to get
+
+        Returns:
+            The requested dataset.
         """
         response = requests.get(
             f"{API_HOST}/dataset-qa/dataset/by-name/{name}",
@@ -454,6 +463,9 @@ class QADataset(BaseModel):
 
         Args:
             organization_id: The ID of the organization to list the datasets for.
+
+        Returns:
+            The datasets available to the selected organization.
         """
         response = requests.get(
             f"{API_HOST}/dataset-qa/dataset/",
@@ -483,6 +495,9 @@ class QADataset(BaseModel):
         Args:
             organization_id: The ID of the organization to list the datasets for.
             archived: Whether to list archived runs.
+
+        Returns:
+            The matching dataset QA runs.
         """
         response = requests.get(
             f"{API_HOST}/dataset-qa/run/list",
@@ -506,6 +521,9 @@ class QADataset(BaseModel):
 
         Args:
             dataset_id: The ID of the `QADataset` instance to delete
+
+        Returns:
+            None.
         """
         response = requests.delete(
             f"{API_HOST}/dataset-qa/dataset/{dataset_id}",
@@ -522,6 +540,9 @@ class QADataset(BaseModel):
 
         Args:
             storage_config: If True, the `QADataset`'s `StorageConfig` will also be deleted
+
+        Returns:
+            None.
 
         Note: If `storage_config` is not set to `False` then the `storage_config_id` must be set
         This can either be set manually or by creating the `StorageConfig` instance via the `QADataset`'s
@@ -625,11 +646,29 @@ class QADataset(BaseModel):
                 run_args = ClassificationRunArgs()
         else:
             dataset._validate_run_args(run_args)
-        run_info: dict[str, typing.Any] = {}
-        if run_args is not None:
-            run_info["run_args"] = run_args.model_dump(mode="json")
-        if organization_id is not None:
-            run_info["organization_id"] = organization_id
+        run_info: dict[str, JsonValue] = {}
+        if run_args is None:
+            if organization_id is not None:
+                run_info["organization_id"] = organization_id
+        else:
+            wire_run_info = GeneratedRunInfo.model_validate(
+                {
+                    "organization_id": organization_id,
+                    "run_args": cast(
+                        "dict[str, JsonValue]",
+                        run_args.model_dump(mode="json"),
+                    ),
+                }
+            )
+            run_info = cast(
+                "dict[str, JsonValue]",
+                wire_run_info.model_dump(mode="json", exclude_none=True),
+            )
+            run_args_payload = cast("dict[str, JsonValue]", run_info["run_args"])
+            public_run_args = run_args.model_dump(mode="json")
+            for field_name in run_args.model_fields_set:
+                if public_run_args[field_name] is None:
+                    run_args_payload[field_name] = None
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
             json=run_info,
@@ -646,17 +685,21 @@ class QADataset(BaseModel):
             self.labeling_type != LabelingType.OBJECT_DETECTION
             and isinstance(run_args, ObjectDetectionRunArgs)
             and any(
-                (
-                    run_args.min_abs_bbox_size != 0,
-                    run_args.min_abs_bbox_area != 0,
-                    run_args.min_rel_bbox_size != 0,
-                    run_args.min_rel_bbox_area != 0,
+                value is not None
+                for value in (
+                    run_args.min_abs_bbox_size,
+                    run_args.min_abs_bbox_area,
+                    run_args.min_rel_bbox_size,
+                    run_args.min_rel_bbox_area,
+                    run_args.crop_ratio,
+                    run_args.add_mask_channel,
                 )
             )
         ):
             raise Exception(
                 "Cannot set `min_abs_bbox_size`, `min_abs_bbox_area`, "
-                + "`min_rel_bbox_size`, or `min_rel_bbox_area` for "
+                + "`min_rel_bbox_size`, `min_rel_bbox_area`, `crop_ratio`, "
+                + "or `add_mask_channel` for "
                 + f"labeling type {self.labeling_type}"
             )
 
@@ -715,13 +758,21 @@ class QADataset(BaseModel):
     def clean_ids(self):
         """
         Reset `dataset_id`, `storage_config_id`, and `run_id` values on the instance to default value of `None`
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         self.storage_config_id = None
         self.id = None
         self.run_id = None
 
     @staticmethod
-    def _check_run_by_id(run_id: str, retry=0) -> Generator[dict, None, None]:
+    def _check_run_by_id(
+        run_id: str, retry: int = 0
+    ) -> Generator[dict[str, JsonValue], None, None]:
         yield from iter_run_events(
             f"{API_HOST}/dataset-qa/run/{run_id}",
             headers=get_headers(),
@@ -791,6 +842,8 @@ class QADataset(BaseModel):
                     elif state == RunStatus.SUCCESS.value:
                         t.close()
                         zip_temporary_url = iteration["result"]
+                        if not isinstance(zip_temporary_url, str):
+                            raise HirundoError("QA run result must be a download URL")
                         logger.debug("QA run completed. Downloading results")
 
                         return download_and_extract_zip(
@@ -828,6 +881,9 @@ class QADataset(BaseModel):
         """
         Check the status of the current active instance's run.
 
+        Args:
+            stop_on_manual_approval: Whether to stop while awaiting manual approval.
+
         Returns:
             A pandas DataFrame with the results of the QA run
 
@@ -837,7 +893,9 @@ class QADataset(BaseModel):
         return self.check_run_by_id(self.run_id, stop_on_manual_approval)
 
     @staticmethod
-    async def acheck_run_by_id(run_id: str, retry=0) -> AsyncGenerator[dict, None]:
+    async def acheck_run_by_id(
+        run_id: str, retry: int = 0
+    ) -> AsyncGenerator[dict[str, JsonValue], None]:
         """
         Async version of :func:`check_run_by_id`
 
@@ -854,6 +912,9 @@ class QADataset(BaseModel):
             - `"state"` is PENDING, STARTED, RETRY, FAILURE or SUCCESS
             - `"result"` is a string describing the progress as a percentage for a PENDING state, or the error for a FAILURE state or the results for a SUCCESS state
 
+        Returns:
+            An asynchronous iterator of run events.
+
         """
         logger.debug("Checking run with ID: %s", run_id)
         async for iteration in aiter_run_events(
@@ -866,7 +927,7 @@ class QADataset(BaseModel):
         ):
             yield iteration
 
-    async def acheck_run(self) -> AsyncGenerator[dict, None]:
+    async def acheck_run(self) -> AsyncGenerator[dict[str, JsonValue], None]:
         """
         Async version of :func:`check_run`
 
@@ -876,10 +937,16 @@ class QADataset(BaseModel):
 
         Note: This function does not handle errors nor show progress. It is expected that you do that.
 
+        Args:
+            None.
+
         Yields:
             Each event will be a dict, where:
             - `"state"` is PENDING, STARTED, RETRY, FAILURE or SUCCESS
             - `"result"` is a string describing the progress as a percentage for a PENDING state, or the error for a FAILURE state or the results for a SUCCESS state
+
+        Returns:
+            An asynchronous iterator of run events.
 
         """
         if not self.run_id:
@@ -894,6 +961,9 @@ class QADataset(BaseModel):
 
         Args:
             run_id: The ID of the run to cancel
+
+        Returns:
+            None.
         """
         logger.info("Cancelling run with ID: %s", run_id)
         response = requests.delete(
@@ -906,6 +976,12 @@ class QADataset(BaseModel):
     def cancel(self) -> None:
         """
         Cancel the current active instance's run.
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.run_id:
             raise ValueError("No run has been started")
@@ -918,6 +994,9 @@ class QADataset(BaseModel):
 
         Args:
             run_id: The ID of the run to archive
+
+        Returns:
+            None.
         """
         logger.info("Archiving run with ID: %s", run_id)
         response = requests.patch(
@@ -930,6 +1009,12 @@ class QADataset(BaseModel):
     def archive(self) -> None:
         """
         Archive the current active instance's run.
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.run_id:
             raise ValueError("No run has been started")

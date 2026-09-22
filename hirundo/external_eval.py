@@ -54,7 +54,14 @@ class ExternalEvalRunInfo(BaseModel):
         return self
 
     def validate_source(self, model_or_run: ModelOrRun) -> None:
-        """Ensure the selected endpoint has exactly its required source ID."""
+        """Ensure the selected endpoint has exactly its required source ID.
+
+        Args:
+            model_or_run: Whether the evaluation targets a model or an unlearning run.
+
+        Returns:
+            None.
+        """
         if model_or_run is ModelOrRun.MODEL:
             if self.model_id is None or self.source_run_id is not None:
                 raise ValueError(
@@ -114,7 +121,14 @@ class ExternalEval:
 
     @staticmethod
     def get_catalog() -> ExternalEvalCatalog:
-        """Return the Inspect tasks available on the current deployment."""
+        """Return the Inspect tasks available on the current deployment.
+
+        Args:
+            None.
+
+        Returns:
+            The deployment's validated Inspect evaluation catalogue.
+        """
         response = requests.get(
             f"{API_HOST}/external-evals/catalog",
             headers=get_headers(),
@@ -128,7 +142,15 @@ class ExternalEval:
         model_or_run: ModelOrRun | Literal["model", "run"] | str,
         run_info: ExternalEvalRunInfo,
     ) -> ExternalEvalLaunchResponse:
-        """Launch an Inspect evaluation for a saved model or unlearning run."""
+        """Launch an Inspect evaluation for a saved model or unlearning run.
+
+        Args:
+            model_or_run: Whether the evaluation targets a model or an unlearning run.
+            run_info: The evaluation source, tasks, and optional sample limit.
+
+        Returns:
+            The validated launch response containing the new run ID.
+        """
         model_or_run_value = ModelOrRun(model_or_run)
         run_info.validate_source(model_or_run_value)
         response = requests.post(
@@ -194,7 +216,17 @@ class ExternalEval:
         max_retries: int = DEFAULT_MAX_RETRIES,
         stop_on_manual_approval: bool = False,
     ) -> ExternalEvalResults | None:
-        """Poll an Inspect evaluation and download its unparsed result archive."""
+        """Poll an Inspect evaluation and download its unparsed result archive.
+
+        Args:
+            run_id: Identifier of the external evaluation run.
+            max_retries: Maximum SSE reconnection attempts.
+            stop_on_manual_approval: Whether to return when approval is required.
+
+        Returns:
+            The downloaded external evaluation results, or `None` when instructed
+            to stop for manual approval.
+        """
         ExternalEval._validate_run_id(run_id)
         try:
             for event in LlmBehaviorEval._check_run_by_id(
@@ -239,6 +271,13 @@ class ExternalEval:
         This method does not download result archives or raise terminal run
         failures. Consumers handle events as they arrive, including terminal
         states, and can await multiple runs concurrently.
+
+        Args:
+            run_id: Identifier of the external evaluation run.
+            max_retries: Maximum SSE reconnection attempts.
+
+        Returns:
+            An asynchronous generator of external evaluation status events.
         """
         ExternalEval._validate_run_id(run_id)
         try:

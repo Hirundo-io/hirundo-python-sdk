@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import TypeAlias, TypedDict
 
 import pytest
 from hirundo._http import requests
@@ -11,11 +11,17 @@ from hirundo.unlearning_llm import (
     LlmUnlearningRun,
     RefusalBehavior,
 )
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 from requests import Response
 
+JsonObject: TypeAlias = dict[str, JsonValue]
 
-def _response(status_code: int, payload: Any) -> Response:
+
+class ConfigRequestOptions(TypedDict):
+    timeout: float
+
+
+def _response(status_code: int, payload: JsonValue) -> Response:
     response = Response()
     response.status_code = status_code
     response._content = json.dumps(payload).encode()
@@ -73,13 +79,13 @@ def test_refusal_launch_payload_includes_empty_target_utilities() -> None:
 )
 def test_refusal_capability_uses_deployment_config(
     monkeypatch: pytest.MonkeyPatch,
-    config_payload: dict[str, object],
+    config_payload: JsonObject,
     expected_enabled: bool,
 ) -> None:
-    request_arguments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    request_arguments: list[tuple[str, ConfigRequestOptions]] = []
 
-    def get_config(*args: Any, **kwargs: Any) -> Response:
-        request_arguments.append((args, kwargs))
+    def get_config(url: str, *, timeout: float) -> Response:
+        request_arguments.append((url, {"timeout": timeout}))
         return _response(200, config_payload)
 
     monkeypatch.setattr(
@@ -96,9 +102,12 @@ def test_refusal_capability_uses_deployment_config(
 def test_older_server_config_error_uses_typed_http_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def get_missing_config(url: str, *, timeout: float) -> Response:
+        return _response(404, {"detail": "Not Found"})
+
     monkeypatch.setattr(
         "hirundo.unlearning_llm.requests.get",
-        lambda *args, **kwargs: _response(404, {"detail": "Not Found"}),
+        get_missing_config,
     )
 
     with pytest.raises(requests.HTTPError, match="Not Found"):
@@ -108,11 +117,18 @@ def test_older_server_config_error_uses_typed_http_path(
 def test_disabled_refusal_launch_uses_typed_http_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def post_disabled_refusal_launch(
+        url: str,
+        *,
+        json: JsonObject,
+        headers: dict[str, str],
+        timeout: float,
+    ) -> Response:
+        return _response(400, {"detail": "Refusal unlearning is disabled"})
+
     monkeypatch.setattr(
         "hirundo.unlearning_llm.requests.post",
-        lambda *args, **kwargs: _response(
-            400, {"detail": "Refusal unlearning is disabled"}
-        ),
+        post_disabled_refusal_launch,
     )
 
     with pytest.raises(requests.HTTPError, match="Refusal unlearning is disabled"):

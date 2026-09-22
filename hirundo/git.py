@@ -120,6 +120,9 @@ class GitRepo(BaseModel):
         Args:
             organization_id (optional): The ID of the organization to create the Git repository for.
             replace_if_exists: If a Git repository with the same name already exists, replace it.
+
+        Returns:
+            The ID of the created Git repository.
         """
         git_repo_info = self.model_dump(mode="json")
         if organization_id is not None:
@@ -139,15 +142,21 @@ class GitRepo(BaseModel):
         return git_repo_id
 
     @staticmethod
-    def get_by_id(git_repo_id: int) -> "GitRepoOut":
+    def get_by_id(git_repo_id: int, organization_id: int | None = None) -> "GitRepoOut":
         """
         Retrieves a `GitRepo` instance from the server by its ID
 
         Args:
             git_repo_id: The ID of the `GitRepo` to retrieve
+            organization_id: Organization that owns the Git repository. When omitted,
+                no organization query value is sent.
+
+        Returns:
+            The Git repository returned by the server.
         """
         git_repo = requests.get(
             f"{API_HOST}/git-repo/{git_repo_id}",
+            params={"git_repo_organization_id": organization_id},
             headers=get_headers(),
             timeout=READ_TIMEOUT,
         )
@@ -157,15 +166,22 @@ class GitRepo(BaseModel):
     @staticmethod
     def get_by_name(
         name: str,
+        organization_id: int | None = None,
     ) -> "GitRepoOut":
         """
         Retrieves a `GitRepo` instance from the server by its name
 
         Args:
             name: The name of the `GitRepo` to retrieve
+            organization_id: Organization that owns the Git repository. When omitted,
+                no organization query value is sent.
+
+        Returns:
+            The Git repository returned by the server.
         """
         git_repo = requests.get(
             f"{API_HOST}/git-repo/by-name/{name}",
+            params={"git_repo_organization_id": organization_id},
             headers=get_headers(),
             timeout=READ_TIMEOUT,
         )
@@ -173,12 +189,20 @@ class GitRepo(BaseModel):
         return GitRepoOut(**git_repo.json())
 
     @staticmethod
-    def list() -> list["GitRepoOut"]:
+    def list(organization_id: int | None = None) -> list["GitRepoOut"]:
         """
         List all Git repositories in the Hirundo system.
+
+        Args:
+            organization_id: Organization whose Git repositories to list. When
+                omitted, the backend selects the authenticated user's default.
+
+        Returns:
+            All Git repositories available to the current organization.
         """
         git_repos = requests.get(
             f"{API_HOST}/git-repo/",
+            params={"git_repo_organization_id": organization_id},
             headers=get_headers(),
             timeout=READ_TIMEOUT,
         )
@@ -198,6 +222,9 @@ class GitRepo(BaseModel):
 
         Args:
             git_repo_id: The ID of the Git repository to delete
+
+        Returns:
+            None.
         """
         git_repo = requests.delete(
             f"{API_HOST}/git-repo/{git_repo_id}",
@@ -209,6 +236,12 @@ class GitRepo(BaseModel):
     def delete(self):
         """
         Delete the Git repository created by this instance.
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.id:
             raise ValueError("No GitRepo has been created")

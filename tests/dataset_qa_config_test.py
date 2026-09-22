@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Mapping
+from typing import TypeAlias, cast
 
 import pytest
 from hirundo import (
@@ -10,6 +11,7 @@ from hirundo import (
     MultimodalHirundoCSV,
     MultimodalModalityCSV,
     MultimodalModalityType,
+    ObjectDetectionRunArgs,
     QADataset,
     StorageConfig,
     StorageGCP,
@@ -17,16 +19,28 @@ from hirundo import (
     StorageTypes,
 )
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
+from pydantic import JsonValue, ValidationError
 from pydantic_core import Url
+
+JsonObject: TypeAlias = dict[str, JsonValue]
+DatasetInputValue: TypeAlias = (
+    JsonValue
+    | Url
+    | HirundoCSV
+    | MultimodalHirundoCSV
+    | StorageConfig
+    | list[MultimodalHirundoCSV]
+    | list[str]
+)
 
 
 class _Response:
     status_code = 200
 
-    def __init__(self, payload: Any) -> None:
+    def __init__(self, payload: JsonObject | list[JsonObject]) -> None:
         self.payload = payload
 
-    def json(self) -> Any:
+    def json(self) -> JsonObject | list[JsonObject]:
         return self.payload
 
     def raise_for_status(self) -> None:
@@ -37,8 +51,8 @@ def _create_dataset_response() -> _Response:
     return _Response({"id": 123})
 
 
-def _build_dataset_payload(**overrides: Any) -> dict[str, Any]:
-    dataset_payload = {
+def _build_dataset_payload(**overrides: JsonValue) -> JsonObject:
+    dataset_payload: JsonObject = {
         "name": "tabular dataset",
         "labeling_type": LabelingType.SINGLE_LABEL_CLASSIFICATION,
         "storage_config_id": 456,
@@ -54,8 +68,8 @@ def _build_dataset_payload(**overrides: Any) -> dict[str, Any]:
     return dataset_payload
 
 
-def _build_storage_config_payload(**overrides: Any) -> dict[str, Any]:
-    storage_config_payload = {
+def _build_storage_config_payload(**overrides: JsonValue) -> JsonObject:
+    storage_config_payload: JsonObject = {
         "id": 456,
         "name": "dataset-storage",
         "type": "GCP",
@@ -71,7 +85,7 @@ def _build_storage_config_payload(**overrides: Any) -> dict[str, Any]:
     return storage_config_payload
 
 
-def _build_local_storage_config_payload(**overrides: Any) -> dict[str, Any]:
+def _build_local_storage_config_payload(**overrides: JsonValue) -> JsonObject:
     storage_config_payload = _build_storage_config_payload(
         id=456,
         name="Local",
@@ -82,22 +96,25 @@ def _build_local_storage_config_payload(**overrides: Any) -> dict[str, Any]:
     return storage_config_payload
 
 
-def _build_dataset(**overrides: Any) -> QADataset:
-    dataset_payload = _build_dataset_payload(
-        data_root_url=Url("gs://bucket/data"),
-        labeling_info=HirundoCSV(csv_url=Url("gs://bucket/data/metadata.csv")),
-    )
+def _build_dataset(**overrides: DatasetInputValue) -> QADataset:
+    dataset_payload: dict[str, DatasetInputValue] = {
+        **_build_dataset_payload(),
+        "data_root_url": Url("gs://bucket/data"),
+        "labeling_info": HirundoCSV(csv_url=Url("gs://bucket/data/metadata.csv")),
+    }
     dataset_payload.update(overrides)
-    return QADataset(**dataset_payload)
+    return QADataset.model_validate(dataset_payload)
 
 
 def _capture_create_payload(
     monkeypatch: pytest.MonkeyPatch,
-) -> list[dict[str, Any]]:
-    request_payloads: list[dict[str, Any]] = []
+) -> list[JsonObject]:
+    request_payloads: list[JsonObject] = []
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_payloads.append(kwargs["json"])
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        request_payloads.append(json)
         return _create_dataset_response()
 
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
@@ -106,12 +123,19 @@ def _capture_create_payload(
 
 def _patch_storage_config_list(
     monkeypatch: pytest.MonkeyPatch,
-    storage_config_payloads: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    request_params: list[dict[str, Any]] = []
+    storage_config_payloads: list[JsonObject],
+) -> list[JsonObject]:
+    request_params: list[JsonObject] = []
 
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
-        request_params.append(kwargs["params"])
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
+        assert params is not None
+        request_params.append(params)
         return _Response(storage_config_payloads)
 
     monkeypatch.setattr("hirundo.storage.requests.get", fake_get)
@@ -120,15 +144,19 @@ def _patch_storage_config_list(
 
 def _capture_create_and_run_payloads(
     monkeypatch: pytest.MonkeyPatch,
-) -> list[dict[str, Any] | None]:
-    request_payloads: list[dict[str, Any] | None] = []
+    dataset_payload: JsonObject | None = None,
+) -> list[JsonObject | None]:
+    request_payloads: list[JsonObject | None] = []
+    returned_dataset_payload = dataset_payload or _build_dataset_payload()
 
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
-        return _Response(_build_dataset_payload())
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _Response:
+        return _Response(returned_dataset_payload)
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_payloads.append(kwargs.get("json"))
-        if str(args[0]).endswith("/dataset-qa/run/123"):
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        request_payloads.append(json)
+        if url.endswith("/dataset-qa/run/123"):
             return _Response({"run_id": "run-123"})
         return _create_dataset_response()
 
@@ -137,27 +165,81 @@ def _capture_create_and_run_payloads(
     return request_payloads
 
 
+@pytest.mark.parametrize(
+    "run_args",
+    [
+        ClassificationRunArgs(img_size=(128, 128)),
+        ObjectDetectionRunArgs(img_size=(64, 96), min_abs_bbox_size=8),
+        ClassificationRunArgs(img_size=None),
+    ],
+)
+def test_launch_qa_run_uses_server_field_names(
+    monkeypatch: pytest.MonkeyPatch,
+    run_args: ClassificationRunArgs | None,
+) -> None:
+    dataset_payload = _build_dataset_payload()
+    if isinstance(run_args, ObjectDetectionRunArgs):
+        dataset_payload["labeling_type"] = LabelingType.OBJECT_DETECTION
+        dataset_payload["modality"] = ModalityType.VISION
+    payloads = _capture_create_and_run_payloads(monkeypatch, dataset_payload)
+    public_payload = run_args.model_dump(mode="json") if run_args else {}
+
+    assert QADataset.launch_qa_run(123, organization_id=7, run_args=run_args) == (
+        "run-123"
+    )
+    assert len(payloads) == 1
+    sent_payload = payloads[0]
+    assert sent_payload is not None
+    assert sent_payload["organization_id"] == 7
+    sent_run_args = sent_payload["run_args"]
+    assert isinstance(sent_run_args, dict)
+    assert "image_size" not in sent_run_args
+    if run_args:
+        expected_img_size = (
+            list(run_args.img_size) if run_args.img_size is not None else None
+        )
+        assert sent_run_args["img_size"] == expected_img_size
+    else:
+        assert "img_size" not in sent_run_args
+    if run_args:
+        assert run_args.model_dump(mode="json") == public_payload
+
+
+def test_launch_qa_run_validates_complete_payload_before_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+
+    with pytest.raises(ValidationError):
+        QADataset.launch_qa_run(123, organization_id=cast("int", "not-an-id"))
+
+    assert payloads == []
+
+
 def _record_dataset_qa_requests(
     monkeypatch: pytest.MonkeyPatch,
-    dataset_payload: dict[str, Any],
-) -> list[tuple[str, dict[str, Any] | None]]:
-    requests_made: list[tuple[str, dict[str, Any] | None]] = []
+    dataset_payload: JsonObject,
+) -> list[tuple[str, JsonObject | None]]:
+    requests_made: list[tuple[str, JsonObject | None]] = []
     api_host = "https://api.example.test"
     headers = {"Authorization": "Bearer test-token"}
     monkeypatch.setattr("hirundo.dataset_qa.API_HOST", api_host)
     monkeypatch.setattr("hirundo.dataset_qa.get_headers", lambda: headers)
 
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
-        assert args == (f"{api_host}/dataset-qa/dataset/123",)
-        assert kwargs == {"headers": headers, "timeout": READ_TIMEOUT}
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _Response:
+        assert url == f"{api_host}/dataset-qa/dataset/123"
+        assert headers == {"Authorization": "Bearer test-token"}
+        assert timeout == READ_TIMEOUT
         requests_made.append(("get", None))
         return _Response(dataset_payload)
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_url = str(args[0])
-        assert kwargs["headers"] == headers
-        assert kwargs["timeout"] == MODIFY_TIMEOUT
-        request_payload = kwargs["json"]
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        assert headers == {"Authorization": "Bearer test-token"}
+        assert timeout == MODIFY_TIMEOUT
+        request_url = url
+        request_payload = json
         if request_url == f"{api_host}/dataset-qa/dataset/":
             requests_made.append(("create", request_payload))
             return _create_dataset_response()
@@ -192,13 +274,13 @@ def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]
 
 def _patch_storage_config_get_by_id(
     monkeypatch: pytest.MonkeyPatch,
-    storage_config_payload: dict[str, Any],
+    storage_config_payload: Mapping[str, JsonValue | StorageGCP],
 ) -> list[int]:
     requested_ids: list[int] = []
 
     def fake_get_by_id(storage_config_id: int) -> StorageConfig:
         requested_ids.append(storage_config_id)
-        return StorageConfig(**storage_config_payload)
+        return StorageConfig.model_validate(storage_config_payload)
 
     monkeypatch.setattr(
         "hirundo.dataset_qa.StorageConfig.get_by_id",
@@ -209,12 +291,14 @@ def _patch_storage_config_get_by_id(
 
 def _capture_storage_and_dataset_create_payloads(
     monkeypatch: pytest.MonkeyPatch,
-) -> list[dict[str, Any]]:
-    request_payloads: list[dict[str, Any]] = []
+) -> list[JsonObject]:
+    request_payloads: list[JsonObject] = []
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_payloads.append(kwargs["json"])
-        if str(args[0]).endswith("/storage-config/"):
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        request_payloads.append(json)
+        if url.endswith("/storage-config/"):
             return _Response({"id": 456})
         return _create_dataset_response()
 
@@ -225,12 +309,14 @@ def _capture_storage_and_dataset_create_payloads(
 
 def _capture_git_and_storage_create_payloads(
     monkeypatch: pytest.MonkeyPatch,
-) -> list[dict[str, Any]]:
-    request_payloads: list[dict[str, Any]] = []
+) -> list[JsonObject]:
+    request_payloads: list[JsonObject] = []
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        request_payloads.append(kwargs["json"])
-        if str(args[0]).endswith("/git-repo/"):
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        request_payloads.append(json)
+        if url.endswith("/git-repo/"):
             return _Response({"id": 321})
         return _Response({"id": 456})
 
@@ -305,7 +391,9 @@ def test_storage_config_create_propagates_organization_to_git_repo(
     storage_payload = request_payloads[1]
     assert git_payload["organization_id"] == 4
     assert storage_payload["organization_id"] == 4
-    assert storage_payload["git"]["repo_id"] == 321
+    git_payload = storage_payload["git"]
+    assert isinstance(git_payload, dict)
+    assert git_payload["repo_id"] == 321
 
 
 @pytest.mark.parametrize(
@@ -559,12 +647,12 @@ def _build_multimodal_labeling_info() -> MultimodalHirundoCSV:
     )
 
 
-def _build_multimodal_labeling_info_payload() -> dict[str, Any]:
-    return _build_multimodal_labeling_info().model_dump(mode="json")
+def _build_multimodal_labeling_info_payload() -> JsonObject:
+    return cast("JsonObject", _build_multimodal_labeling_info().model_dump(mode="json"))
 
 
-def _build_multimodal_dataset(**overrides: Any) -> QADataset:
-    dataset_payload = {
+def _build_multimodal_dataset(**overrides: DatasetInputValue) -> QADataset:
+    dataset_payload: dict[str, DatasetInputValue] = {
         "name": "multimodal dataset",
         "modality": ModalityType.MULTIMODAL,
         "data_root_url": None,
@@ -601,7 +689,7 @@ def test_multimodal_dataset_run_launches_after_create(
     requests_made = _record_dataset_qa_requests(monkeypatch, dataset_payload)
     dataset = _build_multimodal_dataset()
 
-    run_args = ClassificationRunArgs(image_size=(640, 480), upsample=True)
+    run_args = ClassificationRunArgs(img_size=(640, 480), upsample=True)
     assert dataset.run_qa(organization_id=4, run_args=run_args) == "run-123"
     assert dataset.run_id == "run-123"
     assert [request_type for request_type, _ in requests_made] == [
@@ -616,7 +704,7 @@ def test_multimodal_dataset_run_launches_after_create(
     assert create_payload["modality"] == ModalityType.MULTIMODAL
     assert run_payload == {
         "organization_id": 4,
-        "run_args": {"image_size": [640, 480], "upsample": True},
+        "run_args": {"img_size": [640, 480], "upsample": True},
     }
 
 
@@ -636,7 +724,7 @@ def test_launch_qa_run_uses_default_run_args_for_non_speech_dataset(
             "run",
             {
                 "organization_id": 4,
-                "run_args": {"image_size": [224, 224], "upsample": False},
+                "run_args": {"img_size": [224, 224], "upsample": False},
             },
         ),
     ]
@@ -670,13 +758,32 @@ def test_launch_qa_run_serializes_explicit_run_args(
         monkeypatch,
         _build_dataset_payload(),
     )
-    run_args = ClassificationRunArgs(image_size=(640, 480), upsample=True)
+    run_args = ClassificationRunArgs(img_size=(640, 480), upsample=True)
 
     assert QADataset.launch_qa_run(123, run_args=run_args) == "run-123"
 
     assert requests_made == [
         ("get", None),
-        ("run", {"run_args": {"image_size": [640, 480], "upsample": True}}),
+        ("run", {"run_args": {"img_size": [640, 480], "upsample": True}}),
+    ]
+
+
+def test_launch_qa_run_preserves_explicit_null_wire_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
+    )
+
+    QADataset.launch_qa_run(
+        123,
+        run_args=ClassificationRunArgs(img_size=None, upsample=None),
+    )
+
+    assert requests_made == [
+        ("get", None),
+        ("run", {"run_args": {"img_size": None, "upsample": None}}),
     ]
 
 
@@ -726,6 +833,49 @@ def test_launch_qa_run_rejects_explicit_args_for_speech_to_text_dataset(
         QADataset.launch_qa_run(123, run_args=ClassificationRunArgs())
 
     assert requests_made == [("get", None)]
+
+
+def test_launch_qa_run_uses_generated_wire_field_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.OBJECT_DETECTION,
+        modality=ModalityType.VISION,
+    )
+    request_payloads = _capture_create_and_run_payloads(monkeypatch, dataset_payload)
+
+    QADataset.launch_qa_run(
+        123,
+        run_args=ObjectDetectionRunArgs(
+            img_size=(320, 240),
+            upsample=True,
+            min_abs_bbox_size=12,
+        ),
+    )
+
+    assert request_payloads == [
+        {
+            "run_args": {
+                "img_size": [320, 240],
+                "upsample": True,
+                "min_abs_bbox_size": 12,
+                "crop_ratio": 1.0,
+            }
+        }
+    ]
+
+
+def test_launch_qa_run_rejects_img_size_outside_wire_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    invalid_run_args = ClassificationRunArgs.model_construct(img_size=(224, 224, 3))
+
+    with pytest.warns(UserWarning, match="Unexpected extra items"):
+        with pytest.raises(ValueError, match="2 items"):
+            QADataset.launch_qa_run(123, run_args=invalid_run_args)
+
+    assert request_payloads == []
 
 
 @pytest.mark.parametrize("modality", (ModalityType.TABULAR, ModalityType.TIMESERIES))
@@ -931,7 +1081,13 @@ def test_tabular_column_options_are_mutually_exclusive() -> None:
 def test_get_by_id_accepts_empty_tabular_column_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             _build_dataset_payload(
                 id=123,
@@ -952,7 +1108,13 @@ def test_get_by_id_accepts_empty_tabular_column_options(
 def test_get_by_name_accepts_matching_storage_config_and_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             _build_dataset_payload(
                 id=123,
@@ -971,7 +1133,13 @@ def test_get_by_name_accepts_matching_storage_config_and_id(
 def test_get_by_id_accepts_timeseries_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             _build_dataset_payload(
                 id=123,
@@ -993,7 +1161,13 @@ def test_get_by_id_accepts_timeseries_modality(
 def test_get_by_id_accepts_multimodal_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             _build_dataset_payload(
                 id=123,
@@ -1022,10 +1196,20 @@ def test_get_by_id_accepts_multimodal_child_empty_column_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     labeling_info = _build_multimodal_labeling_info_payload()
-    labeling_info["modality_csvs"][1]["feature_cols"] = []
-    labeling_info["modality_csvs"][1]["extra_non_feature_cols"] = []
+    modality_payloads = labeling_info["modality_csvs"]
+    assert isinstance(modality_payloads, list)
+    tabular_payload = modality_payloads[1]
+    assert isinstance(tabular_payload, dict)
+    tabular_payload["feature_cols"] = []
+    tabular_payload["extra_non_feature_cols"] = []
 
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             _build_dataset_payload(
                 id=123,
@@ -1057,7 +1241,13 @@ def test_multimodal_labeling_info_list_is_rejected_for_non_multimodal_dataset() 
 def test_list_datasets_accepts_timeseries_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             [
                 _build_dataset_payload(
@@ -1087,7 +1277,13 @@ def test_list_datasets_accepts_timeseries_modality(
 def test_list_datasets_accepts_multimodal_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             [
                 _build_dataset_payload(
@@ -1119,7 +1315,13 @@ def test_list_datasets_accepts_multimodal_modality(
 def test_list_runs_accepts_timeseries_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             [
                 {
@@ -1146,7 +1348,13 @@ def test_list_runs_accepts_timeseries_modality(
 def test_list_runs_accepts_multimodal_modality(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_get(*args: Any, **kwargs: Any) -> _Response:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
         return _Response(
             [
                 {
@@ -1168,3 +1376,79 @@ def test_list_runs_accepts_multimodal_modality(
     run = QADataset.list_runs()[0]
 
     assert run.modality == ModalityType.MULTIMODAL
+
+
+def test_list_runs_preserves_explicit_and_server_default_wire_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
+        base_run: JsonObject = {
+            "id": 1,
+            "name": "vision run",
+            "dataset_id": 123,
+            "run_id": "run-123",
+            "modality": "VISION",
+            "status": "PENDING",
+            "approved": False,
+            "created_at": "2026-06-22T14:20:31.663Z",
+        }
+        return _Response(
+            [
+                {
+                    **base_run,
+                    "run_args": {"img_size": None, "upsample": None},
+                },
+                {
+                    **base_run,
+                    "id": 2,
+                    "run_id": "run-456",
+                    "run_args": {
+                        "img_size": None,
+                        "upsample": None,
+                        "crop_ratio": 1.0,
+                    },
+                },
+            ]
+        )
+
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
+
+    classification, detection = QADataset.list_runs()
+
+    assert classification.run_args == ClassificationRunArgs(
+        img_size=None,
+        upsample=None,
+    )
+    assert isinstance(detection.run_args, ObjectDetectionRunArgs)
+    assert detection.run_args.crop_ratio == 1.0
+
+
+@pytest.mark.parametrize(
+    "field_name,value",
+    [
+        ("min_abs_bbox_size", 0),
+        ("min_abs_bbox_area", 0),
+        ("min_rel_bbox_size", 0.0),
+        ("min_rel_bbox_area", 0.0),
+        ("crop_ratio", 1.0),
+        ("add_mask_channel", False),
+    ],
+)
+def test_classification_rejects_detection_fields_before_post(
+    monkeypatch: pytest.MonkeyPatch,
+    field_name: str,
+    value: JsonValue,
+) -> None:
+    payloads = _capture_create_and_run_payloads(monkeypatch)
+    run_args = ObjectDetectionRunArgs.model_validate(
+        {"crop_ratio": None, field_name: value}
+    )
+    with pytest.raises(Exception, match="Cannot set"):
+        QADataset.launch_qa_run(123, run_args=run_args)
+    assert payloads == []
