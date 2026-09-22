@@ -7,7 +7,7 @@ include = ["hirundo*"]
 
 [project]
 name = "hirundo"
-version = "0.3.1"
+version = "0.3.2"
 description = "The Hirundo platform provides APIs for: LLM behavior unlearning & dataset QA."
 authors = [{ name = "Hirundo", email = "dev@hirundo.io" }]
 readme = "README.md"
@@ -125,7 +125,7 @@ docs = [
 ]
 
 [tool.bumpver]
-current_version = "0.3.1"
+current_version = "0.3.2"
 version_pattern = "MAJOR.MINOR.PATCH[.PYTAGNUM]"
 
 [tool.bumpver.file_patterns]

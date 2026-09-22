@@ -18,6 +18,7 @@ from hirundo import (
     StorageGit,
     StorageTypes,
 )
+from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from pydantic import JsonValue, ValidationError
 from pydantic_core import Url
 
@@ -143,8 +144,13 @@ def _patch_storage_config_list(
 
 def _capture_create_and_run_payloads(
     monkeypatch: pytest.MonkeyPatch,
+    dataset_payload: JsonObject | None = None,
 ) -> list[JsonObject | None]:
     request_payloads: list[JsonObject | None] = []
+    returned_dataset_payload = dataset_payload or _build_dataset_payload()
+
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _Response:
+        return _Response(returned_dataset_payload)
 
     def fake_post(
         url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
@@ -154,6 +160,7 @@ def _capture_create_and_run_payloads(
             return _Response({"run_id": "run-123"})
         return _create_dataset_response()
 
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
     monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
     return request_payloads
 
@@ -164,14 +171,17 @@ def _capture_create_and_run_payloads(
         ClassificationRunArgs(img_size=(128, 128)),
         ObjectDetectionRunArgs(img_size=(64, 96), min_abs_bbox_size=8),
         ClassificationRunArgs(img_size=None),
-        None,
     ],
 )
 def test_launch_qa_run_uses_server_field_names(
     monkeypatch: pytest.MonkeyPatch,
     run_args: ClassificationRunArgs | None,
 ) -> None:
-    payloads = _capture_create_and_run_payloads(monkeypatch)
+    dataset_payload = _build_dataset_payload()
+    if isinstance(run_args, ObjectDetectionRunArgs):
+        dataset_payload["labeling_type"] = LabelingType.OBJECT_DETECTION
+        dataset_payload["modality"] = ModalityType.VISION
+    payloads = _capture_create_and_run_payloads(monkeypatch, dataset_payload)
     public_payload = run_args.model_dump(mode="json") if run_args else {}
 
     assert QADataset.launch_qa_run(123, organization_id=7, run_args=run_args) == (
@@ -184,8 +194,11 @@ def test_launch_qa_run_uses_server_field_names(
     sent_run_args = sent_payload["run_args"]
     assert isinstance(sent_run_args, dict)
     assert "image_size" not in sent_run_args
-    if run_args and run_args.img_size is not None:
-        assert sent_run_args["img_size"] == list(run_args.img_size)
+    if run_args:
+        expected_img_size = (
+            list(run_args.img_size) if run_args.img_size is not None else None
+        )
+        assert sent_run_args["img_size"] == expected_img_size
     else:
         assert "img_size" not in sent_run_args
     if run_args:
@@ -201,6 +214,42 @@ def test_launch_qa_run_validates_complete_payload_before_request(
         QADataset.launch_qa_run(123, organization_id=cast("int", "not-an-id"))
 
     assert payloads == []
+
+
+def _record_dataset_qa_requests(
+    monkeypatch: pytest.MonkeyPatch,
+    dataset_payload: JsonObject,
+) -> list[tuple[str, JsonObject | None]]:
+    requests_made: list[tuple[str, JsonObject | None]] = []
+    api_host = "https://api.example.test"
+    headers = {"Authorization": "Bearer test-token"}
+    monkeypatch.setattr("hirundo.dataset_qa.API_HOST", api_host)
+    monkeypatch.setattr("hirundo.dataset_qa.get_headers", lambda: headers)
+
+    def fake_get(url: str, *, headers: dict[str, str], timeout: float) -> _Response:
+        assert url == f"{api_host}/dataset-qa/dataset/123"
+        assert headers == {"Authorization": "Bearer test-token"}
+        assert timeout == READ_TIMEOUT
+        requests_made.append(("get", None))
+        return _Response(dataset_payload)
+
+    def fake_post(
+        url: str, *, json: JsonObject, headers: dict[str, str], timeout: float
+    ) -> _Response:
+        assert headers == {"Authorization": "Bearer test-token"}
+        assert timeout == MODIFY_TIMEOUT
+        request_url = url
+        request_payload = json
+        if request_url == f"{api_host}/dataset-qa/dataset/":
+            requests_made.append(("create", request_payload))
+            return _create_dataset_response()
+        assert request_url == f"{api_host}/dataset-qa/run/123"
+        requests_made.append(("run", request_payload))
+        return _Response({"run_id": "run-123"})
+
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
+    monkeypatch.setattr("hirundo.dataset_qa.requests.post", fake_post)
+    return requests_made
 
 
 def _capture_delete_ids(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[int]]:
@@ -631,33 +680,169 @@ def test_multimodal_dataset_creation_payload(
 def test_multimodal_dataset_run_launches_after_create(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    dataset_payload = _build_dataset_payload(
+        name="multimodal dataset",
+        modality=ModalityType.MULTIMODAL,
+        data_root_url=None,
+        labeling_info=_build_multimodal_labeling_info_payload(),
+    )
+    requests_made = _record_dataset_qa_requests(monkeypatch, dataset_payload)
     dataset = _build_multimodal_dataset()
 
-    assert dataset.run_qa(organization_id=4) == "run-123"
+    run_args = ClassificationRunArgs(img_size=(640, 480), upsample=True)
+    assert dataset.run_qa(organization_id=4, run_args=run_args) == "run-123"
     assert dataset.run_id == "run-123"
-    create_payload = request_payloads[0]
-    run_payload = request_payloads[1]
+    assert [request_type for request_type, _ in requests_made] == [
+        "create",
+        "get",
+        "run",
+    ]
+    create_payload = requests_made[0][1]
+    run_payload = requests_made[2][1]
     assert create_payload is not None
     assert create_payload["organization_id"] == 4
     assert create_payload["modality"] == ModalityType.MULTIMODAL
-    assert run_payload == {"organization_id": 4, "run_args": {}}
+    assert run_payload == {
+        "organization_id": 4,
+        "run_args": {"img_size": [640, 480], "upsample": True},
+    }
 
 
-def test_launch_qa_run_includes_default_run_args_with_organization(
+def test_launch_qa_run_uses_default_run_args_for_non_speech_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
+    )
 
     assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
 
-    assert request_payloads == [{"organization_id": 4, "run_args": {}}]
+    assert requests_made == [
+        ("get", None),
+        (
+            "run",
+            {
+                "organization_id": 4,
+                "run_args": {"img_size": [224, 224], "upsample": False},
+            },
+        ),
+    ]
+
+
+def test_launch_qa_run_omits_run_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    speech_dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
+    )
+
+    assert QADataset.launch_qa_run(123, organization_id=4) == "run-123"
+
+    assert requests_made == [
+        ("get", None),
+        ("run", {"organization_id": 4}),
+    ]
+
+
+def test_launch_qa_run_serializes_explicit_run_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
+    )
+    run_args = ClassificationRunArgs(img_size=(640, 480), upsample=True)
+
+    assert QADataset.launch_qa_run(123, run_args=run_args) == "run-123"
+
+    assert requests_made == [
+        ("get", None),
+        ("run", {"run_args": {"img_size": [640, 480], "upsample": True}}),
+    ]
+
+
+def test_launch_qa_run_preserves_explicit_null_wire_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        _build_dataset_payload(),
+    )
+
+    QADataset.launch_qa_run(
+        123,
+        run_args=ClassificationRunArgs(img_size=None, upsample=None),
+    )
+
+    assert requests_made == [
+        ("get", None),
+        ("run", {"run_args": {"img_size": None, "upsample": None}}),
+    ]
+
+
+def test_run_qa_omits_run_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    speech_dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
+    )
+    speech_dataset = _build_dataset(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+
+    assert speech_dataset.run_qa(organization_id=4) == "run-123"
+
+    assert speech_dataset.run_id == "run-123"
+    assert [request_type for request_type, _ in requests_made] == [
+        "create",
+        "get",
+        "run",
+    ]
+    assert requests_made[2] == ("run", {"organization_id": 4})
+
+
+def test_launch_qa_run_rejects_explicit_args_for_speech_to_text_dataset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    speech_dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.SPEECH_TO_TEXT,
+        language="en",
+        modality=ModalityType.SPEECH,
+    )
+    requests_made = _record_dataset_qa_requests(
+        monkeypatch,
+        speech_dataset_payload,
+    )
+
+    with pytest.raises(Exception, match="Speech to text cannot have `run_args` set"):
+        QADataset.launch_qa_run(123, run_args=ClassificationRunArgs())
+
+    assert requests_made == [("get", None)]
 
 
 def test_launch_qa_run_uses_generated_wire_field_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    request_payloads = _capture_create_and_run_payloads(monkeypatch)
+    dataset_payload = _build_dataset_payload(
+        labeling_type=LabelingType.OBJECT_DETECTION,
+        modality=ModalityType.VISION,
+    )
+    request_payloads = _capture_create_and_run_payloads(monkeypatch, dataset_payload)
 
     QADataset.launch_qa_run(
         123,
@@ -674,6 +859,7 @@ def test_launch_qa_run_uses_generated_wire_field_names(
                 "img_size": [320, 240],
                 "upsample": True,
                 "min_abs_bbox_size": 12,
+                "crop_ratio": 1.0,
             }
         }
     ]
@@ -1190,3 +1376,54 @@ def test_list_runs_accepts_multimodal_modality(
     run = QADataset.list_runs()[0]
 
     assert run.modality == ModalityType.MULTIMODAL
+
+
+def test_list_runs_preserves_explicit_and_server_default_wire_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_get(
+        url: str,
+        *,
+        headers: dict[str, str],
+        timeout: float,
+        params: JsonObject | None = None,
+    ) -> _Response:
+        base_run: JsonObject = {
+            "id": 1,
+            "name": "vision run",
+            "dataset_id": 123,
+            "run_id": "run-123",
+            "modality": "VISION",
+            "status": "PENDING",
+            "approved": False,
+            "created_at": "2026-06-22T14:20:31.663Z",
+        }
+        return _Response(
+            [
+                {
+                    **base_run,
+                    "run_args": {"img_size": None, "upsample": None},
+                },
+                {
+                    **base_run,
+                    "id": 2,
+                    "run_id": "run-456",
+                    "run_args": {
+                        "img_size": None,
+                        "upsample": None,
+                        "crop_ratio": 1.0,
+                    },
+                },
+            ]
+        )
+
+    monkeypatch.setattr("hirundo.dataset_qa.requests.get", fake_get)
+
+    classification, detection = QADataset.list_runs()
+
+    assert classification.run_args == ClassificationRunArgs(
+        img_size=None,
+        upsample=None,
+    )
+    assert isinstance(detection.run_args, ObjectDetectionRunArgs)
+    assert detection.run_args.crop_ratio == 1.0

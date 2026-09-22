@@ -38,6 +38,14 @@ from pydantic import JsonValue
         ),
         ({"img_size": None}, ClassificationRunArgs(img_size=None)),
         (
+            {"min_abs_bbox_size": 8},
+            ObjectDetectionRunArgs(min_abs_bbox_size=8, crop_ratio=1.0),
+        ),
+        (
+            {"img_size": None, "upsample": None, "crop_ratio": None},
+            ObjectDetectionRunArgs(img_size=None, upsample=None, crop_ratio=None),
+        ),
+        (
             {"img_size": [48, 72], "image_size": [128, 96]},
             ClassificationRunArgs(img_size=(48, 72)),
         ),

@@ -86,7 +86,7 @@ class ObjectDetectionRunArgs(ClassificationRunArgs):
     """
     Minimum valid relative area (as a fraction of the image area) of a bounding box to keep it in the dataset for QA.
     """
-    crop_ratio: float | None = None
+    crop_ratio: float | None = 1.0
     """
     Ratio of the bounding box to crop.
     Change this value at your own risk. It is recommended to keep it at 1.0 unless you know what you are doing.
@@ -629,26 +629,49 @@ class QADataset(BaseModel):
 
         Args:
             dataset_id: The ID of the dataset to run QA on.
-            organization_id: Optional organization that owns the run.
-            run_args: Optional task-specific run configuration.
+            organization_id: The organization ID to use for this run. When set,
+                it overrides the default organization selection.
+            run_args: Optional QA run arguments. When omitted, the SDK loads
+                the dataset type and sends default classification arguments for
+                non-speech datasets, but omits `run_args` for speech-to-text
+                datasets. When supplied, the SDK serializes them into the
+                payload. Speech-to-text runs must not supply run arguments.
 
         Returns:
             ID of the run (`run_id`).
         """
-        run_info: dict[str, JsonValue] = {
-            "run_args": cast(
-                "dict[str, JsonValue]",
-                run_args.model_dump(mode="json"),
+        dataset = QADataset.get_by_id(dataset_id)
+        if run_args is None:
+            if dataset.labeling_type != LabelingType.SPEECH_TO_TEXT:
+                run_args = ClassificationRunArgs()
+        else:
+            dataset._validate_run_args(run_args)
+        run_info: dict[str, JsonValue] = {}
+        if run_args is None:
+            if organization_id is not None:
+                run_info["organization_id"] = organization_id
+        else:
+            wire_run_info = GeneratedRunInfo.model_validate(
+                {
+                    "organization_id": organization_id,
+                    "run_args": cast(
+                        "dict[str, JsonValue]",
+                        run_args.model_dump(mode="json"),
+                    ),
+                }
             )
-            if run_args
-            else {}
-        }
-        if organization_id is not None:
-            run_info["organization_id"] = organization_id
-        wire_run_info = GeneratedRunInfo.model_validate(run_info)
+            run_info = cast(
+                "dict[str, JsonValue]",
+                wire_run_info.model_dump(mode="json", exclude_none=True),
+            )
+            run_args_payload = cast("dict[str, JsonValue]", run_info["run_args"])
+            public_run_args = run_args.model_dump(mode="json")
+            for field_name in run_args.model_fields_set:
+                if public_run_args[field_name] is None:
+                    run_args_payload[field_name] = None
         run_response = requests.post(
             f"{API_HOST}/dataset-qa/run/{dataset_id}",
-            json=wire_run_info.model_dump(mode="json", exclude_none=True),
+            json=run_info,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )
@@ -690,7 +713,9 @@ class QADataset(BaseModel):
             organization_id: The ID of the organization to run the QA for.
             replace_dataset_if_exists: If True, the dataset will be replaced if it already exists
                 (this is determined by a dataset of the same name in the same organization).
-            run_args: The run arguments to use for the QA run
+            run_args: The run arguments to use for the QA run. When omitted,
+                non-speech datasets use default classification arguments, while
+                speech-to-text datasets omit run arguments.
 
         Returns:
             An ID of the run (`run_id`) and stores that `run_id` on the instance
@@ -701,6 +726,8 @@ class QADataset(BaseModel):
                     organization_id=organization_id,
                     replace_if_exists=replace_dataset_if_exists,
                 )
+            if run_args is None and self.labeling_type != LabelingType.SPEECH_TO_TEXT:
+                run_args = ClassificationRunArgs()
             if run_args is not None:
                 self._validate_run_args(run_args)
             run_id = self.launch_qa_run(self.id, organization_id, run_args)
