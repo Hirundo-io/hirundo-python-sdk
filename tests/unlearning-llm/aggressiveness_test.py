@@ -15,6 +15,28 @@ from hirundo.unlearning_llm import (
 from pydantic import TypeAdapter, ValidationError
 
 
+def _output_run_payload(aggressiveness: float) -> dict[str, object]:
+    return {
+        "id": 1,
+        "name": "aggressive run",
+        "model_id": 2,
+        "model": {},
+        "target_behaviors": [{"type": "SECURITY"}],
+        "target_utilities": [],
+        "advanced_options": None,
+        "aggressiveness": aggressiveness,
+        "run_id": "run-id",
+        "mlflow_run_id": None,
+        "status": "SUCCESS",
+        "approved": True,
+        "created_at": "2026-01-01T00:00:00Z",
+        "completed_at": None,
+        "pre_process_progress": 100.0,
+        "optimization_progress": 100.0,
+        "post_process_progress": 100.0,
+    }
+
+
 @pytest.mark.parametrize("aggressiveness", [0.001, 0.5, 1.0])
 def test_aggressiveness_accepts_supported_values(aggressiveness: float) -> None:
     assert TypeAdapter(Aggressiveness).validate_python(aggressiveness) == aggressiveness
@@ -92,52 +114,12 @@ def test_refusal_requests_reject_aggressiveness(
 
 
 def test_output_run_deserializes_aggressiveness() -> None:
-    run = OutputUnlearningLlmRun.model_validate(
-        {
-            "id": 1,
-            "name": "aggressive run",
-            "model_id": 2,
-            "model": {},
-            "target_behaviors": [{"type": "SECURITY"}],
-            "target_utilities": [],
-            "advanced_options": None,
-            "aggressiveness": 0.75,
-            "run_id": "run-id",
-            "mlflow_run_id": None,
-            "status": "SUCCESS",
-            "approved": True,
-            "created_at": "2026-01-01T00:00:00Z",
-            "completed_at": None,
-            "pre_process_progress": 100.0,
-            "optimization_progress": 100.0,
-            "post_process_progress": 100.0,
-        }
-    )
+    run = OutputUnlearningLlmRun.model_validate(_output_run_payload(0.75))
 
     assert run.aggressiveness == 0.75
 
 
 def test_output_run_tolerates_legacy_aggressiveness() -> None:
-    run = OutputUnlearningLlmRun.model_validate(
-        {
-            "id": 1,
-            "name": "legacy run",
-            "model_id": 2,
-            "model": {},
-            "target_behaviors": [{"type": "SECURITY"}],
-            "target_utilities": [],
-            "advanced_options": None,
-            "aggressiveness": 1.001,
-            "run_id": "run-id",
-            "mlflow_run_id": None,
-            "status": "SUCCESS",
-            "approved": True,
-            "created_at": "2026-01-01T00:00:00Z",
-            "completed_at": None,
-            "pre_process_progress": 100.0,
-            "optimization_progress": 100.0,
-            "post_process_progress": 100.0,
-        }
-    )
+    run = OutputUnlearningLlmRun.model_validate(_output_run_payload(1.001))
 
     assert run.aggressiveness == 1.001

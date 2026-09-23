@@ -333,7 +333,7 @@ class LlmRunInfo(BaseModel):
     aggressiveness: Aggressiveness | None = None
 
     @model_validator(mode="after")
-    def validate_refusal_options(self) -> "LlmRunInfo":
+    def validate_refusal_utilities(self) -> "LlmRunInfo":
         """Validate run options are compatible with the selected behaviors.
 
         Args:
