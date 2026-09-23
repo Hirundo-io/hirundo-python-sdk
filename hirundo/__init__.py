@@ -67,6 +67,7 @@ from .storage import (
     StorageS3,
 )
 from .unlearning_llm import (
+    Aggressiveness,
     BiasBehavior,
     CustomBehavior,
     HallucinationBehavior,
@@ -131,6 +132,7 @@ __all__ = [
     "StorageGit",
     "StorageConfig",
     "DatasetQAResults",
+    "Aggressiveness",
     "BiasBehavior",
     "CustomBehavior",
     "HallucinationBehavior",

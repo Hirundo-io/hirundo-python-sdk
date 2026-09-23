@@ -319,6 +319,8 @@ OutputBehaviorOptions = (
     | CustomBehavior
 )
 
+Aggressiveness = Annotated[float, Field(gt=0, le=1, multiple_of=0.001)]
+
 
 class LlmRunInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
@@ -328,6 +330,7 @@ class LlmRunInfo(BaseModel):
     target_behaviors: list[TargetBehavior]
     target_utilities: list[CustomUtility] = Field(default_factory=list)
     advanced_options: UnlearningLlmAdvancedOptions | None = None
+    aggressiveness: Aggressiveness | None = None
 
     @model_validator(mode="after")
     def validate_refusal_utilities(self) -> "LlmRunInfo":
@@ -349,6 +352,8 @@ class LlmRunInfo(BaseModel):
         )
         if has_refusal and self.target_utilities:
             raise ValueError("Refusal behavior does not support target utilities")
+        if has_refusal and self.aggressiveness is not None:
+            raise ValueError("Refusal behavior does not support aggressiveness")
         return self
 
 
@@ -381,6 +386,7 @@ class OutputUnlearningLlmRun(BaseModel):
     target_behaviors: list[OutputBehaviorOptions]
     target_utilities: list[CustomUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None
+    aggressiveness: Aggressiveness | None = None
     run_id: str
     mlflow_run_id: str | None
     status: CeleryTaskState
@@ -414,6 +420,8 @@ class LlmUnlearningRun:
             field for the API request schema.
         """
         payload = run_info.model_dump(mode="json")
+        if run_info.aggressiveness is None:
+            payload.pop("aggressiveness")
         for target_behavior in payload["target_behaviors"]:
             if target_behavior["type"] == "BIAS":
                 target_behavior["bias_type"] = BBQBiasType.ALL.value
