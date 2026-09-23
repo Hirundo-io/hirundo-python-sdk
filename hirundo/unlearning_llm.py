@@ -333,8 +333,8 @@ class LlmRunInfo(BaseModel):
     aggressiveness: Aggressiveness | None = None
 
     @model_validator(mode="after")
-    def validate_refusal_utilities(self) -> "LlmRunInfo":
-        """Validate utility targets are compatible with the selected behaviors.
+    def validate_refusal_options(self) -> "LlmRunInfo":
+        """Validate run options are compatible with the selected behaviors.
 
         Args:
             self: The `LlmRunInfo` instance to validate.
@@ -343,8 +343,8 @@ class LlmRunInfo(BaseModel):
             The validated `LlmRunInfo` instance.
 
         Raises:
-            ValueError: If refusal behavior is combined with non-empty target
-                utilities.
+            ValueError: If refusal behavior is combined with an unsupported
+                option.
         """
         has_refusal = any(
             isinstance(target_behavior, RefusalBehavior)
@@ -386,7 +386,7 @@ class OutputUnlearningLlmRun(BaseModel):
     target_behaviors: list[OutputBehaviorOptions]
     target_utilities: list[CustomUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None
-    aggressiveness: Aggressiveness | None = None
+    aggressiveness: float | None = None
     run_id: str
     mlflow_run_id: str | None
     status: CeleryTaskState
@@ -413,14 +413,15 @@ class LlmUnlearningRun:
             run_info: The `LlmRunInfo` request model to serialize.
 
         Returns:
-            A JSON-serializable payload derived from
-            `run_info.model_dump(mode="json")`. Bias targets include the
-            backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
-            Refusal targets retain their validated empty `target_utilities`
-            field for the API request schema.
+            A JSON-serializable payload derived from a freshly validated copy
+            of `run_info`. Bias targets include the backend-only `bias_type`
+            field set to `BBQBiasType.ALL.value`. Refusal targets retain their
+            validated empty `target_utilities` field for the API request
+            schema.
         """
-        payload = run_info.model_dump(mode="json")
-        if run_info.aggressiveness is None:
+        validated_run_info = LlmRunInfo.model_validate(run_info.model_dump())
+        payload = validated_run_info.model_dump(mode="json")
+        if validated_run_info.aggressiveness is None:
             payload.pop("aggressiveness")
         for target_behavior in payload["target_behaviors"]:
             if target_behavior["type"] == "BIAS":

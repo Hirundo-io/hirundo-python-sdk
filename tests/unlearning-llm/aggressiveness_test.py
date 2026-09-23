@@ -58,6 +58,22 @@ def test_launch_payload_omits_aggressiveness_when_unspecified() -> None:
     assert "aggressiveness" not in payload
 
 
+def test_launch_payload_revalidates_mutated_aggressiveness() -> None:
+    run_info = LlmRunInfo(target_behaviors=[BiasBehavior()], aggressiveness=0.5)
+    run_info.aggressiveness = 1.001
+
+    with pytest.raises(ValidationError):
+        LlmUnlearningRun._build_launch_payload(run_info)
+
+
+def test_launch_payload_revalidates_mutated_behaviors() -> None:
+    run_info = LlmRunInfo(target_behaviors=[BiasBehavior()], aggressiveness=0.5)
+    run_info.target_behaviors.append(RefusalBehavior())
+
+    with pytest.raises(ValidationError, match="does not support aggressiveness"):
+        LlmUnlearningRun._build_launch_payload(run_info)
+
+
 @pytest.mark.parametrize(
     "target_behaviors",
     [
@@ -99,3 +115,29 @@ def test_output_run_deserializes_aggressiveness() -> None:
     )
 
     assert run.aggressiveness == 0.75
+
+
+def test_output_run_tolerates_legacy_aggressiveness() -> None:
+    run = OutputUnlearningLlmRun.model_validate(
+        {
+            "id": 1,
+            "name": "legacy run",
+            "model_id": 2,
+            "model": {},
+            "target_behaviors": [{"type": "SECURITY"}],
+            "target_utilities": [],
+            "advanced_options": None,
+            "aggressiveness": 1.001,
+            "run_id": "run-id",
+            "mlflow_run_id": None,
+            "status": "SUCCESS",
+            "approved": True,
+            "created_at": "2026-01-01T00:00:00Z",
+            "completed_at": None,
+            "pre_process_progress": 100.0,
+            "optimization_progress": 100.0,
+            "post_process_progress": 100.0,
+        }
+    )
+
+    assert run.aggressiveness == 1.001
