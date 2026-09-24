@@ -360,6 +360,8 @@ class LlmRunInfo(BaseModel):
 class LlmUnlearningCapabilities(BaseModel):
     """Behavior types enabled by the configured Hirundo API deployment."""
 
+    model_config = ConfigDict(validate_by_name=True)
+
     enabled_unlearning_behaviors: list[str] = Field(
         default_factory=list, validation_alias="enabledUnlearningBehaviors"
     )

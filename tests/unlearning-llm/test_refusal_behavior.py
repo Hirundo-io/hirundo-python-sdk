@@ -8,6 +8,7 @@ from hirundo.unlearning_llm import (
     CustomUtility,
     HuggingFaceDataset,
     LlmRunInfo,
+    LlmUnlearningCapabilities,
     LlmUnlearningRun,
     RefusalBehavior,
 )
@@ -97,6 +98,19 @@ def test_behavior_capabilities_use_deployment_config(
     assert capabilities.enabled_unlearning_behaviors == expected_behaviors
     assert capabilities.refusal_unlearning_enabled is ("REFUSAL" in expected_behaviors)
     assert "headers" not in request_arguments[0][1]
+
+
+def test_behavior_capabilities_accept_python_field_name() -> None:
+    capabilities = LlmUnlearningCapabilities(
+        enabled_unlearning_behaviors=["BIAS", "REFUSAL"]
+    )
+
+    assert capabilities.enabled_unlearning_behaviors == ["BIAS", "REFUSAL"]
+    assert capabilities.refusal_unlearning_enabled
+    assert (
+        LlmUnlearningCapabilities.model_validate(capabilities.model_dump())
+        == capabilities
+    )
 
 
 def test_older_server_config_error_uses_typed_http_path(
