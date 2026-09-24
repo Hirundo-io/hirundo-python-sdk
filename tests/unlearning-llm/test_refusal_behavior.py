@@ -5,11 +5,16 @@ import pytest
 from hirundo._http import requests
 from hirundo.unlearning_llm import (
     BiasBehavior,
+    CustomBehavior,
     CustomUtility,
+    HallucinationBehavior,
+    HallucinationType,
     HuggingFaceDataset,
     LlmRunInfo,
+    LlmUnlearningCapabilities,
     LlmUnlearningRun,
     RefusalBehavior,
+    SecurityBehavior,
 )
 from pydantic import ValidationError
 from requests import Response
@@ -64,17 +69,22 @@ def test_refusal_launch_payload_includes_empty_target_utilities() -> None:
 
 
 @pytest.mark.parametrize(
-    ("config_payload", "expected_enabled"),
+    ("config_payload", "expected_behaviors"),
     [
-        ({"refusalUnlearningEnabled": True}, True),
-        ({"refusalUnlearningEnabled": False}, False),
-        ({}, False),
+        (
+            {"enabledUnlearningBehaviors": ["BIAS", "SECURITY", "CUSTOM", "REFUSAL"]},
+            ["BIAS", "SECURITY", "CUSTOM", "REFUSAL"],
+        ),
+        ({"enabledUnlearningBehaviors": ["SECURITY"]}, ["SECURITY"]),
+        ({"enabledUnlearningBehaviors": []}, []),
+        ({}, []),
+        ({"refusalUnlearningEnabled": True}, []),
     ],
 )
-def test_refusal_capability_uses_deployment_config(
+def test_behavior_capabilities_use_deployment_config(
     monkeypatch: pytest.MonkeyPatch,
     config_payload: dict[str, object],
-    expected_enabled: bool,
+    expected_behaviors: list[str],
 ) -> None:
     request_arguments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 
@@ -89,8 +99,25 @@ def test_refusal_capability_uses_deployment_config(
 
     capabilities = LlmUnlearningRun.get_capabilities()
 
-    assert capabilities.refusal_unlearning_enabled is expected_enabled
+    assert capabilities.enabled_unlearning_behaviors == expected_behaviors
+    assert capabilities.refusal_unlearning_enabled is ("REFUSAL" in expected_behaviors)
     assert "headers" not in request_arguments[0][1]
+
+
+def test_behavior_capabilities_accept_python_field_name() -> None:
+    capabilities = LlmUnlearningCapabilities(
+        enabled_unlearning_behaviors=["BIAS", "REFUSAL"]
+    )
+
+    assert capabilities.enabled_unlearning_behaviors == ["BIAS", "REFUSAL"]
+    assert capabilities.refusal_unlearning_enabled
+    assert capabilities.model_dump(by_alias=True) == {
+        "enabledUnlearningBehaviors": ["BIAS", "REFUSAL"]
+    }
+    assert (
+        LlmUnlearningCapabilities.model_validate(capabilities.model_dump())
+        == capabilities
+    )
 
 
 def test_older_server_config_error_uses_typed_http_path(
@@ -105,9 +132,55 @@ def test_older_server_config_error_uses_typed_http_path(
         LlmUnlearningRun.get_capabilities()
 
 
-def test_disabled_refusal_launch_uses_typed_http_path(
+@pytest.mark.parametrize(
+    "behavior",
+    [
+        BiasBehavior(),
+        SecurityBehavior(),
+        RefusalBehavior(),
+        HallucinationBehavior(hallucination_type=HallucinationType.GENERAL),
+        CustomBehavior(
+            biased_dataset=HuggingFaceDataset(hugging_face_dataset_name="org/bias"),
+            unbiased_dataset=HuggingFaceDataset(hugging_face_dataset_name="org/unbias"),
+        ),
+    ],
+)
+def test_disabled_behavior_launch_does_not_post(
+    monkeypatch: pytest.MonkeyPatch,
+    behavior: BiasBehavior
+    | SecurityBehavior
+    | RefusalBehavior
+    | HallucinationBehavior
+    | CustomBehavior,
+) -> None:
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.get",
+        lambda *args, **kwargs: _response(200, {"enabledUnlearningBehaviors": []}),
+    )
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.post",
+        lambda *args, **kwargs: pytest.fail("Disabled behavior was posted"),
+    )
+
+    with pytest.raises(
+        ValueError, match=f"{behavior.type.title()} unlearning is disabled"
+    ):
+        LlmUnlearningRun.launch(
+            model_id=1,
+            run_info=LlmRunInfo(target_behaviors=[behavior]),
+        )
+
+
+def test_enabled_refusal_launch_uses_typed_http_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setattr("hirundo.unlearning_llm.get_headers", lambda: {})
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.get",
+        lambda *args, **kwargs: _response(
+            200, {"enabledUnlearningBehaviors": ["REFUSAL"]}
+        ),
+    )
     monkeypatch.setattr(
         "hirundo.unlearning_llm.requests.post",
         lambda *args, **kwargs: _response(
@@ -120,6 +193,25 @@ def test_disabled_refusal_launch_uses_typed_http_path(
             model_id=1,
             run_info=LlmRunInfo(target_behaviors=[RefusalBehavior()]),
         )
+
+
+def test_data_unlearning_launch_does_not_fetch_capabilities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("hirundo.unlearning_llm.get_headers", lambda: {})
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.get",
+        lambda *args, **kwargs: pytest.fail("Data unlearning fetched capabilities"),
+    )
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.post",
+        lambda *args, **kwargs: _response(200, {"run_id": "test-run"}),
+    )
+
+    assert (
+        LlmUnlearningRun.launch(model_id=1, run_info=LlmRunInfo(target_behaviors=[]))
+        == "test-run"
+    )
 
 
 def test_existing_behavior_launch_payload_is_unchanged() -> None:

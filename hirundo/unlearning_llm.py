@@ -5,7 +5,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, overload
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.alias_generators import to_camel
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -358,18 +359,16 @@ class LlmRunInfo(BaseModel):
 
 
 class LlmUnlearningCapabilities(BaseModel):
-    """Features supported by the configured Hirundo API.
+    """Behavior types enabled by the configured Hirundo API deployment."""
 
-    Omitted capability fields default to disabled. Check
-    `refusal_unlearning_enabled` before starting refusal unlearning.
-    """
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=True)
 
-    refusal_unlearning_enabled: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "refusalUnlearningEnabled", "refusal_unlearning_enabled"
-        ),
-    )
+    enabled_unlearning_behaviors: list[str] = Field(default_factory=list)
+
+    @property
+    def refusal_unlearning_enabled(self) -> bool:
+        """Whether Refusal is available according to the behavior list."""
+        return "REFUSAL" in self.enabled_unlearning_behaviors
 
 
 OutputLlm = dict[str, object]
@@ -437,8 +436,8 @@ class LlmUnlearningRun:
         handling.
 
         Returns:
-            An `LlmUnlearningCapabilities` model. Omitted capability fields
-            default to disabled during validation.
+            An `LlmUnlearningCapabilities` model. An omitted behavior list
+            defaults to empty during validation.
         """
         config_response = requests.get(
             f"{API_HOST}/config/config.json",
@@ -449,6 +448,15 @@ class LlmUnlearningRun:
 
     @staticmethod
     def launch(model_id: int, run_info: LlmRunInfo) -> str:
+        if run_info.target_behaviors:
+            enabled_behaviors = set(
+                LlmUnlearningRun.get_capabilities().enabled_unlearning_behaviors
+            )
+            for behavior in run_info.target_behaviors:
+                if behavior.type not in enabled_behaviors:
+                    raise ValueError(
+                        f"{behavior.type.title()} unlearning is disabled for this deployment"
+                    )
         run_response = requests.post(
             f"{API_HOST}/unlearning-llm/run/{model_id}",
             json=LlmUnlearningRun._build_launch_payload(run_info),
