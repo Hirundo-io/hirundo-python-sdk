@@ -5,7 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, overload
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -358,18 +358,16 @@ class LlmRunInfo(BaseModel):
 
 
 class LlmUnlearningCapabilities(BaseModel):
-    """Features supported by the configured Hirundo API.
+    """Behavior types enabled by the configured Hirundo API deployment."""
 
-    Omitted capability fields default to disabled. Check
-    `refusal_unlearning_enabled` before starting refusal unlearning.
-    """
-
-    refusal_unlearning_enabled: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "refusalUnlearningEnabled", "refusal_unlearning_enabled"
-        ),
+    enabled_unlearning_behaviors: list[str] = Field(
+        default_factory=list, validation_alias="enabledUnlearningBehaviors"
     )
+
+    @property
+    def refusal_unlearning_enabled(self) -> bool:
+        """Whether Refusal is available according to the behavior list."""
+        return "REFUSAL" in self.enabled_unlearning_behaviors
 
 
 OutputLlm = dict[str, object]
@@ -437,8 +435,8 @@ class LlmUnlearningRun:
         handling.
 
         Returns:
-            An `LlmUnlearningCapabilities` model. Omitted capability fields
-            default to disabled during validation.
+            An `LlmUnlearningCapabilities` model. An omitted behavior list
+            defaults to empty during validation.
         """
         config_response = requests.get(
             f"{API_HOST}/config/config.json",

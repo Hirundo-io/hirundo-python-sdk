@@ -64,17 +64,22 @@ def test_refusal_launch_payload_includes_empty_target_utilities() -> None:
 
 
 @pytest.mark.parametrize(
-    ("config_payload", "expected_enabled"),
+    ("config_payload", "expected_behaviors"),
     [
-        ({"refusalUnlearningEnabled": True}, True),
-        ({"refusalUnlearningEnabled": False}, False),
-        ({}, False),
+        (
+            {"enabledUnlearningBehaviors": ["BIAS", "SECURITY", "CUSTOM", "REFUSAL"]},
+            ["BIAS", "SECURITY", "CUSTOM", "REFUSAL"],
+        ),
+        ({"enabledUnlearningBehaviors": ["SECURITY"]}, ["SECURITY"]),
+        ({"enabledUnlearningBehaviors": []}, []),
+        ({}, []),
+        ({"refusalUnlearningEnabled": True}, []),
     ],
 )
-def test_refusal_capability_uses_deployment_config(
+def test_behavior_capabilities_use_deployment_config(
     monkeypatch: pytest.MonkeyPatch,
     config_payload: dict[str, object],
-    expected_enabled: bool,
+    expected_behaviors: list[str],
 ) -> None:
     request_arguments: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
 
@@ -89,7 +94,8 @@ def test_refusal_capability_uses_deployment_config(
 
     capabilities = LlmUnlearningRun.get_capabilities()
 
-    assert capabilities.refusal_unlearning_enabled is expected_enabled
+    assert capabilities.enabled_unlearning_behaviors == expected_behaviors
+    assert capabilities.refusal_unlearning_enabled is ("REFUSAL" in expected_behaviors)
     assert "headers" not in request_arguments[0][1]
 
 
