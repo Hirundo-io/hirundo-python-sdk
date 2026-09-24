@@ -4,15 +4,18 @@ import typer
 
 from hirundo._cli_common import (
     ArchivedOption,
+    OutputFormat,
+    OutputOption,
     WaitOption,
-    check_run_and_print,
+    check_and_emit_run,
+    emit_rows,
     hirundo_epilog,
     make_app,
-    print_runs_table,
     report_run_started,
     require_exactly_one,
+    set_output_format,
     validate_enum,
-    wait_or_notify,
+    wait_and_emit_run,
 )
 
 unlearning_app = make_app("unlearning", "Launch and monitor LLM unlearning runs.")
@@ -45,12 +48,14 @@ def unlearning_run(
         typer.Option("--name", help="Optional name for this unlearning run."),
     ] = None,
     wait: WaitOption = True,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Launch an LLM unlearning run.
 
     Exactly one behavior option must be provided.
     """
+    set_output_format(output)
     from hirundo.unlearning_llm import (
         BiasBehavior,
         HallucinationBehavior,
@@ -96,39 +101,51 @@ def unlearning_run(
     run_id = LlmUnlearningRun.launch(model_id, run_info)
     report_run_started("Unlearning", run_id)
 
-    wait_or_notify(run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait)
+    wait_and_emit_run(run_id, LlmUnlearningRun.check_run_by_id, "unlearning", wait)
 
 
 @unlearning_app.command("list", epilog=hirundo_epilog)
-def unlearning_list(archived: ArchivedOption = False):
+def unlearning_list(
+    archived: ArchivedOption = False,
+    output: OutputOption = OutputFormat.text,
+):
     """
     List LLM unlearning runs.
     """
+    set_output_format(output)
     from hirundo.unlearning_llm import LlmUnlearningRun
 
-    runs = LlmUnlearningRun.list(archived=archived)
-    print_runs_table(
+    run_records = LlmUnlearningRun.list(archived=archived)
+    items = [
+        {
+            "name": str(run_record.name),
+            "run_id": str(run_record.run_id),
+            "status": str(run_record.status),
+            "created_at": run_record.created_at.isoformat(),
+        }
+        for run_record in run_records
+    ]
+    emit_rows(
         "Unlearning Runs:",
-        ("Name", "Run ID", "Status", "Created At"),
         [
-            (
-                str(run.name),
-                str(run.run_id),
-                str(run.status),
-                run.created_at.isoformat(),
-            )
-            for run in runs
+            ("Name", "name"),
+            ("Run ID", "run_id"),
+            ("Status", "status"),
+            ("Created At", "created_at"),
         ],
+        items,
     )
 
 
 @unlearning_app.command("check", epilog=hirundo_epilog)
 def unlearning_check(
     run_id: Annotated[str, typer.Argument(help="The run ID to check.")],
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Check the status of an LLM unlearning run and stream progress.
     """
+    set_output_format(output)
     from hirundo.unlearning_llm import LlmUnlearningRun
 
-    check_run_and_print(run_id, LlmUnlearningRun.check_run_by_id)
+    check_and_emit_run(run_id, LlmUnlearningRun.check_run_by_id)

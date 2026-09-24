@@ -6,18 +6,23 @@ from collections.abc import Callable
 from enum import Enum
 from io import StringIO
 from pathlib import Path
-from typing import Annotated, TypeAlias, cast
+from typing import Annotated, Any, TypeAlias, cast
 from urllib.parse import urlparse
 
 import typer
 from dotenv import dotenv_values, set_key, unset_key
 
 from hirundo._cli_common import (
+    HirundoCliGroup,
+    OutputFormat,
+    OutputOption,
+    check_and_emit_run,
     docs,
+    emit_if_json,
+    emit_rows,
     hirundo_epilog,
-    print_runs_table,
+    set_output_format,
     success,
-    validate_run_id,
     warn,
 )
 from hirundo._credentials import (
@@ -37,6 +42,7 @@ _PIPELINES_PANEL = "Pipelines"
 
 app = typer.Typer(
     name="hirundo",
+    cls=HirundoCliGroup,
     no_args_is_help=True,
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
@@ -243,12 +249,11 @@ def fix_api_host(api_host: str) -> str:
     return normalize_api_host(original_api_host)
 
 
-def _save_api_key_to_file(
-    api_key: str, env_location: EnvLocation | None = None
-) -> None:
+def _save_api_key_to_file(api_key: str, env_location: EnvLocation | None = None) -> str:
     location = _location_label(upsert_env("HIRUNDO_API_KEY", api_key, env_location))
     success(f"API key saved to [bold]{location}[/bold].")
     warn(f"Keep [bold]{location}[/bold] private; it contains your secret API key.")
+    return location
 
 
 def _save_api_key(
@@ -256,7 +261,7 @@ def _save_api_key(
     api_host: str,
     key_storage: KeyStorage,
     env_location: EnvLocation | None = None,
-) -> None:
+) -> str:
     if key_storage is not KeyStorage.FILE:
         try:
             backend_name = save_api_key_to_keyring(api_host, api_key)
@@ -279,24 +284,26 @@ def _save_api_key(
                 "API key saved to the operating-system keyring "
                 f"([bold]{backend_name}[/bold])."
             )
-            return
+            return "keyring"
 
-    _save_api_key_to_file(api_key, env_location)
+    location = _save_api_key_to_file(api_key, env_location)
     if key_storage is KeyStorage.FILE:
         delete_api_key_from_keyring(api_host)
+    return location
 
 
 def _save_api_host(api_host: str, env_location: EnvLocation | None = None) -> str:
     api_host = fix_api_host(api_host)
     location = _location_label(upsert_env("HIRUNDO_API_HOST", api_host, env_location))
     success(f"API host saved to [bold]{location}[/bold].")
-    return api_host
+    return location
 
 
 @app.command("set-api-key", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
 def setup_api_key(
     api_key: _API_KEY_OPTION,
     key_storage: _KEY_STORAGE_OPTION = KeyStorage.AUTO,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Save the API key for the Hirundo SDK.
@@ -304,15 +311,22 @@ def setup_api_key(
     The key is stored in the operating-system keyring when one is available.
     Headless environments fall back to a private configuration file.
     """
-    _save_api_key(api_key, API_HOST, key_storage)
+    set_output_format(output)
+    location = _save_api_key(api_key, API_HOST, key_storage)
+    emit_if_json({"api_key_saved_to": location})
 
 
 @app.command("change-remote", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
-def change_api_remote(api_host: _API_HOST_OPTION):
+def change_api_remote(
+    api_host: _API_HOST_OPTION,
+    output: OutputOption = OutputFormat.text,
+):
     """
     Change the API server address (same URL as the Hirundo web interface).
     """
-    _save_api_host(api_host)
+    set_output_format(output)
+    location = _save_api_host(api_host)
+    emit_if_json({"api_host_saved_to": location})
 
 
 @app.command("setup", epilog=hirundo_epilog, rich_help_panel=_CONFIG_PANEL)
@@ -320,15 +334,21 @@ def setup(
     api_key: _API_KEY_OPTION,
     api_host: _API_HOST_OPTION,
     key_storage: _KEY_STORAGE_OPTION = KeyStorage.AUTO,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Setup the Hirundo Python SDK.
     """
+    set_output_format(output)
     _validate_env_value("HIRUNDO_API_HOST", api_host)
     _validate_env_value("HIRUNDO_API_KEY", api_key)
     env_location = _preferred_env_location()
-    normalized_api_host = _save_api_host(api_host, env_location)
-    _save_api_key(api_key, normalized_api_host, key_storage, env_location)
+    normalized_api_host = fix_api_host(api_host)
+    host_location = _save_api_host(normalized_api_host, env_location)
+    key_location = _save_api_key(
+        api_key, normalized_api_host, key_storage, env_location
+    )
+    emit_if_json({"api_host_saved_to": host_location, "api_key_saved_to": key_location})
 
 
 @app.command("check-run", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -338,35 +358,36 @@ def check_run(
         RunType,
         typer.Option("--run-type", "-t", help="Type of run to check."),
     ] = RunType.LLM_UNLEARNING,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     Check the status of a run.
     """
-    validated_run_id = (
-        run_id if run_type is RunType.EXTERNAL_EVALUATION else validate_run_id(run_id)
-    )
+    set_output_format(output)
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
-        print(LlmUnlearningRun.check_run_by_id(validated_run_id))
+        check_function = LlmUnlearningRun.check_run_by_id
     elif run_type is RunType.LLM_EVALUATION:
         from hirundo.llm_behavior_eval import LlmBehaviorEval
 
-        results = LlmBehaviorEval.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = LlmBehaviorEval.check_run_by_id
     elif run_type is RunType.EXTERNAL_EVALUATION:
         from hirundo.external_eval import ExternalEval
 
-        results = ExternalEval.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = ExternalEval.check_run_by_id
     else:
         from hirundo.dataset_qa import QADataset
 
-        results = QADataset.check_run_by_id(validated_run_id)
-        if results is not None:
-            print(f"Run results saved to {results.cached_zip_path}")
+        check_function = QADataset.check_run_by_id
+
+    results = check_and_emit_run(
+        run_id,
+        check_function,
+        validate=run_type is not RunType.EXTERNAL_EVALUATION,
+    )
+    if run_type is RunType.LLM_UNLEARNING and output is OutputFormat.text:
+        print(results)
 
 
 @app.command("list-runs", epilog=hirundo_epilog, rich_help_panel=_RUNS_PANEL)
@@ -375,10 +396,12 @@ def list_runs(
         RunType,
         typer.Option("--run-type", "-t", help="Type of runs to list."),
     ] = RunType.LLM_UNLEARNING,
+    output: OutputOption = OutputFormat.text,
 ):
     """
     List all runs available.
     """
+    set_output_format(output)
     if run_type is RunType.LLM_UNLEARNING:
         from hirundo.unlearning_llm import LlmUnlearningRun
 
@@ -395,33 +418,39 @@ def list_runs(
         from hirundo.llm_behavior_eval import EvalFramework, LlmBehaviorEval
 
         runs = [
-            run
-            for run in LlmBehaviorEval.list_runs()
-            if run.framework is EvalFramework.INSPECT_EVALS
+            run_record
+            for run_record in LlmBehaviorEval.list_runs()
+            if run_record.framework is EvalFramework.INSPECT_EVALS
         ]
 
-    columns = ("Name", "Run ID", "Status", "Created At")
-    rows = []
+    columns = [
+        ("Name", "name"),
+        ("Run ID", "run_id"),
+        ("Status", "status"),
+        ("Created At", "created_at"),
+    ]
+    items: list[dict[str, Any]] = []
     for run_record in runs:
-        row = (
-            str(run_record.name),
-            str(run_record.run_id),
-            str(run_record.status),
-            run_record.created_at.isoformat(),
-        )
+        item: dict[str, Any] = {
+            "name": str(run_record.name),
+            "run_id": str(run_record.run_id),
+            "status": getattr(run_record.status, "value", run_record.status),
+            "created_at": run_record.created_at.isoformat(),
+        }
         if run_type is RunType.DATASET_QA:
             from hirundo.dataset_qa import DataQARunOut
 
             dataset_qa_run = cast("DataQARunOut", run_record)
-            if hasattr(dataset_qa_run, "run_args") and dataset_qa_run.run_args:
-                row += (dataset_qa_run.run_args.model_dump_json(),)
-            else:
-                row += ("",)
-        rows.append(row)
+            item["run_args"] = (
+                dataset_qa_run.run_args.model_dump(mode="json")
+                if dataset_qa_run.run_args
+                else None
+            )
+        items.append(item)
 
     if run_type is RunType.DATASET_QA:
-        columns += ("Run Args",)
-    print_runs_table("Runs:", columns, rows)
+        columns.append(("Run Args", "run_args"))
+    emit_rows("Runs:", columns, items)
 
 
 typer_click_object = typer.main.get_command(app)
