@@ -107,6 +107,9 @@ def test_behavior_capabilities_accept_python_field_name() -> None:
 
     assert capabilities.enabled_unlearning_behaviors == ["BIAS", "REFUSAL"]
     assert capabilities.refusal_unlearning_enabled
+    assert capabilities.model_dump(by_alias=True) == {
+        "enabledUnlearningBehaviors": ["BIAS", "REFUSAL"]
+    }
     assert (
         LlmUnlearningCapabilities.model_validate(capabilities.model_dump())
         == capabilities

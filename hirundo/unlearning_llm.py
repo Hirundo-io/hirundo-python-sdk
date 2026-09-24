@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, overload
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic.alias_generators import to_camel
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -360,11 +361,9 @@ class LlmRunInfo(BaseModel):
 class LlmUnlearningCapabilities(BaseModel):
     """Behavior types enabled by the configured Hirundo API deployment."""
 
-    model_config = ConfigDict(validate_by_name=True)
+    model_config = ConfigDict(alias_generator=to_camel, validate_by_name=True)
 
-    enabled_unlearning_behaviors: list[str] = Field(
-        default_factory=list, validation_alias="enabledUnlearningBehaviors"
-    )
+    enabled_unlearning_behaviors: list[str] = Field(default_factory=list)
 
     @property
     def refusal_unlearning_enabled(self) -> bool:
