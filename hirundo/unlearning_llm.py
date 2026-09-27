@@ -448,18 +448,20 @@ class LlmUnlearningRun:
 
     @staticmethod
     def launch(model_id: int, run_info: LlmRunInfo) -> str:
-        if run_info.target_behaviors:
+        payload = LlmUnlearningRun._build_launch_payload(run_info)
+        if payload["target_behaviors"]:
             enabled_behaviors = set(
                 LlmUnlearningRun.get_capabilities().enabled_unlearning_behaviors
             )
-            for behavior in run_info.target_behaviors:
-                if behavior.type not in enabled_behaviors:
+            for behavior in payload["target_behaviors"]:
+                behavior_type = behavior["type"]
+                if behavior_type not in enabled_behaviors:
                     raise ValueError(
-                        f"{behavior.type.title()} unlearning is disabled for this deployment"
+                        f"{behavior_type.title()} unlearning is disabled for this deployment"
                     )
         run_response = requests.post(
             f"{API_HOST}/unlearning-llm/run/{model_id}",
-            json=LlmUnlearningRun._build_launch_payload(run_info),
+            json=payload,
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

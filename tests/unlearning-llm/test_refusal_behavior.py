@@ -195,6 +195,47 @@ def test_enabled_refusal_launch_uses_typed_http_path(
         )
 
 
+def test_launch_uses_the_validated_payload_checked_against_capabilities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_info = LlmRunInfo(target_behaviors=[RefusalBehavior()])
+    posted_payloads: list[dict[str, Any]] = []
+    monkeypatch.setattr("hirundo.unlearning_llm.get_headers", lambda: {})
+
+    def get_config(*args: Any, **kwargs: Any) -> Response:
+        run_info.target_behaviors[:] = [BiasBehavior()]
+        return _response(200, {"enabledUnlearningBehaviors": ["REFUSAL"]})
+
+    def post_run(*args: Any, **kwargs: Any) -> Response:
+        posted_payloads.append(kwargs["json"])
+        return _response(200, {"run_id": "test-run"})
+
+    monkeypatch.setattr("hirundo.unlearning_llm.requests.get", get_config)
+    monkeypatch.setattr("hirundo.unlearning_llm.requests.post", post_run)
+
+    assert LlmUnlearningRun.launch(model_id=1, run_info=run_info) == "test-run"
+    assert run_info.target_behaviors == [BiasBehavior()]
+    assert posted_payloads[0]["target_behaviors"] == [{"type": "REFUSAL"}]
+
+
+def test_mutated_invalid_run_rejected_before_capability_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_info = LlmRunInfo(target_behaviors=[RefusalBehavior()])
+    run_info.aggressiveness = 0
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.get",
+        lambda *args, **kwargs: pytest.fail("Invalid run fetched capabilities"),
+    )
+    monkeypatch.setattr(
+        "hirundo.unlearning_llm.requests.post",
+        lambda *args, **kwargs: pytest.fail("Invalid run was posted"),
+    )
+
+    with pytest.raises(ValidationError):
+        LlmUnlearningRun.launch(model_id=1, run_info=run_info)
+
+
 def test_data_unlearning_launch_does_not_fetch_capabilities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
