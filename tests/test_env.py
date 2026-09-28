@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from hirundo._env import _resolve_api_key
+from hirundo._env import _normalize_api_base_url, _resolve_api_key
 
 
 def test_environment_api_key_takes_precedence_over_keyring() -> None:
@@ -49,3 +49,9 @@ def test_configuration_file_is_used_when_keyring_is_unavailable() -> None:
 
     assert api_key == "file-secret"
     load_file_mock.assert_called_once_with("HIRUNDO_API_KEY", "API_KEY")
+
+
+def test_environment_api_host_preserves_path_prefix() -> None:
+    assert _normalize_api_base_url("HTTPS://API.HIRUNDO.IO/prefix/") == (
+        "https://api.hirundo.io/prefix"
+    )

@@ -100,3 +100,16 @@ def test_delete_api_key_from_keyring() -> None:
         assert delete_api_key_from_keyring("https://api.hirundo.io/") is True
 
     delete_mock.assert_called_once_with(KEYRING_SERVICE, "https://api.hirundo.io")
+
+
+def test_delete_keyring_preserves_backend_failure() -> None:
+    backend = TrustedBackend()
+    with (
+        patch("hirundo._credentials.keyring.get_keyring", return_value=backend),
+        patch(
+            "hirundo._credentials.keyring.delete_password",
+            side_effect=RuntimeError("backend failed"),
+        ),
+        pytest.raises(RuntimeError, match="backend failed"),
+    ):
+        delete_api_key_from_keyring("https://api.hirundo.io")
