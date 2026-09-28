@@ -46,7 +46,15 @@ class ExternalEvalRunInfo(BaseModel):
     source_run_id: str | None = None
     task_ids: list[CanonicalTaskReference] = Field(min_length=1)
     sample_limit: int | None = Field(default=None, gt=0)
-    max_model_len: int | None = Field(default=None, gt=0, strict=True)
+    max_model_len: int | None = Field(
+        default=None,
+        gt=0,
+        strict=True,
+        description=(
+            "Maximum model context length for the evaluation. "
+            "Omit or set None to use the model's context length."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_unique_task_ids(self) -> "ExternalEvalRunInfo":
