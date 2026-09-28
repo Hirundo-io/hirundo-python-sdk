@@ -8,6 +8,7 @@ from hirundo._cli_common import OutputFormat, run_payload, set_output_format
 from hirundo._hirundo_error import HirundoError
 from hirundo._http import requests
 from hirundo._run_status import RunStatus
+from hirundo._sse_event_data import _parse_sse_payload
 from hirundo.cli import app
 from typer import _click as click
 from typer.core import TyperGroup
@@ -154,6 +155,57 @@ class TestJsonOutput:
         assert result.exit_code == 1
         assert json.loads(result.stdout) == {"error": "boom"}
         assert result.stderr == ""
+
+    def test_malformed_sse_does_not_expose_event_data(self):
+        secret = "sse-secret-credential"
+        with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
+            dataset_qa_mock.launch_qa_run.side_effect = (
+                lambda *_args, **_kwargs: _parse_sse_payload(
+                    '{"data":{"token":"' + secret + '"}}'
+                )
+            )
+            result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
+        assert result.exit_code == 1
+        assert json.loads(result.stdout) == {
+            "error": "Invalid SSE payload received from the API."
+        }
+        assert secret not in result.output
+
+    @pytest.mark.parametrize(
+        ("command", "option_arguments"),
+        [
+            ("set-api-key", ["--api-key=secret"]),
+            ("change-remote", ["--api-host=https://api.hirundo.io"]),
+            (
+                "setup",
+                [
+                    "--api-key",
+                    "secret",
+                    "--key-storage",
+                    "auto",
+                    "--api-host=https://api.hirundo.io",
+                ],
+            ),
+        ],
+    )
+    def test_json_preflight_accepts_supplied_options(
+        self, command, option_arguments
+    ):
+        with (
+            patch("hirundo.cli._save_api_key"),
+            patch("hirundo.cli._save_api_host"),
+        ):
+            result = runner.invoke(app, [command, *option_arguments, "-o", "json"])
+        assert result.exit_code == 0
+
+    def test_key_storage_value_does_not_mask_missing_key(self):
+        result = runner.invoke(
+            app, ["set-api-key", "--key-storage", "auto", "-o", "json"]
+        )
+        assert result.exit_code == 2
+        assert json.loads(result.stdout) == {
+            "error": "Missing required value for set-api-key in JSON mode."
+        }
 
     def test_http_error_emits_safe_json(self):
         sdk_error = requests.HTTPError("token=secret upstream detail")

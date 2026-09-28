@@ -275,24 +275,32 @@ def _missing_json_prompt_value(arguments: Sequence[str]) -> str | None:
     Returns:
         An error message when a prompted value is missing, otherwise ``None``.
     """
-    command_value_counts = {"set-api-key": 1, "change-remote": 1, "setup": 2}
-    if not arguments or arguments[0] not in command_value_counts:
+    prompted_options = {
+        "set-api-key": {"--api-key"},
+        "change-remote": {"--api-host"},
+        "setup": {"--api-key", "--api-host"},
+    }
+    if not arguments or arguments[0] not in prompted_options:
         return None
-    positional_values: list[str] = []
-    skip_next = False
-    for argument in arguments[1:]:
-        if skip_next:
-            skip_next = False
-            continue
-        if argument in {"--output", "-o"}:
-            skip_next = True
-            continue
-        if argument.startswith("--output=") or argument.startswith("-o"):
-            continue
-        if not argument.startswith("-"):
-            positional_values.append(argument)
-    required_count = command_value_counts[arguments[0]]
-    if len(positional_values) < required_count:
+    provided: set[str] = set()
+    argument_index = 1
+    while argument_index < len(arguments):
+        argument = arguments[argument_index]
+        option_name, separator, option_value = argument.partition("=")
+        if option_name in prompted_options[arguments[0]]:
+            if separator and option_value:
+                provided.add(option_name)
+            elif (
+                not separator
+                and argument_index + 1 < len(arguments)
+                and not arguments[argument_index + 1].startswith("-")
+            ):
+                provided.add(option_name)
+                argument_index += 1
+        elif argument in {"--output", "-o", "--key-storage"}:
+            argument_index += 1
+        argument_index += 1
+    if not prompted_options[arguments[0]].issubset(provided):
         return f"Missing required value for {arguments[0]} in JSON mode."
     return None
 
