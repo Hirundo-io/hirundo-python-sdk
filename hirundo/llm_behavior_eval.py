@@ -7,7 +7,7 @@ from enum import Enum
 from typing import overload
 
 import httpx
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
@@ -153,9 +153,31 @@ class EvalRunRecord(BaseModel):
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     task_ids: list[str] | None = None
     sample_limit: int | None = None
-    attempt_timeout: int | None = None
-    max_retries: int | None = None
-    max_model_len: int | None = None
+    attempt_timeout: int | None = Field(
+        default=None,
+        description=(
+            "Server-side Inspect timeout, in seconds, for each model generation "
+            "attempt. None for non-Inspect runs or runs created before this "
+            "setting was recorded."
+        ),
+    )
+    max_retries: int | None = Field(
+        default=None,
+        description=(
+            "Server-side Inspect retry limit for failed model generations. "
+            "Unrelated to the SDK's stream reconnection `max_retries` argument "
+            "on `check_run_by_id`. None for non-Inspect runs or runs created "
+            "before this setting was recorded."
+        ),
+    )
+    max_model_len: int | None = Field(
+        default=None,
+        description=(
+            "Maximum model context length used by the Inspect evaluation. "
+            "None when the model's context length was used, for non-Inspect "
+            "runs, or for runs created before this setting was recorded."
+        ),
+    )
     judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
