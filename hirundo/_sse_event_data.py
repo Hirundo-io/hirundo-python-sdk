@@ -22,4 +22,6 @@ def _parse_sse_payload(payload: str) -> SseRunEventData:
         return SseRunEventDataPayload.model_validate_json(payload).data
     except ValidationError as validation_error:
         logger.warning("Invalid SSE payload received from the API.")
-        raise HirundoError("Invalid SSE payload received from the API.") from validation_error
+        raise HirundoError(
+            "Invalid SSE payload received from the API."
+        ) from validation_error
