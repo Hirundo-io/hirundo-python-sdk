@@ -159,10 +159,8 @@ class TestJsonOutput:
     def test_malformed_sse_does_not_expose_event_data(self):
         sentinel = "sse-secret-credential"
         with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
-            dataset_qa_mock.launch_qa_run.side_effect = (
-                lambda *_args, **_kwargs: _parse_sse_payload(
-                    '{"data":{"token":"' + sentinel + '"}}'
-                )
+            dataset_qa_mock.launch_qa_run.side_effect = lambda *_args, **_kwargs: (
+                _parse_sse_payload('{"data":{"token":"' + sentinel + '"}}')
             )
             result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
         assert result.exit_code == 1
@@ -188,9 +186,7 @@ class TestJsonOutput:
             ),
         ],
     )
-    def test_json_preflight_accepts_supplied_options(
-        self, command, option_arguments
-    ):
+    def test_json_preflight_accepts_supplied_options(self, command, option_arguments):
         with (
             patch("hirundo.cli._save_api_key"),
             patch("hirundo.cli._save_api_host"),
