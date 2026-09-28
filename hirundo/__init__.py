@@ -67,6 +67,7 @@ from .storage import (
     StorageS3,
 )
 from .unlearning_llm import (
+    Aggressiveness,
     BiasBehavior,
     CustomBehavior,
     HallucinationBehavior,
@@ -131,6 +132,7 @@ __all__ = [
     "StorageGit",
     "StorageConfig",
     "DatasetQAResults",
+    "Aggressiveness",
     "BiasBehavior",
     "CustomBehavior",
     "HallucinationBehavior",
@@ -152,4 +154,4 @@ __all__ = [
 ]
 
 # Keep this literal in sync with pyproject.toml; release workflows read it.
-__version__ = "0.3.2"
+__version__ = "0.3.3"
