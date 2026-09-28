@@ -157,11 +157,11 @@ class TestJsonOutput:
         assert result.stderr == ""
 
     def test_malformed_sse_does_not_expose_event_data(self):
-        secret = "sse-secret-credential"
+        sentinel = "sse-secret-credential"
         with patch("hirundo.dataset_qa.QADataset") as dataset_qa_mock:
             dataset_qa_mock.launch_qa_run.side_effect = (
                 lambda *_args, **_kwargs: _parse_sse_payload(
-                    '{"data":{"token":"' + secret + '"}}'
+                    '{"data":{"token":"' + sentinel + '"}}'
                 )
             )
             result = runner.invoke(app, ["dataset-qa", "run", "42", "-o", "json"])
@@ -169,7 +169,7 @@ class TestJsonOutput:
         assert json.loads(result.stdout) == {
             "error": "Invalid SSE payload received from the API."
         }
-        assert secret not in result.output
+        assert sentinel not in result.output
 
     @pytest.mark.parametrize(
         ("command", "option_arguments"),
