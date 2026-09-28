@@ -123,6 +123,4 @@ def delete_api_key_from_keyring(api_host: str) -> bool:
         keyring.delete_password(KEYRING_SERVICE, normalize_api_host(api_host))
     except PasswordDeleteError:
         return False
-    except Exception as error:
-        raise KeyringUnavailableError from error
     return True

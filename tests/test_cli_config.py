@@ -221,3 +221,20 @@ def test_save_api_key_explicit_keyring_fails_closed() -> None:
                 "https://api.hirundo.io",
                 KeyStorage.KEYRING,
             )
+
+
+def test_explicit_file_storage_does_not_write_when_keyring_cleanup_fails(
+    tmp_path: Path,
+) -> None:
+    dotenv_path = tmp_path / ".hirundo.conf"
+    location = EnvLocation.HOME
+    with (
+        patch.object(location, "_value_", dotenv_path),
+        patch(
+            "hirundo.cli.delete_api_key_from_keyring",
+            side_effect=RuntimeError("backend failed"),
+        ),
+        pytest.raises(RuntimeError, match="backend failed"),
+    ):
+        _save_api_key("new-secret", "https://api.hirundo.io", KeyStorage.FILE, location)
+    assert not dotenv_path.exists()

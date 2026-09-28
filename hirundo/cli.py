@@ -281,9 +281,10 @@ def _save_api_key(
             )
             return
 
-    _save_api_key_to_file(api_key, env_location)
     if key_storage is KeyStorage.FILE:
+        # Cleanup must succeed before reporting that the new file key is active.
         delete_api_key_from_keyring(api_host)
+    _save_api_key_to_file(api_key, env_location)
 
 
 def _save_api_host(api_host: str, env_location: EnvLocation | None = None) -> str:

@@ -2,6 +2,7 @@ import enum
 import os
 import warnings
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import cast
 
 from dotenv import find_dotenv, load_dotenv
@@ -67,7 +68,18 @@ def _resolve_api_key(
     return _get_env_with_deprecation("HIRUNDO_API_KEY", "API_KEY")
 
 
-API_HOST = normalize_api_host(
+def _normalize_api_base_url(api_host: str) -> str:
+    """Preserve a configured URL prefix while canonicalizing its origin."""
+    candidate = api_host.strip()
+    origin = normalize_api_host(candidate)
+    parsed = urlparse(
+        candidate if candidate.lower().startswith(("http://", "https://"))
+        else f"https://{candidate}"
+    )
+    return origin + parsed.path.rstrip("/")
+
+
+API_HOST = _normalize_api_base_url(
     cast(
         "str",
         _get_env_with_deprecation(
