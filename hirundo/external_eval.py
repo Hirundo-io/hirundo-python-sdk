@@ -46,7 +46,7 @@ class ExternalEvalRunInfo(BaseModel):
     source_run_id: str | None = None
     task_ids: list[CanonicalTaskReference] = Field(min_length=1)
     sample_limit: int | None = Field(default=None, gt=0)
-    max_model_len: int | None = Field(default=None, gt=0)
+    max_model_len: int | None = Field(default=None, gt=0, strict=True)
 
     @model_validator(mode="after")
     def _validate_unique_task_ids(self) -> "ExternalEvalRunInfo":

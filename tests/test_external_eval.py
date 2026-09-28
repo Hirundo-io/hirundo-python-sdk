@@ -96,9 +96,9 @@ def test_launch_model_external_eval_run_serializes_context_cap(
     }
 
 
-@pytest.mark.parametrize("max_model_len", [0, -1, 1.5])
+@pytest.mark.parametrize("max_model_len", [0, -1, 1.5, 1.0, True, "4096"])
 def test_external_eval_run_info_rejects_invalid_context_cap(
-    max_model_len: int | float,
+    max_model_len: int | float | bool | str,
 ) -> None:
     with pytest.raises(ValidationError):
         ExternalEvalRunInfo.model_validate(
