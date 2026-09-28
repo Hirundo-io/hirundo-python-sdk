@@ -73,7 +73,8 @@ def _normalize_api_base_url(api_host: str) -> str:
     candidate = api_host.strip()
     origin = normalize_api_host(candidate)
     parsed = urlparse(
-        candidate if candidate.lower().startswith(("http://", "https://"))
+        candidate
+        if candidate.lower().startswith(("http://", "https://"))
         else f"https://{candidate}"
     )
     return origin + parsed.path.rstrip("/")
