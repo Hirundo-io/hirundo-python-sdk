@@ -2,8 +2,8 @@ import enum
 import os
 import warnings
 from pathlib import Path
-from urllib.parse import urlparse
 from typing import cast
+from urllib.parse import urlparse
 
 from dotenv import find_dotenv, load_dotenv
 
