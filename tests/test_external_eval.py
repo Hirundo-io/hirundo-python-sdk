@@ -30,8 +30,10 @@ class _Response:
         return None
 
 
+@pytest.mark.parametrize("max_model_len", [None, 32768])
 def test_launch_external_eval_run_serializes_request(
     monkeypatch: pytest.MonkeyPatch,
+    max_model_len: int | None,
 ) -> None:
     captured_request: dict[str, Any] = {}
 
@@ -49,6 +51,7 @@ def test_launch_external_eval_run_serializes_request(
             name="Inspect AIME",
             source_run_id="unlearning-run-id",
             task_ids=["inspect_evals/aime25"],
+            max_model_len=max_model_len,
         ),
     )
 
@@ -59,7 +62,64 @@ def test_launch_external_eval_run_serializes_request(
         "name": "Inspect AIME",
         "source_run_id": "unlearning-run-id",
         "task_ids": ["inspect_evals/aime25"],
+        **({"max_model_len": max_model_len} if max_model_len is not None else {}),
     }
+
+
+def test_launch_model_external_eval_run_serializes_context_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["url"] = args[0]
+        captured_request["json"] = kwargs["json"]
+        return _Response({"message": "Run launched", "run_id": "inspect-run-id"})
+
+    monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.external_eval.requests.post", fake_post)
+
+    ExternalEval.launch_eval_run(
+        ModelOrRun.MODEL,
+        ExternalEvalRunInfo(
+            model_id=123,
+            task_ids=["inspect_evals/aime25"],
+            max_model_len=4096,
+        ),
+    )
+
+    assert captured_request["url"].endswith("/external-evals/run/model")
+    assert captured_request["json"] == {
+        "model_id": 123,
+        "task_ids": ["inspect_evals/aime25"],
+        "max_model_len": 4096,
+    }
+
+
+@pytest.mark.parametrize("max_model_len", [0, -1, 1.5])
+def test_external_eval_run_info_rejects_invalid_context_cap(
+    max_model_len: int | float,
+) -> None:
+    with pytest.raises(ValidationError):
+        ExternalEvalRunInfo.model_validate(
+            {
+                "model_id": 123,
+                "task_ids": ["inspect_evals/aime25"],
+                "max_model_len": max_model_len,
+            }
+        )
+
+
+def test_external_eval_run_info_rejects_server_owned_settings() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        ExternalEvalRunInfo.model_validate(
+            {
+                "model_id": 123,
+                "task_ids": ["inspect_evals/aime25"],
+                "attempt_timeout": 60,
+                "max_retries": 0,
+            }
+        )
 
 
 def test_get_external_eval_catalog(monkeypatch: pytest.MonkeyPatch) -> None:

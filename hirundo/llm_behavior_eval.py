@@ -153,6 +153,9 @@ class EvalRunRecord(BaseModel):
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     task_ids: list[str] | None = None
     sample_limit: int | None = None
+    attempt_timeout: int | None = None
+    max_retries: int | None = None
+    max_model_len: int | None = None
     judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
@@ -218,6 +221,9 @@ class LlmBehaviorEval:
             bias_type=response_payload.get("bias_type"),
             task_ids=response_payload.get("task_ids"),
             sample_limit=response_payload.get("sample_limit"),
+            attempt_timeout=response_payload.get("attempt_timeout"),
+            max_retries=response_payload.get("max_retries"),
+            max_model_len=response_payload.get("max_model_len"),
             judge_model=judge_model,
             run_id=response_payload["run_id"],
             mlflow_run_id=response_payload.get("mlflow_run_id"),

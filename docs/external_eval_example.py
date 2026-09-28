@@ -12,6 +12,7 @@ launch = ExternalEval.launch_eval_run(
         model_id=123,
         task_ids=[task_id],
         sample_limit=10,
+        max_model_len=32768,  # Omit or set None to use the model's context length.
     ),
 )
 
