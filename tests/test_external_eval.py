@@ -9,6 +9,7 @@ from hirundo import (
     ExternalEvalRunInfo,
     HirundoExternalEvalError,
     ModelOrRun,
+    ReasoningEffort,
 )
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
@@ -94,6 +95,71 @@ def test_launch_model_external_eval_run_serializes_context_cap(
         "task_ids": ["inspect_evals/aime25"],
         "max_model_len": 4096,
     }
+
+
+@pytest.mark.parametrize(
+    "reasoning_effort",
+    [
+        ReasoningEffort.DEFAULT,
+        ReasoningEffort.NONE,
+        ReasoningEffort.LOW,
+        ReasoningEffort.MEDIUM,
+        ReasoningEffort.HIGH,
+    ],
+)
+def test_launch_external_eval_run_serializes_reasoning_effort(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_effort: ReasoningEffort,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["json"] = kwargs["json"]
+        return _Response({"message": "Run launched", "run_id": "inspect-run-id"})
+
+    monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.external_eval.requests.post", fake_post)
+
+    ExternalEval.launch_eval_run(
+        ModelOrRun.MODEL,
+        ExternalEvalRunInfo(
+            model_id=123,
+            task_ids=["inspect_evals/aime25"],
+            reasoning_effort=reasoning_effort,
+        ),
+    )
+
+    assert captured_request["json"] == {
+        "model_id": 123,
+        "task_ids": ["inspect_evals/aime25"],
+        "reasoning_effort": reasoning_effort.value,
+    }
+
+
+def test_external_eval_run_info_accepts_reasoning_effort_strings() -> None:
+    run_info = ExternalEvalRunInfo.model_validate(
+        {
+            "model_id": 123,
+            "task_ids": ["inspect_evals/aime25"],
+            "reasoning_effort": "high",
+        }
+    )
+
+    assert run_info.reasoning_effort is ReasoningEffort.HIGH
+
+
+@pytest.mark.parametrize("reasoning_effort", ["max", "off", "", 1])
+def test_external_eval_run_info_rejects_unknown_reasoning_effort(
+    reasoning_effort: str | int,
+) -> None:
+    with pytest.raises(ValidationError, match="reasoning_effort"):
+        ExternalEvalRunInfo.model_validate(
+            {
+                "model_id": 123,
+                "task_ids": ["inspect_evals/aime25"],
+                "reasoning_effort": reasoning_effort,
+            }
+        )
 
 
 @pytest.mark.parametrize("max_model_len", [0, -1, 1.5, 1.0, True, "4096"])

@@ -56,6 +56,7 @@ from .llm_behavior_eval import (
     LlmBehaviorEval,
     ModelOrRun,
     PresetType,
+    ReasoningEffort,
 )
 from .llm_behavior_eval_results import ExternalEvalResults, LlmBehaviorEvalResults
 from .llm_bias_type import BBQBiasType, UnqoverBiasType
@@ -117,6 +118,7 @@ __all__ = [
     "ModalityType",
     "ModelOrRun",
     "PresetType",
+    "ReasoningEffort",
     "RunArgs",
     "ClassificationRunArgs",
     "ObjectDetectionRunArgs",

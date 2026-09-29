@@ -74,6 +74,24 @@ class EvalFramework(str, Enum):
     INSPECT_EVALS = "inspect-evals"
 
 
+class ReasoningEffort(str, Enum):
+    """Reasoning level requested for the evaluated model.
+
+    `DEFAULT` keeps the model's existing behavior. The other values follow vLLM's
+    `reasoning_effort` request field, where `NONE` turns thinking off. The server
+    decides which levels a given model and evaluation framework support.
+    """
+
+    DEFAULT = "default"
+    NONE = "none"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+BEHAVIOR_EVAL_REASONING_EFFORTS = {ReasoningEffort.DEFAULT, ReasoningEffort.NONE}
+
+
 class JudgeModel(BaseModel):
     path_or_repo_id: str
     token: str | None = None
@@ -90,11 +108,31 @@ class EvalRunInfo(BaseModel):
     preset_type: PresetType | None = None
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
+    reasoning_effort: ReasoningEffort | None = Field(
+        default=None,
+        description=(
+            "Reasoning level for the evaluated model. Behavior evaluations support "
+            "`DEFAULT` and `NONE` (thinking off) for models whose thinking switch "
+            "the server recognizes. Omit or set None to use the model's default."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_bias_type(self) -> "EvalRunInfo":
         if self.preset_type in REFUSAL_PRESET_TYPES and self.bias_type is not None:
             raise ValueError("`bias_type` is not supported for refusal presets")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_reasoning_effort(self) -> "EvalRunInfo":
+        if (
+            self.reasoning_effort is not None
+            and self.reasoning_effort not in BEHAVIOR_EVAL_REASONING_EFFORTS
+        ):
+            raise ValueError(
+                "Behavior evaluations only support the `default` and `none` "
+                "reasoning levels"
+            )
         return self
 
 
@@ -178,6 +216,14 @@ class EvalRunRecord(BaseModel):
             "runs, or for runs created before this setting was recorded."
         ),
     )
+    reasoning_effort: ReasoningEffort = Field(
+        default=ReasoningEffort.DEFAULT,
+        description=(
+            "Reasoning level the evaluation requested. `DEFAULT` for runs that kept "
+            "the model's default and for runs created before this setting was "
+            "recorded."
+        ),
+    )
     judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
@@ -246,6 +292,8 @@ class LlmBehaviorEval:
             attempt_timeout=response_payload.get("attempt_timeout"),
             max_retries=response_payload.get("max_retries"),
             max_model_len=response_payload.get("max_model_len"),
+            reasoning_effort=response_payload.get("reasoning_effort")
+            or ReasoningEffort.DEFAULT,
             judge_model=judge_model,
             run_id=response_payload["run_id"],
             mlflow_run_id=response_payload.get("mlflow_run_id"),
@@ -289,7 +337,14 @@ class LlmBehaviorEval:
 
         response = requests.post(
             f"{API_HOST}/llm-behavior-eval/run/{model_or_run_value.value}",
-            json=run_info.model_dump(mode="json"),
+            # An unset reasoning level is omitted, so servers that predate the
+            # setting keep accepting the request.
+            json=run_info.model_dump(
+                mode="json",
+                exclude={"reasoning_effort"}
+                if run_info.reasoning_effort is None
+                else None,
+            ),
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

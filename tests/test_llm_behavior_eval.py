@@ -9,6 +9,7 @@ from hirundo import (
     LlmBehaviorEval,
     ModelOrRun,
     PresetType,
+    ReasoningEffort,
 )
 from hirundo._run_status import RunStatus
 from hirundo.llm_behavior_eval import LlmEvalMetricRow, LlmEvalMetrics
@@ -66,6 +67,51 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
         },
     }
     assert "file_path" not in captured_request["json"]
+    # An unset reasoning level is omitted so older servers accept the request.
+    assert "reasoning_effort" not in captured_request["json"]
+
+
+@pytest.mark.parametrize(
+    "reasoning_effort", [ReasoningEffort.DEFAULT, ReasoningEffort.NONE]
+)
+def test_launch_eval_run_serializes_reasoning_effort(
+    monkeypatch: pytest.MonkeyPatch,
+    reasoning_effort: ReasoningEffort,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["json"] = kwargs["json"]
+        return _Response()
+
+    monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
+
+    LlmBehaviorEval.launch_eval_run(
+        ModelOrRun.MODEL,
+        EvalRunInfo(
+            model_id=123,
+            preset_type=PresetType.HALU_EVAL,
+            reasoning_effort=reasoning_effort,
+        ),
+    )
+
+    assert captured_request["json"]["reasoning_effort"] == reasoning_effort.value
+
+
+@pytest.mark.parametrize(
+    "reasoning_effort",
+    [ReasoningEffort.LOW, ReasoningEffort.MEDIUM, ReasoningEffort.HIGH],
+)
+def test_eval_run_info_rejects_effort_levels_for_behavior_evaluations(
+    reasoning_effort: ReasoningEffort,
+) -> None:
+    with pytest.raises(ValueError, match="only support the `default` and `none`"):
+        EvalRunInfo(
+            model_id=123,
+            preset_type=PresetType.HALU_EVAL,
+            reasoning_effort=reasoning_effort,
+        )
 
 
 @pytest.mark.parametrize(
@@ -263,3 +309,34 @@ def test_check_run_reconnects_after_manual_approval_when_not_stopping(
         RunStatus.AWAITING_MANUAL_APPROVAL,
         RunStatus.SUCCESS,
     ]
+
+
+@pytest.mark.parametrize(
+    ("reasoning_payload", "expected_reasoning_effort"),
+    [
+        ({"reasoning_effort": "none"}, ReasoningEffort.NONE),
+        ({"reasoning_effort": "high"}, ReasoningEffort.HIGH),
+        ({"reasoning_effort": None}, ReasoningEffort.DEFAULT),
+        # Servers that predate the setting omit it.
+        ({}, ReasoningEffort.DEFAULT),
+    ],
+)
+def test_parse_eval_run_reasoning_effort(
+    reasoning_payload: dict[str, str | None],
+    expected_reasoning_effort: ReasoningEffort,
+) -> None:
+    run_record = LlmBehaviorEval._parse_eval_run_record(
+        {
+            "id": 1,
+            "name": "evaluation",
+            "run_id": "eval-run-id",
+            "framework": "inspect-evals",
+            "task_ids": ["inspect_evals/aime25"],
+            "mlflow_run_id": None,
+            "status": "SUCCESS",
+            "created_at": "2026-09-29T00:00:00Z",
+            **reasoning_payload,
+        }
+    )
+
+    assert run_record.reasoning_effort is expected_reasoning_effort

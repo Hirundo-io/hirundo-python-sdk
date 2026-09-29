@@ -18,6 +18,7 @@ from hirundo.llm_behavior_eval import (
     HirundoLlmBehaviorEvalError,
     LlmBehaviorEval,
     ModelOrRun,
+    ReasoningEffort,
 )
 from hirundo.llm_behavior_eval_results import ExternalEvalResults
 from hirundo.unzip import download_external_eval_zip
@@ -53,6 +54,15 @@ class ExternalEvalRunInfo(BaseModel):
         description=(
             "Maximum model context length for the evaluation. "
             "Omit or set None to use the model's context length."
+        ),
+    )
+    reasoning_effort: ReasoningEffort | None = Field(
+        default=None,
+        description=(
+            "Reasoning level for the evaluated model: `NONE` turns thinking off and "
+            "`LOW`, `MEDIUM` or `HIGH` set an effort level. The server accepts only "
+            "the levels the model supports. Omit or set None to use the model's "
+            "default."
         ),
     )
 

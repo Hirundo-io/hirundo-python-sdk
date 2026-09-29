@@ -1,6 +1,6 @@
 """Examples for docs/index.rst literalinclude blocks."""
 
-from hirundo import ExternalEval, ExternalEvalRunInfo, ModelOrRun
+from hirundo import ExternalEval, ExternalEvalRunInfo, ModelOrRun, ReasoningEffort
 
 catalog = ExternalEval.get_catalog()
 task_id = catalog.benchmarks[0].tasks[0].id
@@ -13,6 +13,8 @@ launch = ExternalEval.launch_eval_run(
         task_ids=[task_id],
         sample_limit=10,
         max_model_len=32768,
+        # Optional: turn thinking off or pick an effort level the model supports.
+        reasoning_effort=ReasoningEffort.NONE,
     ),
 )
 
