@@ -36,8 +36,8 @@ dependencies = [
     "requests>=2.33.0",
     #  ⬆️ Required to fix vulnerability GHSA-vqfr-h8mv-ghfj
     #  ⬆️ Required to fix vulnerability CVE-2026-25645
-    "urllib3>=2.7.0",
-    #  ⬆️ Required to fix vulnerabilities CVE-2026-21441, PYSEC-2026-141, and PYSEC-2026-142
+    "urllib3>=2.8.0",
+    #  ⬆️ Required to fix vulnerabilities PYSEC-2026-4175, PYSEC-2026-4176, and PYSEC-2026-4177
     "idna>=3.15",
     #  ⬆️ Required to fix vulnerability CVE-2026-45409
     "setuptools>=83.0.0",
@@ -77,7 +77,8 @@ dev = [
     #  ⬆️ Required to fix vulnerability GHSA-4gg8-gxpx-9rph
     "pre-commit>=3.7.1",
     "basedpyright==1.37.1",
-    "virtualenv>=20.36.1",
+    "virtualenv>=21.7.13",
+    #  ⬆️ Required to fix vulnerability PYSEC-2026-4013
     "authlib>=1.7.2",
     #  ⬆️ Required to fix vulnerability GHSA-r95x-qfjj-fjj2
     "ruff>=0.12.0",
