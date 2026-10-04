@@ -6,7 +6,7 @@ from hirundo._urls import (
     STORAGE_PATTERNS,
 )
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
-from hirundo.labeling import COCO, YOLO, HirundoCSV, Keylabs, MultimodalHirundoCSV
+from hirundo.labeling import COCO, YOLO, HirundoCSV, MultimodalHirundoCSV
 
 if TYPE_CHECKING:
     from hirundo._urls import HirundoUrl
@@ -29,13 +29,9 @@ LABELING_TYPES_TO_DATASET_METADATA_TYPES = {
         DatasetMetadataType.HIRUNDO_CSV,
         DatasetMetadataType.COCO,
         DatasetMetadataType.YOLO,
-        DatasetMetadataType.KeylabsObjDetImages,
-        DatasetMetadataType.KeylabsObjDetVideo,
     ],
     LabelingType.OBJECT_SEGMENTATION: [
         DatasetMetadataType.HIRUNDO_CSV,
-        DatasetMetadataType.KeylabsObjSegImages,
-        DatasetMetadataType.KeylabsObjSegVideo,
     ],
     LabelingType.SEMANTIC_SEGMENTATION: [
         DatasetMetadataType.HIRUNDO_CSV,
@@ -180,6 +176,4 @@ def validate_labeling_info(
         validate_url(labeling_info.labels_dir_url, storage_config)
         if labeling_info.data_yaml_url is not None:
             validate_url(labeling_info.data_yaml_url, storage_config)
-    elif isinstance(labeling_info, Keylabs):
-        validate_url(labeling_info.labels_dir_url, storage_config)
     validate_labeling_type(labeling_type, labeling_info)
