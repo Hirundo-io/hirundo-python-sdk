@@ -1,4 +1,3 @@
-import logging
 import os
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -11,10 +10,11 @@ from hirundo import (
     LlmRunInfo,
     LlmUnlearningRun,
 )
+from hirundo.logger import get_logger
 from tests.testing_utils import get_unique_id
 from transformers.pipelines.base import Pipeline
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 unique_id = get_unique_id()
 
@@ -27,6 +27,14 @@ class CreatedUnlearningResources:
 
 def _cleanup(created: CreatedUnlearningResources) -> None:
     for run_id in created.run_ids:
+        try:
+            LlmUnlearningRun.cancel(run_id)
+        except Exception as error:
+            logger.warning(
+                "Failed to cancel LLM unlearning run with ID %s and exception %s",
+                run_id,
+                error,
+            )
         try:
             LlmUnlearningRun.archive(run_id)
         except Exception as error:
