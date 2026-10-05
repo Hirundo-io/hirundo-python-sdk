@@ -96,7 +96,7 @@ class FakeHirundoApi(BaseAdapter):
             status_code=status_code, payload=payload, raw_body=raw_body
         )
 
-    def send(  # pyright: ignore[reportIncompatibleMethodOverride]
+    def send(
         self,
         request: requests.PreparedRequest,
         stream: bool = False,
