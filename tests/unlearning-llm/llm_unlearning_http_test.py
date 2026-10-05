@@ -376,6 +376,7 @@ def test_llm_model_get_by_name_parses_local_model(fake_api: FakeHirundoApi) -> N
     assert llm_model.model_source.local_path == "/models/llm"
     recorded_request = fake_api.only_request()
     assert recorded_request.method == "GET"
+    assert recorded_request.body is None
     assert (
         recorded_request.url
         == f"{TEST_API_HOST}/unlearning-llm/llm/by-name/unit-test-llm"
@@ -415,6 +416,7 @@ def test_llm_model_list_sends_organization_filter(
     assert all(isinstance(llm_model, LlmModelOut) for llm_model in llm_models)
     recorded_request = fake_api.only_request()
     assert recorded_request.method == "GET"
+    assert recorded_request.body is None
     assert recorded_request.url == f"{TEST_API_HOST}{expected_path}"
     assert recorded_request.headers.items() >= EXPECTED_JSON_HEADERS.items()
     assert recorded_request.timeout == READ_TIMEOUT
@@ -496,6 +498,7 @@ def test_llm_model_delete_by_id_sends_delete(fake_api: FakeHirundoApi) -> None:
 
     recorded_request = fake_api.only_request()
     assert recorded_request.method == "DELETE"
+    assert recorded_request.body is None
     assert recorded_request.url == f"{TEST_API_HOST}/unlearning-llm/llm/9"
 
 
@@ -669,6 +672,7 @@ def test_run_list_sends_filters_and_parses_runs(
     assert runs[1].completed_at is None
     recorded_request = fake_api.only_request()
     assert recorded_request.method == "GET"
+    assert recorded_request.body is None
     assert (
         recorded_request.url
         == f"{TEST_API_HOST}/unlearning-llm/run/list?{expected_query}"
@@ -778,6 +782,8 @@ def test_http_errors_raise_with_server_reason(
 def _assert_sse_requests(sse_endpoint: FakeSseEndpoint, expected_count: int) -> None:
     assert len(sse_endpoint.requests) == expected_count
     for sse_request in sse_endpoint.requests:
+        assert sse_request.method == "GET"
+        assert sse_request.content == b""
         assert sse_request.headers["Accept"] == "text/event-stream"
         assert sse_request.headers["Authorization"] == f"Bearer {TEST_API_KEY}"
         assert sse_request.headers["HIRUNDO-API-VERSION"] == "0.3"
