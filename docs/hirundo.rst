@@ -16,6 +16,7 @@ Submodules
    hirundo.dataset_qa_results
    hirundo.external_eval
    hirundo.git
+   hirundo.huggingface_token
    hirundo.labeling
    hirundo.logger
    hirundo.llm_behavior_eval

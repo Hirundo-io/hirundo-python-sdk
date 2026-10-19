@@ -136,6 +136,7 @@ include = [
     "pyproject.toml",
     "hirundo/**/*.py",
     "tests/**/*.py",
+    "docs/**/*.py",
     "notebooks/**/*.ipynb",
 ]
 
