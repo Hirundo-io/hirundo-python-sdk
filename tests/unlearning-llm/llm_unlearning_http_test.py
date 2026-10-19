@@ -11,25 +11,31 @@ lookups and outbound connections fail the test.
 """
 
 import json
+import runpy
 import socket
 from collections import OrderedDict
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import hirundo._env as sdk_env
 import hirundo._headers as sdk_headers
 import hirundo._http as sdk_http
 import hirundo._run_checking as run_checking
+import hirundo.huggingface_token as huggingface_token_module
 import hirundo.unlearning_llm as unlearning_llm
 import httpx
 import pytest
 import requests
-from hirundo import HirundoError
+from hirundo import HirundoError, HuggingFaceToken
 from hirundo._llm_sources import HuggingFaceTransformersModel, LocalTransformersModel
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT, SSE_TIMEOUT
 from hirundo.unlearning_llm import (
     BiasBehavior,
+    CustomBehavior,
+    CustomUtility,
+    HuggingFaceDataset,
     LlmModel,
     LlmModelOut,
     LlmRunInfo,
@@ -37,6 +43,7 @@ from hirundo.unlearning_llm import (
     OutputUnlearningLlmRun,
     SecurityBehavior,
 )
+from pydantic import ValidationError
 from requests.adapters import BaseAdapter
 
 TEST_API_HOST = "https://api.hirundo.test"
@@ -208,6 +215,7 @@ def _block_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture(autouse=True)
 def _configure_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(unlearning_llm, "API_HOST", TEST_API_HOST)
+    monkeypatch.setattr(huggingface_token_module, "API_HOST", TEST_API_HOST)
     monkeypatch.setattr(sdk_env, "API_KEY", TEST_API_KEY)
     monkeypatch.setattr(sdk_headers, "API_KEY", TEST_API_KEY)
 
@@ -526,6 +534,145 @@ def test_llm_model_mutations_require_created_model(
 
 
 # --------------------------------------------------------------------------- #
+# HuggingFaceToken creation and documentation examples
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize("organization_id", [None, 3])
+def test_create_saved_huggingface_token(
+    fake_api: FakeHirundoApi, organization_id: int | None
+) -> None:
+    fake_api.add("POST", "/huggingface-token/", payload={"id": 42})
+    credential = HuggingFaceToken(
+        name="custom-datasets",
+        token="-".join(["unit", "test", "token"]),
+        organization_id=organization_id,
+    )
+
+    assert credential.create() == 42
+    assert credential.id == 42
+    assert credential.token not in repr(credential)
+    recorded_request = fake_api.only_request()
+    assert recorded_request.method == "POST"
+    assert recorded_request.url == f"{TEST_API_HOST}/huggingface-token/"
+    assert recorded_request.headers.items() >= EXPECTED_JSON_HEADERS.items()
+    assert recorded_request.timeout == MODIFY_TIMEOUT
+    assert recorded_request.json_body() == {
+        "name": "custom-datasets",
+        "token": "unit-test-token",
+        "organization_id": organization_id,
+    }
+
+
+def test_create_saved_huggingface_token_preserves_http_errors(
+    fake_api: FakeHirundoApi,
+) -> None:
+    fake_api.add(
+        "POST", "/huggingface-token/", status_code=403, payload={"detail": "Forbidden"}
+    )
+    credential = HuggingFaceToken(
+        name="custom-datasets", token="-".join(["unit", "test", "token"])
+    )
+
+    with pytest.raises(requests.HTTPError, match="403"):
+        credential.create()
+
+    assert credential.id is None
+    fake_api.only_request()
+
+
+@pytest.mark.parametrize(
+    "invalid_fields",
+    [{"name": ""}, {"name": "a" * 256}, {"token": ""}, {"token": None}],
+)
+def test_saved_huggingface_token_validates_platform_constraints(
+    fake_api: FakeHirundoApi, invalid_fields: dict[str, object]
+) -> None:
+    with pytest.raises(ValidationError) as validation_error:
+        HuggingFaceToken.model_validate(
+            {"name": "custom-datasets", "token": "unit-test-token", **invalid_fields}
+        )
+
+    assert "unit-test-token" not in str(validation_error.value)
+    assert "unit-test-token" not in repr(validation_error.value)
+    assert fake_api.requests == []
+
+
+@pytest.mark.parametrize(
+    ("example_name", "credential_mode"),
+    [
+        ("llm_custom_dataset_example.py", "inline"),
+        ("llm_custom_dataset_example.py", "anonymous"),
+        ("llm_saved_dataset_token_example.py", "saved"),
+        ("llm_saved_dataset_token_example.py", "saved-existing"),
+    ],
+)
+def test_custom_dataset_documentation_examples(
+    fake_api: FakeHirundoApi,
+    monkeypatch: pytest.MonkeyPatch,
+    example_name: str,
+    credential_mode: str,
+) -> None:
+    if credential_mode == "saved-existing":
+        monkeypatch.setenv("HIRUNDO_HF_TOKEN_ID", "42")
+    else:
+        monkeypatch.delenv("HIRUNDO_HF_TOKEN_ID", raising=False)
+    if credential_mode == "anonymous":
+        monkeypatch.delenv("HF_TOKEN", raising=False)
+    else:
+        monkeypatch.setenv("HF_TOKEN", "unit-test-token")
+    fake_api.add("POST", "/huggingface-token/", payload={"id": 42})
+    fake_api.add("POST", "/unlearning-llm/llm/", payload={"id": 7})
+    fake_api.add("POST", "/unlearning-llm/run/7", payload=RUN_ID)
+    example_path = Path(__file__).resolve().parents[2] / "docs" / example_name
+
+    namespace = runpy.run_path(str(example_path))
+
+    assert namespace["run_id"] == RUN_ID
+    expected_token = None if credential_mode == "anonymous" else "unit-test-token"
+    if credential_mode == "saved":
+        assert fake_api.requests[0].json_body() == {
+            "name": "custom-dataset-downloads",
+            "token": expected_token,
+            "organization_id": None,
+        }
+    assert len(fake_api.requests) == (3 if credential_mode == "saved" else 2)
+    assert fake_api.requests[-2].json_body()["model_source"]["token"] == expected_token
+    payload = fake_api.requests[-1].json_body()
+    expected_credentials = (
+        {"token_id": 42}
+        if credential_mode in ("saved", "saved-existing")
+        else {"token": expected_token}
+        if expected_token is not None
+        else {}
+    )
+    assert payload["target_behaviors"] == [
+        {
+            "type": "CUSTOM",
+            "biased_dataset": {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "your-org/forget-dataset",
+                **expected_credentials,
+            },
+            "unbiased_dataset": {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "your-org/retain-dataset",
+                **expected_credentials,
+            },
+        }
+    ]
+    assert payload["target_utilities"] == [
+        {
+            "dataset": {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "your-org/utility-dataset",
+                **expected_credentials,
+            }
+        }
+    ]
+
+
+# --------------------------------------------------------------------------- #
 # LlmUnlearningRun REST calls
 # --------------------------------------------------------------------------- #
 
@@ -557,6 +704,179 @@ def test_launch_posts_run_info_and_returns_run_id(fake_api: FakeHirundoApi) -> N
         "advanced_options": None,
         "aggressiveness": 0.25,
     }
+
+
+@pytest.mark.parametrize("nested_dicts", [False, True], ids=["models", "nested-dicts"])
+@pytest.mark.parametrize(
+    "credentials",
+    [
+        ({"token": "unit-test-dataset-token"},) * 3,
+        ({"token_id": 42},) * 3,
+        ({},) * 3,
+        ({"token": "unit-test-forget-token"}, {"token_id": 73}, {}),
+    ],
+    ids=["inline-token", "saved-token", "anonymous", "per-resource-credentials"],
+)
+def test_launch_preserves_huggingface_dataset_credentials(
+    fake_api: FakeHirundoApi,
+    nested_dicts: bool,
+    credentials: tuple[dict[str, str | int], ...],
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    dataset_payloads = [
+        {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": f"org/{dataset_role}",
+            **dataset_credentials,
+        }
+        for dataset_role, dataset_credentials in zip(
+            ("forget", "retain", "utility"), credentials, strict=True
+        )
+    ]
+    if nested_dicts:
+        run_info = LlmRunInfo.model_validate(
+            {
+                "target_behaviors": [
+                    {
+                        "type": "CUSTOM",
+                        "biased_dataset": dataset_payloads[0],
+                        "unbiased_dataset": dataset_payloads[1],
+                    }
+                ],
+                "target_utilities": [{"dataset": dataset_payloads[2]}],
+            }
+        )
+    else:
+        datasets = [
+            HuggingFaceDataset.model_validate(payload) for payload in dataset_payloads
+        ]
+        run_info = LlmRunInfo(
+            target_behaviors=[
+                CustomBehavior(biased_dataset=datasets[0], unbiased_dataset=datasets[1])
+            ],
+            target_utilities=[CustomUtility(dataset=datasets[2])],
+        )
+
+    assert LlmUnlearningRun.launch(model_id=7, run_info=run_info) == RUN_ID
+
+    assert fake_api.only_request().json_body() == {
+        "organization_id": None,
+        "name": None,
+        "target_behaviors": [
+            {
+                "type": "CUSTOM",
+                "biased_dataset": dataset_payloads[0],
+                "unbiased_dataset": dataset_payloads[1],
+            }
+        ],
+        "target_utilities": [{"dataset": dataset_payloads[2]}],
+        "advanced_options": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "credential_values", [("unit-test-token", 42), ("", 42), ("unit-test-token", 0)]
+)
+@pytest.mark.parametrize(
+    "dataset_role",
+    [
+        "standalone",
+        "forget",
+        "retain",
+        "utility",
+        "run-forget",
+        "run-retain",
+        "run-utility",
+    ],
+)
+def test_huggingface_dataset_rejects_both_credentials(
+    fake_api: FakeHirundoApi,
+    credential_values: tuple[str, int],
+    dataset_role: str,
+) -> None:
+    invalid_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": "org/dataset",
+        "token": credential_values[0],
+        "token_id": credential_values[1],
+    }
+    public_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": "org/public",
+    }
+
+    behavior_payload = {
+        "type": "CUSTOM",
+        "biased_dataset": invalid_dataset
+        if dataset_role in ("forget", "run-forget")
+        else public_dataset,
+        "unbiased_dataset": invalid_dataset
+        if dataset_role in ("retain", "run-retain")
+        else public_dataset,
+    }
+    with pytest.raises(
+        ValidationError, match="Provide only one of `token` or `token_id`"
+    ) as validation_error:
+        if dataset_role == "standalone":
+            HuggingFaceDataset.model_validate(invalid_dataset)
+        elif dataset_role == "utility":
+            CustomUtility.model_validate({"dataset": invalid_dataset})
+        elif dataset_role.startswith("run-"):
+            LlmRunInfo.model_validate(
+                {
+                    "target_behaviors": [behavior_payload],
+                    "target_utilities": [
+                        {"dataset": invalid_dataset}
+                        if dataset_role == "run-utility"
+                        else {"dataset": public_dataset}
+                    ],
+                }
+            )
+        else:
+            CustomBehavior.model_validate(behavior_payload)
+
+    if credential_values[0]:
+        assert credential_values[0] not in str(validation_error.value)
+        assert credential_values[0] not in repr(validation_error.value)
+    assert fake_api.requests == []
+
+
+@pytest.mark.parametrize("dataset_role", ["forget", "retain", "utility"])
+def test_launch_revalidates_mutated_dataset_credentials(
+    fake_api: FakeHirundoApi,
+    dataset_role: str,
+) -> None:
+    dataset = HuggingFaceDataset(
+        hugging_face_dataset_name="org/dataset",
+        token="-".join(["unit", "test", "token"]),
+    )
+    public_dataset = HuggingFaceDataset(hugging_face_dataset_name="org/public")
+    run_info = LlmRunInfo(
+        target_behaviors=[
+            CustomBehavior(
+                biased_dataset=dataset if dataset_role == "forget" else public_dataset,
+                unbiased_dataset=dataset
+                if dataset_role == "retain"
+                else public_dataset,
+            )
+        ],
+        target_utilities=[
+            CustomUtility(
+                dataset=dataset if dataset_role == "utility" else public_dataset
+            )
+        ],
+    )
+    dataset.token_id = 42
+
+    with pytest.raises(
+        ValidationError, match="Provide only one of `token` or `token_id`"
+    ) as validation_error:
+        LlmUnlearningRun.launch(model_id=7, run_info=run_info)
+
+    assert dataset.token is not None
+    assert dataset.token not in str(validation_error.value)
+    assert dataset.token not in repr(validation_error.value)
+    assert fake_api.requests == []
 
 
 def test_launch_accepts_bare_run_id_response(fake_api: FakeHirundoApi) -> None:

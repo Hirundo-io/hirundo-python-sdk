@@ -46,6 +46,51 @@ Example:
 .. literalinclude:: llm_unlearning_example.py
    :language: python
 
+Custom Hugging Face dataset credentials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For custom unlearning, ``biased_dataset`` is the forget dataset,
+``unbiased_dataset`` is the retain dataset, and ``target_utilities`` contains
+additional utility datasets. Each ``HuggingFaceDataset`` accepts either an inline
+``token`` or a saved ``token_id``. Supplying both raises a local validation error,
+including when constructing behaviors or utilities from nested dictionaries.
+Omit both for public datasets that allow unauthenticated downloads.
+
+The following example reads one optional ``HF_TOKEN`` from the local environment
+and explicitly passes it to source-model registration and every user-configured
+Hugging Face dataset. Replace the dataset names with your own compatible datasets
+before running it; calling ``launch`` starts a training job.
+
+.. literalinclude:: llm_custom_dataset_example.py
+   :language: python
+
+Set any of ``model_token``, ``forget_token``, ``retain_token``, or ``utility_token``
+to a different credential obtained securely by your application for per-resource
+overrides, or to ``None`` to leave that resource unauthenticated. Local environment
+variables alone do not authenticate server-side downloads: passing a credential
+only to model registration does not pass it to datasets. Keep secrets outside
+source files and avoid logging credentials or serialized request payloads.
+
+To save an existing Hugging Face credential in Hirundo, create a
+``HuggingFaceToken`` with a name unique within your organization. Its ``create``
+method returns a numeric ID to reuse on datasets, omitting their inline ``token``.
+This registers an existing credential rather than minting a new Hugging Face
+access token. The example below reads ``HF_TOKEN``, saves it, registers a model,
+and launches custom unlearning with saved credentials for all three datasets.
+Replace the resource names before running it. For later runs, set
+``HIRUNDO_HF_TOKEN_ID`` to the returned ID so the example skips credential
+creation and reuses the saved token instead of creating a duplicate name.
+
+.. literalinclude:: llm_saved_dataset_token_example.py
+   :language: python
+
+Omit ``organization_id`` to use your default organization, or pass it when
+creating the saved token, registering the model, and constructing ``LlmRunInfo``
+to select another organization you can access. The platform checks access to the
+run's organization and resolves the saved token within that organization.
+Invalid IDs and IDs from other organizations are rejected. The selected credential must
+also have access to the dataset, including any required gated-dataset approval.
+
 LLM behavior eval
 -----------------
 

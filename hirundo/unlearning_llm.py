@@ -251,14 +251,31 @@ class HirundoCSVDataset(BaseModel):
 
 
 class HuggingFaceDataset(BaseModel):
+    """A Hugging Face dataset with an optional inline or saved credential."""
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     type: Literal["HuggingFaceDataset"] = "HuggingFaceDataset"
     hugging_face_dataset_name: str
+    token: str | None = Field(
+        default=None, repr=False, exclude_if=lambda value: value is None
+    )
+    token_id: int | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def validate_token_inputs(self) -> "HuggingFaceDataset":
+        """Reject ambiguous inline and saved credentials before launching a run."""
+        if self.token is not None and self.token_id is not None:
+            raise ValueError("Provide only one of `token` or `token_id`")
+        return self
 
 
 CustomDataset = HirundoCSVDataset | HuggingFaceDataset
 
 
 class CustomUtility(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     dataset: CustomDataset
 
 
@@ -291,6 +308,8 @@ class RefusalBehavior(BaseModel):
 
 
 class CustomBehavior(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     type: Literal["CUSTOM"] = "CUSTOM"
     biased_dataset: CustomDataset
     unbiased_dataset: CustomDataset
@@ -323,7 +342,10 @@ Aggressiveness = Annotated[float, Field(gt=0, le=1, multiple_of=0.001)]
 
 
 class LlmRunInfo(BaseModel):
-    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+    model_config = ConfigDict(
+        protected_namespaces=("model_validate", "model_dump"),
+        hide_input_in_errors=True,
+    )
 
     organization_id: int | None = None
     name: str | None = None
