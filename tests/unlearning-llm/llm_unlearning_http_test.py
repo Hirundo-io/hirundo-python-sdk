@@ -605,6 +605,7 @@ def test_saved_huggingface_token_validates_platform_constraints(
         ("llm_custom_dataset_example.py", "inline"),
         ("llm_custom_dataset_example.py", "anonymous"),
         ("llm_saved_dataset_token_example.py", "saved"),
+        ("llm_saved_dataset_token_example.py", "saved-existing"),
     ],
 )
 def test_custom_dataset_examples_serialize_requests(
@@ -619,6 +620,11 @@ def test_custom_dataset_examples_serialize_requests(
     availability, download datasets, or prove server-side training succeeds.
     The module's network-blocking fixture prevents any real resource access.
     """
+    uses_saved_token = credential_mode in ("saved", "saved-existing")
+    if credential_mode == "saved-existing":
+        monkeypatch.setenv("HIRUNDO_HF_TOKEN_ID", "42")
+    else:
+        monkeypatch.delenv("HIRUNDO_HF_TOKEN_ID", raising=False)
     if credential_mode == "anonymous":
         monkeypatch.delenv("HF_TOKEN", raising=False)
     else:
@@ -630,7 +636,7 @@ def test_custom_dataset_examples_serialize_requests(
 
     namespace = runpy.run_path(str(example_path), run_name="__main__")
 
-    if credential_mode == "saved":
+    if uses_saved_token:
         assert namespace["run_id"] == RUN_ID
     expected_token = None if credential_mode == "anonymous" else "unit-test-token"
     if credential_mode == "saved":
@@ -644,7 +650,7 @@ def test_custom_dataset_examples_serialize_requests(
     payload = fake_api.requests[-1].json_body()
     expected_credentials = (
         {"token_id": 42}
-        if credential_mode == "saved"
+        if uses_saved_token
         else {"token": expected_token}
         if expected_token is not None
         else {}
@@ -653,7 +659,7 @@ def test_custom_dataset_examples_serialize_requests(
         "type": "HuggingFaceDataset",
         "hugging_face_dataset_name": (
             "your-org/forget-dataset"
-            if credential_mode == "saved"
+            if uses_saved_token
             else "hirundo-io/spml-chatbot-prompt-injection-malicious-refusals"
         ),
         **expected_credentials,
@@ -662,7 +668,7 @@ def test_custom_dataset_examples_serialize_requests(
         "type": "HuggingFaceDataset",
         "hugging_face_dataset_name": (
             "your-org/retain-dataset"
-            if credential_mode == "saved"
+            if uses_saved_token
             else "hirundo-io/iheval-benign-answers"
         ),
         **expected_credentials,
@@ -670,11 +676,9 @@ def test_custom_dataset_examples_serialize_requests(
     assert payload["target_behaviors"] == [
         {
             "type": "CUSTOM",
-            "biased_dataset": forget_dataset
-            if credential_mode == "saved"
-            else [forget_dataset],
+            "biased_dataset": forget_dataset if uses_saved_token else [forget_dataset],
             "unbiased_dataset": retain_dataset
-            if credential_mode == "saved"
+            if uses_saved_token
             else [retain_dataset],
         }
     ]
@@ -688,7 +692,7 @@ def test_custom_dataset_examples_serialize_requests(
         }
     ]
     assert payload["target_utilities"] == (
-        expected_utilities if credential_mode == "saved" else []
+        expected_utilities if uses_saved_token else []
     )
 
 

@@ -13,8 +13,15 @@ from hirundo.unlearning_llm import CustomBehavior, CustomUtility, HuggingFaceDat
 
 # Supply an existing Hugging Face read token outside this script.
 huggingface_token = os.environ["HF_TOKEN"]
-saved_token = HuggingFaceToken(name="custom-dataset-downloads", token=huggingface_token)
-saved_token_id = saved_token.create()
+# On later runs, set HIRUNDO_HF_TOKEN_ID to the ID returned by create().
+existing_token_id = os.getenv("HIRUNDO_HF_TOKEN_ID")
+if existing_token_id is not None:
+    saved_token_id = int(existing_token_id)
+else:
+    saved_token = HuggingFaceToken(
+        name="custom-dataset-downloads", token=huggingface_token
+    )
+    saved_token_id = saved_token.create()
 
 model = LlmModel(
     model_name="saved-token-unlearning-model",
