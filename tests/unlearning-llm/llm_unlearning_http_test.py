@@ -35,6 +35,7 @@ from hirundo.unlearning_llm import (
     BiasBehavior,
     CustomBehavior,
     CustomUtility,
+    HirundoCSVDataset,
     HuggingFaceDataset,
     LlmModel,
     LlmModelOut,
@@ -607,12 +608,19 @@ def test_saved_huggingface_token_validates_platform_constraints(
         ("llm_saved_dataset_token_example.py", "saved-existing"),
     ],
 )
-def test_custom_dataset_documentation_examples(
+def test_custom_dataset_examples_serialize_requests(
     fake_api: FakeHirundoApi,
     monkeypatch: pytest.MonkeyPatch,
     example_name: str,
     credential_mode: str,
 ) -> None:
+    """Check example wire payloads and credentials using fake HTTP responses.
+
+    Placeholder repository names are intentional: this test does not check Hub
+    availability, download datasets, or prove server-side training succeeds.
+    The module's network-blocking fixture prevents any real resource access.
+    """
+    uses_saved_token = credential_mode in ("saved", "saved-existing")
     if credential_mode == "saved-existing":
         monkeypatch.setenv("HIRUNDO_HF_TOKEN_ID", "42")
     else:
@@ -626,9 +634,10 @@ def test_custom_dataset_documentation_examples(
     fake_api.add("POST", "/unlearning-llm/run/7", payload=RUN_ID)
     example_path = Path(__file__).resolve().parents[2] / "docs" / example_name
 
-    namespace = runpy.run_path(str(example_path))
+    namespace = runpy.run_path(str(example_path), run_name="__main__")
 
-    assert namespace["run_id"] == RUN_ID
+    if uses_saved_token:
+        assert namespace["run_id"] == RUN_ID
     expected_token = None if credential_mode == "anonymous" else "unit-test-token"
     if credential_mode == "saved":
         assert fake_api.requests[0].json_body() == {
@@ -641,27 +650,39 @@ def test_custom_dataset_documentation_examples(
     payload = fake_api.requests[-1].json_body()
     expected_credentials = (
         {"token_id": 42}
-        if credential_mode in ("saved", "saved-existing")
+        if uses_saved_token
         else {"token": expected_token}
         if expected_token is not None
         else {}
     )
+    forget_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": (
+            "your-org/forget-dataset"
+            if uses_saved_token
+            else "hirundo-io/spml-chatbot-prompt-injection-malicious-refusals"
+        ),
+        **expected_credentials,
+    }
+    retain_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": (
+            "your-org/retain-dataset"
+            if uses_saved_token
+            else "hirundo-io/iheval-benign-answers"
+        ),
+        **expected_credentials,
+    }
     assert payload["target_behaviors"] == [
         {
             "type": "CUSTOM",
-            "biased_dataset": {
-                "type": "HuggingFaceDataset",
-                "hugging_face_dataset_name": "your-org/forget-dataset",
-                **expected_credentials,
-            },
-            "unbiased_dataset": {
-                "type": "HuggingFaceDataset",
-                "hugging_face_dataset_name": "your-org/retain-dataset",
-                **expected_credentials,
-            },
+            "biased_dataset": forget_dataset if uses_saved_token else [forget_dataset],
+            "unbiased_dataset": retain_dataset
+            if uses_saved_token
+            else [retain_dataset],
         }
     ]
-    assert payload["target_utilities"] == [
+    expected_utilities = [
         {
             "dataset": {
                 "type": "HuggingFaceDataset",
@@ -670,6 +691,9 @@ def test_custom_dataset_documentation_examples(
             }
         }
     ]
+    assert payload["target_utilities"] == (
+        expected_utilities if uses_saved_token else []
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -1284,3 +1308,338 @@ async def test_acheck_run_raises_on_error_event(fake_sse: FakeSseEndpoint) -> No
 
     with pytest.raises(HirundoError, match="Run not found"):
         await _collect_async_events()
+
+
+# Independent custom dataset collections (SDK-147).
+@pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
+@pytest.mark.parametrize(
+    "model_instances", [False, True], ids=["dictionaries", "models"]
+)
+@pytest.mark.parametrize("dataset_count", [32, 33], ids=["maximum", "over-maximum"])
+def test_custom_dataset_collection_size_limits(
+    fake_api: FakeHirundoApi,
+    role: str,
+    model_instances: bool,
+    dataset_count: int,
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    dataset_payloads = [
+        {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": f"org/source-{index}",
+        }
+        for index in range(dataset_count)
+    ]
+    single_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": "org/other-role",
+    }
+    behavior_input: dict[str, Any] = {
+        "type": "CUSTOM",
+        "biased_dataset": single_dataset,
+        "unbiased_dataset": single_dataset,
+    }
+    behavior_input[role] = (
+        [HuggingFaceDataset.model_validate(payload) for payload in dataset_payloads]
+        if model_instances
+        else dataset_payloads
+    )
+    if dataset_count == 33:
+        with pytest.raises(ValidationError, match="at most 32") as error_info:
+            LlmRunInfo.model_validate({"target_behaviors": [behavior_input]})
+        assert any(role in error["loc"] for error in error_info.value.errors())
+        assert fake_api.requests == []
+        return
+
+    run_info = LlmRunInfo.model_validate({"target_behaviors": [behavior_input]})
+    assert LlmUnlearningRun.launch(7, run_info) == RUN_ID
+    expected_behavior = {
+        "type": "CUSTOM",
+        "biased_dataset": single_dataset,
+        "unbiased_dataset": single_dataset,
+        role: dataset_payloads,
+    }
+    assert fake_api.only_request().json_body()["target_behaviors"] == [
+        expected_behavior
+    ]
+
+
+def test_custom_dataset_collection_schema_exposes_size_limits() -> None:
+    schema = CustomBehavior.model_json_schema()
+    for role in ("biased_dataset", "unbiased_dataset"):
+        array_schema = next(
+            variant
+            for variant in schema["properties"][role]["anyOf"]
+            if variant.get("type") == "array"
+        )
+        assert array_schema["minItems"] == 1
+        assert array_schema["maxItems"] == 32
+
+
+def _custom_dataset_list_payload() -> dict[str, Any]:
+    return {
+        "type": "CUSTOM",
+        "biased_dataset": [
+            {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "org/forget-first",
+                "token_id": 101,
+            },
+            {"type": "HirundoCSV", "csv_url": "https://storage.test/forget.csv"},
+        ],
+        "unbiased_dataset": [
+            {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "org/retain-first",
+                "token": "unit-test-retain-token",
+            },
+            {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "org/retain-second",
+                "token_id": 202,
+            },
+            {
+                "type": "HuggingFaceDataset",
+                "hugging_face_dataset_name": "org/retain-third",
+            },
+        ],
+    }
+
+
+def _dataset_model(payload: dict[str, Any]) -> HirundoCSVDataset | HuggingFaceDataset:
+    if payload["type"] == "HirundoCSV":
+        return HirundoCSVDataset.model_validate(payload)
+    return HuggingFaceDataset.model_validate(payload)
+
+
+@pytest.mark.parametrize("construction", ["dictionaries", "models", "mixed"])
+@pytest.mark.parametrize(
+    ("forget_count", "retain_count", "forget_list", "retain_list"),
+    [
+        (2, 3, True, True),
+        (1, 1, True, True),
+        (1, 3, False, True),
+        (2, 1, True, False),
+        (1, 1, False, False),
+    ],
+    ids=["two-three", "one-item-lists", "single-list", "list-single", "legacy"],
+)
+def test_launch_custom_dataset_collections(
+    fake_api: FakeHirundoApi,
+    construction: str,
+    forget_count: int,
+    retain_count: int,
+    forget_list: bool,
+    retain_list: bool,
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    expected_behavior = _custom_dataset_list_payload()
+    expected_behavior["biased_dataset"] = expected_behavior["biased_dataset"][
+        :forget_count
+    ]
+    expected_behavior["unbiased_dataset"] = expected_behavior["unbiased_dataset"][
+        :retain_count
+    ]
+    behavior_input: dict[str, Any] = {"type": "CUSTOM"}
+    for role, use_list in (
+        ("biased_dataset", forget_list),
+        ("unbiased_dataset", retain_list),
+    ):
+        dataset_inputs = [
+            _dataset_model(payload)
+            if construction == "models" or (construction == "mixed" and index % 2 == 0)
+            else payload
+            for index, payload in enumerate(expected_behavior[role])
+        ]
+        behavior_input[role] = dataset_inputs if use_list else dataset_inputs[0]
+        if not use_list:
+            expected_behavior[role] = expected_behavior[role][0]
+    utility = {
+        "dataset": {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": "org/additional-utility",
+            "token_id": 303,
+        }
+    }
+    behavior = CustomBehavior.model_validate(behavior_input)
+    run_info = LlmRunInfo.model_validate(
+        {
+            "target_behaviors": [
+                behavior_input if construction == "dictionaries" else behavior
+            ],
+            "target_utilities": [utility],
+        }
+    )
+
+    assert LlmUnlearningRun.launch(7, run_info) == RUN_ID
+
+    assert fake_api.only_request().json_body() == {
+        "organization_id": None,
+        "name": None,
+        "target_behaviors": [expected_behavior],
+        "target_utilities": [utility],
+        "advanced_options": None,
+    }
+    assert run_info.target_behaviors == [behavior]
+    assert behavior.model_dump(mode="json") == expected_behavior
+
+
+@pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
+@pytest.mark.parametrize(
+    "invalid_collection",
+    [
+        [],
+        [None],
+        ["org/not-a-dataset-object"],
+        [[{"type": "HuggingFaceDataset", "hugging_face_dataset_name": "org/nested"}]],
+        [{"type": "UnknownDataset", "hugging_face_dataset_name": "org/unknown"}],
+        [{"type": "HuggingFaceDataset"}],
+    ],
+    ids=["empty", "null", "string", "nested-list", "unknown-type", "missing-name"],
+)
+def test_custom_dataset_lists_reject_invalid_members(
+    fake_api: FakeHirundoApi, role: str, invalid_collection: object
+) -> None:
+    behavior = _custom_dataset_list_payload()
+    behavior[role] = invalid_collection
+    with pytest.raises(ValidationError) as error_info:
+        LlmRunInfo.model_validate({"target_behaviors": [behavior]})
+    assert any(role in error["loc"] for error in error_info.value.errors())
+    assert fake_api.requests == []
+
+
+@pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
+@pytest.mark.parametrize("model_instance", [False, True], ids=["dictionary", "model"])
+def test_custom_dataset_lists_reject_conflicting_credentials(
+    fake_api: FakeHirundoApi, role: str, model_instance: bool
+) -> None:
+    behavior = _custom_dataset_list_payload()
+    invalid_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": "org/conflicting-credentials",
+        "token": "unit-test-token",
+        "token_id": 404,
+    }
+    # model_construct bypasses initial validation, exercising nesting validation.
+    behavior[role][1] = (
+        HuggingFaceDataset.model_construct(**invalid_dataset)
+        if model_instance
+        else invalid_dataset
+    )
+    with pytest.raises(ValidationError, match="Provide only one") as error_info:
+        CustomBehavior.model_validate(behavior)
+    assert any(
+        role in error["loc"] and 1 in error["loc"]
+        for error in error_info.value.errors()
+    )
+    assert fake_api.requests == []
+
+
+@pytest.mark.parametrize("lists", [False, True], ids=["legacy", "lists"])
+def test_run_list_parses_custom_dataset_collections(
+    fake_api: FakeHirundoApi, lists: bool
+) -> None:
+    behavior = _custom_dataset_list_payload()
+    # Public platform responses omit inline credentials.
+    behavior["unbiased_dataset"][0].pop("token")
+    if not lists:
+        for role in ("biased_dataset", "unbiased_dataset"):
+            behavior[role] = behavior[role][0]
+    fake_api.add(
+        "GET",
+        "/unlearning-llm/run/list?archived=False",
+        payload=[_unlearning_run_payload(target_behaviors=[behavior])],
+    )
+
+    runs = LlmUnlearningRun.list()
+
+    assert len(runs) == 1
+    assert isinstance(runs[0].target_behaviors[0], CustomBehavior)
+    assert runs[0].target_behaviors[0].model_dump(mode="json") == behavior
+
+
+def test_custom_dataset_lists_propagate_unsupported_server_error(
+    fake_api: FakeHirundoApi,
+) -> None:
+    fake_api.add(
+        "POST",
+        "/unlearning-llm/run/7",
+        status_code=422,
+        payload={"detail": "Dataset lists are unsupported on this deployment"},
+    )
+    run_info = LlmRunInfo.model_validate(
+        {"target_behaviors": [_custom_dataset_list_payload()]}
+    )
+    with pytest.raises(requests.HTTPError):
+        LlmUnlearningRun.launch(7, run_info)
+    # No truncation, fan-out, or retries as separate training runs.
+    assert fake_api.only_request().json_body()["target_behaviors"] == [
+        _custom_dataset_list_payload()
+    ]
+
+
+@pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
+@pytest.mark.parametrize(
+    "mutation", ["empty-list", "too-many-sources", "conflicting-credentials"]
+)
+def test_launch_revalidates_mutated_custom_dataset_lists(
+    fake_api: FakeHirundoApi, role: str, mutation: str
+) -> None:
+    behavior = CustomBehavior.model_validate(_custom_dataset_list_payload())
+    run_info = LlmRunInfo(target_behaviors=[behavior])
+    collection = getattr(behavior, role)
+    if mutation == "empty-list":
+        collection.clear()
+    elif mutation == "too-many-sources":
+        collection.extend(
+            HuggingFaceDataset(hugging_face_dataset_name=f"org/extra-{index}")
+            for index in range(33 - len(collection))
+        )
+    else:
+        # Both roles start with a HuggingFaceDataset that has one credential.
+        collection[0].token = "unit-test-conflicting-token"  # noqa: S105 - fake test credential
+        collection[0].token_id = 404
+    with pytest.raises(ValidationError):
+        LlmUnlearningRun.launch(7, run_info)
+    assert fake_api.requests == []
+
+
+@pytest.mark.parametrize("csv_forget", [False, True], ids=["hf-forget", "csv-forget"])
+def test_launch_accepts_inferred_homogeneous_dataset_lists(
+    fake_api: FakeHirundoApi, csv_forget: bool
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    # Leave these ordinary lists unannotated to cover constructor type inference
+    # when basedpyright checks the suite, as well as runtime HTTP serialization.
+    huggingface_datasets = [
+        HuggingFaceDataset(hugging_face_dataset_name="org/dataset", token_id=101)
+    ]
+    csv_datasets = [HirundoCSVDataset(csv_url="https://storage.test/dataset.csv")]
+    if csv_forget:
+        behavior = CustomBehavior(
+            biased_dataset=csv_datasets, unbiased_dataset=huggingface_datasets
+        )
+    else:
+        behavior = CustomBehavior(
+            biased_dataset=huggingface_datasets, unbiased_dataset=csv_datasets
+        )
+
+    assert LlmUnlearningRun.launch(7, LlmRunInfo(target_behaviors=[behavior])) == RUN_ID
+
+    huggingface_payload = [
+        {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": "org/dataset",
+            "token_id": 101,
+        }
+    ]
+    csv_payload = [
+        {"type": "HirundoCSV", "csv_url": "https://storage.test/dataset.csv"}
+    ]
+    assert fake_api.only_request().json_body()["target_behaviors"] == [
+        {
+            "type": "CUSTOM",
+            "biased_dataset": csv_payload if csv_forget else huggingface_payload,
+            "unbiased_dataset": huggingface_payload if csv_forget else csv_payload,
+        }
+    ]

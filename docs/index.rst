@@ -47,7 +47,7 @@ Example:
    :language: python
 
 Custom Hugging Face dataset credentials
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For custom unlearning, ``biased_dataset`` is the forget dataset,
 ``unbiased_dataset`` is the retain dataset, and ``target_utilities`` contains
@@ -58,8 +58,11 @@ Omit both for public datasets that allow unauthenticated downloads.
 
 The following example reads one optional ``HF_TOKEN`` from the local environment
 and explicitly passes it to source-model registration and every user-configured
-Hugging Face dataset. Replace the dataset names with your own compatible datasets
-before running it; calling ``launch`` starts a training job.
+Hugging Face dataset. Its editable ``FORGET_DATASETS`` and ``RETAIN_DATASETS``
+lists start with the Security preset sources; ``ADDITIONAL_UTILITY_DATASETS``
+starts empty because the platform already adds the built-in utility sources.
+Replace or extend these lists with compatible sources before running it; calling
+``launch`` starts a training job.
 
 .. literalinclude:: llm_custom_dataset_example.py
    :language: python
@@ -90,6 +93,53 @@ to select another organization you can access. The platform checks access to the
 run's organization and resolves the saved token within that organization.
 Invalid IDs and IDs from other organizations are rejected. The selected credential must
 also have access to the dataset, including any required gated-dataset approval.
+
+Custom dataset lists and deployment compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``CustomBehavior.biased_dataset`` (forget) and ``unbiased_dataset`` (retain) each
+accept either one existing dataset object or a list of 1–32 dataset objects.
+The two lists are independent: two forget sources and three retain sources are
+valid. Use exactly one ``CustomBehavior``; every source is sent once in its own
+role, without pairing, repetition, or cross products. A single-object input
+keeps its single-object wire payload. One-item lists remain lists, and either
+role can use a single object while the other uses a list.
+
+Each member may be a ``HuggingFaceDataset`` or, where the deployment supports
+uploaded CSV sources, a ``HirundoCSVDataset`` using the deployment's upload URL.
+Current non-air-gapped deployments reject uploaded CSV sources; list support
+does not enable a dataset type that the deployment otherwise rejects.
+Equivalent nested dictionaries are accepted and validated, including each
+dataset's independent ``token``/``token_id`` choice.
+Empty lists, lists exceeding 32 sources per role, invalid members, and conflicting
+credentials fail locally. The limit applies to each role independently.
+
+In an air-gapped deployment using local bundled assets, Hugging Face dataset names
+resolve to datasets installed in the deployment's asset bundle. Have the operator
+stage every configured source and its required files before submitting a run;
+credentials do not make an unbundled source available offline. Uploaded CSV
+sources must also be staged through that deployment's supported upload mechanism.
+Dataset lists do not bypass the deployment's source-access or materialization
+checks, and the SDK does not download datasets on the server's behalf.
+
+The platform prepares each source and merges/concatenates the prepared datasets
+within its role using the existing core dataset preparation behavior. List
+lengths do not define pairs or weights. Existing preprocessing, sampling, and
+size limits still apply; this SDK feature does not introduce weighting or
+change those server-side settings. ``ADDITIONAL_UTILITY_DATASETS`` adds to the
+platform's built-in utilities; it does not replace them. The example deliberately
+leaves this list empty to avoid repeating the built-in Security utilities.
+
+**Deployment requirement:** list payloads require matching platform API schema,
+persistence, credential handling, and worker support. Before submitting lists,
+verify the deployment's ``/openapi.json`` includes the array alternatives with
+``minItems: 1`` and ``maxItems: 32`` for both CUSTOM dataset fields, or confirm
+support with your deployment operator. The SDK does not probe for this feature.
+Older deployments can reject list payloads, including one-item lists.
+The SDK propagates the server error without
+truncating sources or launching separate training runs. Continue using legacy
+single-object inputs until the deployment supports lists. Each source continues
+to use its own inline or saved dataset credentials.
 
 LLM behavior eval
 -----------------
