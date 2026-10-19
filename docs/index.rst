@@ -97,17 +97,29 @@ Custom dataset lists and deployment compatibility
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``CustomBehavior.biased_dataset`` (forget) and ``unbiased_dataset`` (retain) each
-accept either one existing dataset object or a nonempty list of dataset objects.
+accept either one existing dataset object or a list of 1–32 dataset objects.
 The two lists are independent: two forget sources and three retain sources are
 valid. Use exactly one ``CustomBehavior``; every source is sent once in its own
 role, without pairing, repetition, or cross products. A single-object input
 keeps its single-object wire payload. One-item lists remain lists, and either
 role can use a single object while the other uses a list.
 
-Each member may be a ``HuggingFaceDataset`` or ``HirundoCSVDataset`` (using a
-platform-uploaded CSV URL). Equivalent nested dictionaries are accepted and
-validated, including each dataset's independent ``token``/``token_id`` choice.
-Empty lists, invalid members, and conflicting credentials fail locally.
+Each member may be a ``HuggingFaceDataset`` or, where the deployment supports
+uploaded CSV sources, a ``HirundoCSVDataset`` using the deployment's upload URL.
+Current non-air-gapped deployments reject uploaded CSV sources; list support
+does not enable a dataset type that the deployment otherwise rejects.
+Equivalent nested dictionaries are accepted and validated, including each
+dataset's independent ``token``/``token_id`` choice.
+Empty lists, lists exceeding 32 sources per role, invalid members, and conflicting
+credentials fail locally. The limit applies to each role independently.
+
+In an air-gapped deployment using local bundled assets, Hugging Face dataset names
+resolve to datasets installed in the deployment's asset bundle. Have the operator
+stage every configured source and its required files before submitting a run;
+credentials do not make an unbundled source available offline. Uploaded CSV
+sources must also be staged through that deployment's supported upload mechanism.
+Dataset lists do not bypass the deployment's source-access or materialization
+checks, and the SDK does not download datasets on the server's behalf.
 
 The platform prepares each source and merges/concatenates the prepared datasets
 within its role using the existing core dataset preparation behavior. List
@@ -117,20 +129,16 @@ change those server-side settings. ``ADDITIONAL_UTILITY_DATASETS`` adds to the
 platform's built-in utilities; it does not replace them. The example deliberately
 leaves this list empty to avoid repeating the built-in Security utilities.
 
-**Deployment requirement:** list payloads require a platform deployment containing
-`HPLT-377 <https://linear.app/hirundo/issue/HPLT-377/support-multiple-forget-and-retain-datasets-in-custom-llm-unlearning>`_,
-including its API schema, persistence, credential handling, and workers. At the
-time of this change no released platform version or capability flag identifies
-that support. The matching object-or-nonempty-array contract is published in the
-`platform companion schema <https://github.com/Hirundo-io/hirundo-platform/blob/6f9de089f8febf5235b9c5549d5d838632f93f4d/docs/custom-llm-datasets.schema.json>`_
-(`PR #653 <https://github.com/Hirundo-io/hirundo-platform/pull/653>`_).
-Before submitting lists, verify the deployment's ``/openapi.json`` includes the
-array alternatives with ``minItems: 1`` for both CUSTOM dataset fields, or confirm
-support with your deployment operator. The SDK does not probe for this feature. Older deployments can reject list
-payloads, including one-item lists. The SDK propagates the server error without
+**Deployment requirement:** list payloads require matching platform API schema,
+persistence, credential handling, and worker support. Before submitting lists,
+verify the deployment's ``/openapi.json`` includes the array alternatives with
+``minItems: 1`` and ``maxItems: 32`` for both CUSTOM dataset fields, or confirm
+support with your deployment operator. The SDK does not probe for this feature.
+Older deployments can reject list payloads, including one-item lists.
+The SDK propagates the server error without
 truncating sources or launching separate training runs. Continue using legacy
-single-object inputs until the deployment supports lists. Dataset credentials
-reuse SDK-146; no additional credential provisioning is part of list support.
+single-object inputs until the deployment supports lists. Each source continues
+to use its own inline or saved dataset credentials.
 
 LLM behavior eval
 -----------------

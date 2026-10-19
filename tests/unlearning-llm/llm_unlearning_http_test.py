@@ -607,12 +607,18 @@ def test_saved_huggingface_token_validates_platform_constraints(
         ("llm_saved_dataset_token_example.py", "saved"),
     ],
 )
-def test_custom_dataset_documentation_examples(
+def test_custom_dataset_examples_serialize_requests(
     fake_api: FakeHirundoApi,
     monkeypatch: pytest.MonkeyPatch,
     example_name: str,
     credential_mode: str,
 ) -> None:
+    """Check example wire payloads and credentials using fake HTTP responses.
+
+    Placeholder repository names are intentional: this test does not check Hub
+    availability, download datasets, or prove server-side training succeeds.
+    The module's network-blocking fixture prevents any real resource access.
+    """
     if credential_mode == "anonymous":
         monkeypatch.delenv("HF_TOKEN", raising=False)
     else:
@@ -1301,6 +1307,71 @@ async def test_acheck_run_raises_on_error_event(fake_sse: FakeSseEndpoint) -> No
 
 
 # Independent custom dataset collections (SDK-147).
+@pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
+@pytest.mark.parametrize(
+    "model_instances", [False, True], ids=["dictionaries", "models"]
+)
+@pytest.mark.parametrize("dataset_count", [32, 33], ids=["maximum", "over-maximum"])
+def test_custom_dataset_collection_size_limits(
+    fake_api: FakeHirundoApi,
+    role: str,
+    model_instances: bool,
+    dataset_count: int,
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    dataset_payloads = [
+        {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": f"org/source-{index}",
+        }
+        for index in range(dataset_count)
+    ]
+    single_dataset = {
+        "type": "HuggingFaceDataset",
+        "hugging_face_dataset_name": "org/other-role",
+    }
+    behavior_input: dict[str, Any] = {
+        "type": "CUSTOM",
+        "biased_dataset": single_dataset,
+        "unbiased_dataset": single_dataset,
+    }
+    behavior_input[role] = (
+        [HuggingFaceDataset.model_validate(payload) for payload in dataset_payloads]
+        if model_instances
+        else dataset_payloads
+    )
+    if dataset_count == 33:
+        with pytest.raises(ValidationError, match="at most 32") as error_info:
+            LlmRunInfo.model_validate({"target_behaviors": [behavior_input]})
+        assert any(role in error["loc"] for error in error_info.value.errors())
+        assert fake_api.requests == []
+        return
+
+    run_info = LlmRunInfo.model_validate({"target_behaviors": [behavior_input]})
+    assert LlmUnlearningRun.launch(7, run_info) == RUN_ID
+    expected_behavior = {
+        "type": "CUSTOM",
+        "biased_dataset": single_dataset,
+        "unbiased_dataset": single_dataset,
+        role: dataset_payloads,
+    }
+    assert fake_api.only_request().json_body()["target_behaviors"] == [
+        expected_behavior
+    ]
+
+
+def test_custom_dataset_collection_schema_exposes_size_limits() -> None:
+    schema = CustomBehavior.model_json_schema()
+    for role in ("biased_dataset", "unbiased_dataset"):
+        array_schema = next(
+            variant
+            for variant in schema["properties"][role]["anyOf"]
+            if variant.get("type") == "array"
+        )
+        assert array_schema["minItems"] == 1
+        assert array_schema["maxItems"] == 32
+
+
 def _custom_dataset_list_payload() -> dict[str, Any]:
     return {
         "type": "CUSTOM",
@@ -1504,7 +1575,9 @@ def test_custom_dataset_lists_propagate_unsupported_server_error(
 
 
 @pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
-@pytest.mark.parametrize("mutation", ["empty-list", "conflicting-credentials"])
+@pytest.mark.parametrize(
+    "mutation", ["empty-list", "too-many-sources", "conflicting-credentials"]
+)
 def test_launch_revalidates_mutated_custom_dataset_lists(
     fake_api: FakeHirundoApi, role: str, mutation: str
 ) -> None:
@@ -1513,6 +1586,11 @@ def test_launch_revalidates_mutated_custom_dataset_lists(
     collection = getattr(behavior, role)
     if mutation == "empty-list":
         collection.clear()
+    elif mutation == "too-many-sources":
+        collection.extend(
+            HuggingFaceDataset(hugging_face_dataset_name=f"org/extra-{index}")
+            for index in range(33 - len(collection))
+        )
     else:
         # Both roles start with a HuggingFaceDataset that has one credential.
         collection[0].token = "unit-test-conflicting-token"  # noqa: S105 - fake test credential

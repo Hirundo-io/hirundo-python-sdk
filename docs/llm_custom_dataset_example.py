@@ -19,7 +19,7 @@ forget_token = huggingface_token
 retain_token = huggingface_token
 utility_token = huggingface_token
 
-# Edit these independent collections; keep forget and retain nonempty.
+# Edit these independent collections; keep 1–32 datasets in each role.
 # Initial forget/retain sources match the Security preset as of 2026-10-19.
 FORGET_DATASETS: list[CustomDataset] = [
     HuggingFaceDataset(
@@ -45,7 +45,7 @@ ADDITIONAL_UTILITY_DATASETS: list[CustomDataset] = [
 
 
 def main() -> None:
-    """Register the model and launch one run on a platform supporting HPLT-377."""
+    """Register the model and launch one run on a platform supporting dataset lists."""
     model = LlmModel(
         model_name="custom-unlearning-model",
         model_source=HuggingFaceTransformersModel(

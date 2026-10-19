@@ -307,16 +307,21 @@ class RefusalBehavior(BaseModel):
     type: Literal["REFUSAL"] = "REFUSAL"
 
 
+MAX_CUSTOM_DATASETS_PER_ROLE = 32
 CustomDatasetInput = (
-    CustomDataset | Annotated[Sequence[CustomDataset], Field(min_length=1)]
+    CustomDataset
+    | Annotated[
+        Sequence[CustomDataset],
+        Field(min_length=1, max_length=MAX_CUSTOM_DATASETS_PER_ROLE),
+    ]
 )
 
 
 class CustomBehavior(BaseModel):
     """Independent forget and retain sources for one custom unlearning behavior.
 
-    Each role accepts a dataset or a nonempty list. Lists are sent unchanged for
-    server-side preparation and merging within that role; lengths may differ.
+    Each role accepts a dataset or a list of 1–32 datasets. Lists are sent unchanged
+    for server-side preparation and merging within that role; lengths may differ.
     """
 
     model_config = ConfigDict(hide_input_in_errors=True)
