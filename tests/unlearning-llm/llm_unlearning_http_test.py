@@ -1322,3 +1322,44 @@ def test_launch_revalidates_mutated_custom_dataset_lists(
     with pytest.raises(ValidationError):
         LlmUnlearningRun.launch(7, run_info)
     assert fake_api.requests == []
+
+
+@pytest.mark.parametrize("csv_forget", [False, True], ids=["hf-forget", "csv-forget"])
+def test_launch_accepts_inferred_homogeneous_dataset_lists(
+    fake_api: FakeHirundoApi, csv_forget: bool
+) -> None:
+    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    # Leave these ordinary lists unannotated to cover constructor type inference
+    # when basedpyright checks the suite, as well as runtime HTTP serialization.
+    huggingface_datasets = [
+        HuggingFaceDataset(hugging_face_dataset_name="org/dataset", token_id=101)
+    ]
+    csv_datasets = [HirundoCSVDataset(csv_url="https://storage.test/dataset.csv")]
+    if csv_forget:
+        behavior = CustomBehavior(
+            biased_dataset=csv_datasets, unbiased_dataset=huggingface_datasets
+        )
+    else:
+        behavior = CustomBehavior(
+            biased_dataset=huggingface_datasets, unbiased_dataset=csv_datasets
+        )
+
+    assert LlmUnlearningRun.launch(7, LlmRunInfo(target_behaviors=[behavior])) == RUN_ID
+
+    huggingface_payload = [
+        {
+            "type": "HuggingFaceDataset",
+            "hugging_face_dataset_name": "org/dataset",
+            "token_id": 101,
+        }
+    ]
+    csv_payload = [
+        {"type": "HirundoCSV", "csv_url": "https://storage.test/dataset.csv"}
+    ]
+    assert fake_api.only_request().json_body()["target_behaviors"] == [
+        {
+            "type": "CUSTOM",
+            "biased_dataset": csv_payload if csv_forget else huggingface_payload,
+            "unbiased_dataset": huggingface_payload if csv_forget else csv_payload,
+        }
+    ]

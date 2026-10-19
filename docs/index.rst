@@ -120,8 +120,12 @@ leaves this list empty to avoid repeating the built-in Security utilities.
 `HPLT-377 <https://linear.app/hirundo/issue/HPLT-377/support-multiple-forget-and-retain-datasets-in-custom-llm-unlearning>`_,
 including its API schema, persistence, credential handling, and workers. At the
 time of this change no released platform version or capability flag identifies
-that support; confirm it with your deployment operator before submitting lists.
-The SDK does not probe for this feature. Older deployments can reject list
+that support. The matching object-or-nonempty-array contract is published in the
+`platform companion schema <https://github.com/Hirundo-io/hirundo-platform/blob/6f9de089f8febf5235b9c5549d5d838632f93f4d/docs/custom-llm-datasets.schema.json>`_
+(`PR #653 <https://github.com/Hirundo-io/hirundo-platform/pull/653>`_).
+Before submitting lists, verify the deployment's ``/openapi.json`` includes the
+array alternatives with ``minItems: 1`` for both CUSTOM dataset fields, or confirm
+support with your deployment operator. The SDK does not probe for this feature. Older deployments can reject list
 payloads, including one-item lists. The SDK propagates the server error without
 truncating sources or launching separate training runs. Continue using legacy
 single-object inputs until the deployment supports lists. Dataset credentials

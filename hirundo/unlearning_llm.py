@@ -1,6 +1,6 @@
 import datetime
 import typing
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator, Sequence
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Literal, overload
@@ -303,7 +303,9 @@ class RefusalBehavior(BaseModel):
     type: Literal["REFUSAL"] = "REFUSAL"
 
 
-CustomDatasetInput = CustomDataset | Annotated[list[CustomDataset], Field(min_length=1)]
+CustomDatasetInput = (
+    CustomDataset | Annotated[Sequence[CustomDataset], Field(min_length=1)]
+)
 
 
 class CustomBehavior(BaseModel):
