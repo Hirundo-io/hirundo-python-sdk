@@ -46,6 +46,49 @@ Example:
 .. literalinclude:: llm_unlearning_example.py
    :language: python
 
+Custom Hugging Face dataset credentials
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For custom unlearning, ``biased_dataset`` is the forget dataset,
+``unbiased_dataset`` is the retain dataset, and ``target_utilities`` contains
+additional utility datasets. Each ``HuggingFaceDataset`` accepts either an inline
+``token`` or a saved ``token_id``. Supplying both raises a local validation error,
+including when constructing behaviors or utilities from nested dictionaries.
+Omit both for public datasets that allow unauthenticated downloads.
+
+The following example reads one optional ``HF_TOKEN`` from the local environment
+and explicitly passes it to source-model registration and every user-configured
+Hugging Face dataset. Replace the dataset names with your own compatible datasets
+before running it; calling ``launch`` starts a training job.
+
+.. literalinclude:: llm_custom_dataset_example.py
+   :language: python
+
+Set any of ``model_token``, ``forget_token``, ``retain_token``, or ``utility_token``
+to a different credential obtained securely by your application for per-resource
+overrides, or to ``None`` to leave that resource unauthenticated. Local environment
+variables alone do not authenticate server-side downloads: passing a credential
+only to model registration does not pass it to datasets. Keep secrets outside
+source files and avoid logging credentials or serialized request payloads.
+
+To reference a Hugging Face token already saved in the Hirundo platform, use its
+numeric ID on each dataset that should use it, omitting ``token``:
+
+.. code-block:: python
+
+   from hirundo.unlearning_llm import HuggingFaceDataset
+
+   retain_dataset = HuggingFaceDataset(
+       hugging_face_dataset_name="your-org/retain-dataset",
+       token_id=123,  # Replace with your saved Hirundo Hugging Face token ID.
+   )
+
+Use this dataset in ``CustomBehavior`` or ``CustomUtility`` just like the inline
+credential examples. The platform checks access to the run's organization and
+resolves the saved token within that organization; an invalid or different
+organization's token ID is rejected. The selected Hugging Face credential must
+also have access to the dataset, including any required gated-dataset approval.
+
 LLM behavior eval
 -----------------
 
@@ -129,6 +172,7 @@ API reference
    :maxdepth: 2
 
    modules
+   release_notes
 
 Google Colab notebooks
 ----------------------

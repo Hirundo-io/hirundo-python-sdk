@@ -251,8 +251,21 @@ class HirundoCSVDataset(BaseModel):
 
 
 class HuggingFaceDataset(BaseModel):
+    """A Hugging Face dataset with an optional inline or saved credential."""
+
     type: Literal["HuggingFaceDataset"] = "HuggingFaceDataset"
     hugging_face_dataset_name: str
+    token: str | None = Field(
+        default=None, repr=False, exclude_if=lambda value: value is None
+    )
+    token_id: int | None = Field(default=None, exclude_if=lambda value: value is None)
+
+    @model_validator(mode="after")
+    def validate_token_inputs(self) -> "HuggingFaceDataset":
+        """Reject ambiguous inline and saved credentials before launching a run."""
+        if self.token is not None and self.token_id is not None:
+            raise ValueError("Provide only one of `token` or `token_id`")
+        return self
 
 
 CustomDataset = HirundoCSVDataset | HuggingFaceDataset
