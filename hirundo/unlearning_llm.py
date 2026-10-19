@@ -303,10 +303,19 @@ class RefusalBehavior(BaseModel):
     type: Literal["REFUSAL"] = "REFUSAL"
 
 
+CustomDatasetInput = CustomDataset | Annotated[list[CustomDataset], Field(min_length=1)]
+
+
 class CustomBehavior(BaseModel):
+    """Independent forget and retain sources for one custom unlearning behavior.
+
+    Each role accepts a dataset or a nonempty list. Lists are sent unchanged for
+    server-side preparation and merging within that role; lengths may differ.
+    """
+
     type: Literal["CUSTOM"] = "CUSTOM"
-    biased_dataset: CustomDataset
-    unbiased_dataset: CustomDataset
+    biased_dataset: CustomDatasetInput
+    unbiased_dataset: CustomDatasetInput
 
 
 TargetBehavior = Annotated[

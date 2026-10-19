@@ -47,7 +47,7 @@ Example:
    :language: python
 
 Custom Hugging Face dataset credentials
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 For custom unlearning, ``biased_dataset`` is the forget dataset,
 ``unbiased_dataset`` is the retain dataset, and ``target_utilities`` contains
@@ -58,8 +58,11 @@ Omit both for public datasets that allow unauthenticated downloads.
 
 The following example reads one optional ``HF_TOKEN`` from the local environment
 and explicitly passes it to source-model registration and every user-configured
-Hugging Face dataset. Replace the dataset names with your own compatible datasets
-before running it; calling ``launch`` starts a training job.
+Hugging Face dataset. Its editable ``FORGET_DATASETS`` and ``RETAIN_DATASETS``
+lists start with the Security preset sources; ``ADDITIONAL_UTILITY_DATASETS``
+starts empty because the platform already adds the built-in utility sources.
+Replace or extend these lists with compatible sources before running it; calling
+``launch`` starts a training job.
 
 .. literalinclude:: llm_custom_dataset_example.py
    :language: python
@@ -88,6 +91,41 @@ credential examples. The platform checks access to the run's organization and
 resolves the saved token within that organization; an invalid or different
 organization's token ID is rejected. The selected Hugging Face credential must
 also have access to the dataset, including any required gated-dataset approval.
+
+Custom dataset lists and deployment compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``CustomBehavior.biased_dataset`` (forget) and ``unbiased_dataset`` (retain) each
+accept either one existing dataset object or a nonempty list of dataset objects.
+The two lists are independent: two forget sources and three retain sources are
+valid. Use exactly one ``CustomBehavior``; every source is sent once in its own
+role, without pairing, repetition, or cross products. A single-object input
+keeps its single-object wire payload. One-item lists remain lists, and either
+role can use a single object while the other uses a list.
+
+Each member may be a ``HuggingFaceDataset`` or ``HirundoCSVDataset`` (using a
+platform-uploaded CSV URL). Equivalent nested dictionaries are accepted and
+validated, including each dataset's independent ``token``/``token_id`` choice.
+Empty lists, invalid members, and conflicting credentials fail locally.
+
+The platform prepares each source and merges/concatenates the prepared datasets
+within its role using the existing core dataset preparation behavior. List
+lengths do not define pairs or weights. Existing preprocessing, sampling, and
+size limits still apply; this SDK feature does not introduce weighting or
+change those server-side settings. ``ADDITIONAL_UTILITY_DATASETS`` adds to the
+platform's built-in utilities; it does not replace them. The example deliberately
+leaves this list empty to avoid repeating the built-in Security utilities.
+
+**Deployment requirement:** list payloads require a platform deployment containing
+`HPLT-377 <https://linear.app/hirundo/issue/HPLT-377/support-multiple-forget-and-retain-datasets-in-custom-llm-unlearning>`_,
+including its API schema, persistence, credential handling, and workers. At the
+time of this change no released platform version or capability flag identifies
+that support; confirm it with your deployment operator before submitting lists.
+The SDK does not probe for this feature. Older deployments can reject list
+payloads, including one-item lists. The SDK propagates the server error without
+truncating sources or launching separate training runs. Continue using legacy
+single-object inputs until the deployment supports lists. Dataset credentials
+reuse SDK-146; no additional credential provisioning is part of list support.
 
 LLM behavior eval
 -----------------
