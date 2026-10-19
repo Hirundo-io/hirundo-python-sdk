@@ -604,6 +604,7 @@ def test_saved_huggingface_token_validates_platform_constraints(
         ("llm_custom_dataset_example.py", "inline"),
         ("llm_custom_dataset_example.py", "anonymous"),
         ("llm_saved_dataset_token_example.py", "saved"),
+        ("llm_saved_dataset_token_example.py", "saved-existing"),
     ],
 )
 def test_custom_dataset_documentation_examples(
@@ -612,6 +613,10 @@ def test_custom_dataset_documentation_examples(
     example_name: str,
     credential_mode: str,
 ) -> None:
+    if credential_mode == "saved-existing":
+        monkeypatch.setenv("HIRUNDO_HF_TOKEN_ID", "42")
+    else:
+        monkeypatch.delenv("HIRUNDO_HF_TOKEN_ID", raising=False)
     if credential_mode == "anonymous":
         monkeypatch.delenv("HF_TOKEN", raising=False)
     else:
@@ -636,7 +641,7 @@ def test_custom_dataset_documentation_examples(
     payload = fake_api.requests[-1].json_body()
     expected_credentials = (
         {"token_id": 42}
-        if credential_mode == "saved"
+        if credential_mode in ("saved", "saved-existing")
         else {"token": expected_token}
         if expected_token is not None
         else {}

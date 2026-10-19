@@ -77,8 +77,9 @@ method returns a numeric ID to reuse on datasets, omitting their inline ``token`
 This registers an existing credential rather than minting a new Hugging Face
 access token. The example below reads ``HF_TOKEN``, saves it, registers a model,
 and launches custom unlearning with saved credentials for all three datasets.
-Replace the resource names before running it. Reuse the returned ID for later
-runs instead of creating another saved token with the same name.
+Replace the resource names before running it. For later runs, set
+``HIRUNDO_HF_TOKEN_ID`` to the returned ID so the example skips credential
+creation and reuses the saved token instead of creating a duplicate name.
 
 .. literalinclude:: llm_saved_dataset_token_example.py
    :language: python
