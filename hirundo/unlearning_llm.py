@@ -253,6 +253,8 @@ class HirundoCSVDataset(BaseModel):
 class HuggingFaceDataset(BaseModel):
     """A Hugging Face dataset with an optional inline or saved credential."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     type: Literal["HuggingFaceDataset"] = "HuggingFaceDataset"
     hugging_face_dataset_name: str
     token: str | None = Field(
@@ -272,6 +274,8 @@ CustomDataset = HirundoCSVDataset | HuggingFaceDataset
 
 
 class CustomUtility(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     dataset: CustomDataset
 
 
@@ -315,6 +319,8 @@ class CustomBehavior(BaseModel):
     server-side preparation and merging within that role; lengths may differ.
     """
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     type: Literal["CUSTOM"] = "CUSTOM"
     biased_dataset: CustomDatasetInput
     unbiased_dataset: CustomDatasetInput
@@ -347,7 +353,10 @@ Aggressiveness = Annotated[float, Field(gt=0, le=1, multiple_of=0.001)]
 
 
 class LlmRunInfo(BaseModel):
-    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+    model_config = ConfigDict(
+        protected_namespaces=("model_validate", "model_dump"),
+        hide_input_in_errors=True,
+    )
 
     organization_id: int | None = None
     name: str | None = None

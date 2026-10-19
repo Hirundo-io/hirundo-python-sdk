@@ -74,22 +74,23 @@ variables alone do not authenticate server-side downloads: passing a credential
 only to model registration does not pass it to datasets. Keep secrets outside
 source files and avoid logging credentials or serialized request payloads.
 
-To reference a Hugging Face token already saved in the Hirundo platform, use its
-numeric ID on each dataset that should use it, omitting ``token``:
+To save an existing Hugging Face credential in Hirundo, create a
+``HuggingFaceToken`` with a name unique within your organization. Its ``create``
+method returns a numeric ID to reuse on datasets, omitting their inline ``token``.
+This registers an existing credential rather than minting a new Hugging Face
+access token. The example below reads ``HF_TOKEN``, saves it, registers a model,
+and launches custom unlearning with saved credentials for all three datasets.
+Replace the resource names before running it. Reuse the returned ID for later
+runs instead of creating another saved token with the same name.
 
-.. code-block:: python
+.. literalinclude:: llm_saved_dataset_token_example.py
+   :language: python
 
-   from hirundo.unlearning_llm import HuggingFaceDataset
-
-   retain_dataset = HuggingFaceDataset(
-       hugging_face_dataset_name="your-org/retain-dataset",
-       token_id=123,  # Replace with your saved Hirundo Hugging Face token ID.
-   )
-
-Use this dataset in ``CustomBehavior`` or ``CustomUtility`` just like the inline
-credential examples. The platform checks access to the run's organization and
-resolves the saved token within that organization; an invalid or different
-organization's token ID is rejected. The selected Hugging Face credential must
+Omit ``organization_id`` to use your default organization, or pass it when
+creating the saved token, registering the model, and constructing ``LlmRunInfo``
+to select another organization you can access. The platform checks access to the
+run's organization and resolves the saved token within that organization.
+Invalid IDs and IDs from other organizations are rejected. The selected credential must
 also have access to the dataset, including any required gated-dataset approval.
 
 Custom dataset lists and deployment compatibility
@@ -214,7 +215,6 @@ API reference
    :maxdepth: 2
 
    modules
-   release_notes
 
 Google Colab notebooks
 ----------------------

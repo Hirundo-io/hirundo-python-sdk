@@ -34,6 +34,7 @@ from .external_eval import (
     HirundoExternalEvalError,
 )
 from .git import GitPlainAuth, GitRepo, GitSSHAuth
+from .huggingface_token import HuggingFaceToken
 from .labeling import (
     COCO,
     YOLO,
@@ -76,6 +77,7 @@ from .unlearning_llm import (
 from .unzip import load_df, load_from_zip
 
 __all__ = [
+    "HuggingFaceToken",
     "COCO",
     "YOLO",
     "HirundoCSV",
