@@ -129,6 +129,7 @@ API reference
    :maxdepth: 2
 
    modules
+   user_association_compatibility
 
 Google Colab notebooks
 ----------------------
