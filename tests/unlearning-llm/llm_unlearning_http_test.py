@@ -1310,7 +1310,7 @@ async def test_acheck_run_raises_on_error_event(fake_sse: FakeSseEndpoint) -> No
         await _collect_async_events()
 
 
-# Independent custom dataset collections (SDK-147).
+# Independent custom dataset collections.
 @pytest.mark.parametrize("role", ["biased_dataset", "unbiased_dataset"])
 @pytest.mark.parametrize(
     "model_instances", [False, True], ids=["dictionaries", "models"]
