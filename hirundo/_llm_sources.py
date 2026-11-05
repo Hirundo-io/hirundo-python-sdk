@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ModelSourceType(str, Enum):
@@ -31,12 +31,16 @@ class HuggingFaceTransformersModelOutput(BaseModel):
 
 
 class LocalTransformersModel(BaseModel):
+    model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
+
     type: Literal[ModelSourceType.LOCAL_TRANSFORMERS] = (
         ModelSourceType.LOCAL_TRANSFORMERS
     )
-    revision: None = None
-    code_revision: None = None
     local_path: str
+    revision: str | None = None
+    code_revision: str | None = None
+    parameter_count: int | None = Field(default=None, gt=0)
+    trust_remote_code: bool = True
 
 
 LlmSources = HuggingFaceTransformersModel | LocalTransformersModel

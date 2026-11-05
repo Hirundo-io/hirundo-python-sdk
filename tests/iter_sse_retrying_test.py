@@ -8,6 +8,8 @@ from httpx_sse import ServerSentEvent
 from urllib3.exceptions import ReadTimeoutError
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from urllib3.connectionpool import ConnectionPool
 
 
@@ -31,7 +33,12 @@ class SyncEventSource:
             raise self.connect_exception
         return self
 
-    def __exit__(self, *_args: object) -> None:
+    def __exit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception_value: BaseException | None,
+        traceback_value: "TracebackType | None",
+    ) -> None:
         return None
 
     def iter_sse(self):
@@ -58,7 +65,12 @@ class AsyncEventSource:
             raise self.connect_exception
         return self
 
-    async def __aexit__(self, *_args: object) -> None:
+    async def __aexit__(
+        self,
+        exception_type: type[BaseException] | None,
+        exception_value: BaseException | None,
+        traceback_value: "TracebackType | None",
+    ) -> None:
         return None
 
     async def aiter_sse(self):

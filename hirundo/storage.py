@@ -5,6 +5,7 @@ import pydantic
 from pydantic import BaseModel, model_validator
 from pydantic_core import Url
 
+from hirundo._api_responses import parse_created_id
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
@@ -308,6 +309,9 @@ class StorageConfig(BaseModel):
 
         Args:
             storage_config_id: The ID of the :code:`StorageConfig` to retrieve
+
+        Returns:
+            The storage configuration returned by the server.
         """
         storage_config = requests.get(
             f"{API_HOST}/storage-config/{storage_config_id}",
@@ -327,6 +331,9 @@ class StorageConfig(BaseModel):
             storage_type: The type of the :code:`StorageConfig` to retrieve
 
             Note: The type is required because the name is not unique across different storage types
+
+        Returns:
+            The storage configuration returned by the server.
         """
         storage_config = requests.get(
             f"{API_HOST}/storage-config/by-name/{name}?storage_type={storage_type.value}",
@@ -347,6 +354,9 @@ class StorageConfig(BaseModel):
         Args:
             organization_id: The ID of the organization to list :code:`StorageConfig`'s for.
             If not provided, it will list :code:`StorageConfig`'s for the default organization.
+
+        Returns:
+            Storage configurations available to the requested organization.
         """
         storage_configs = requests.get(
             f"{API_HOST}/storage-config/",
@@ -364,6 +374,9 @@ class StorageConfig(BaseModel):
 
         Args:
             storage_config_id: The ID of the :code:`StorageConfig` to delete
+
+        Returns:
+            None.
         """
         storage_config = requests.delete(
             f"{API_HOST}/storage-config/{storage_config_id}",
@@ -376,6 +389,12 @@ class StorageConfig(BaseModel):
     def delete(self) -> None:
         """
         Deletes the :code:`StorageConfig` instance from the server
+
+        Args:
+            None.
+
+        Returns:
+            None.
         """
         if not self.id:
             raise ValueError("No StorageConfig has been created")
@@ -414,7 +433,7 @@ class StorageConfig(BaseModel):
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(storage_config)
-        storage_config_id = storage_config.json()["id"]
+        storage_config_id = parse_created_id(storage_config)
         self.id = storage_config_id
         logger.info("Created storage config with ID: %s", storage_config_id)
         return storage_config_id

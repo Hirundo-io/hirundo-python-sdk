@@ -1,9 +1,15 @@
+from collections.abc import Hashable
+from typing import TypeVar
+
+Modality = TypeVar("Modality", bound=Hashable)
+
+
 def validate_column_options(
     *,
     feature_cols: list[str] | None,
     extra_non_feature_cols: list[str] | None,
-    modality: object,
-    allowed_modalities: frozenset[object],
+    modality: Modality,
+    allowed_modalities: frozenset[Modality],
     unsupported_message: str,
 ) -> None:
     """Validate mutually exclusive Dataset QA column mode options.

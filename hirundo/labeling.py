@@ -108,7 +108,9 @@ class MultimodalModalityCSV(BaseModel, frozen=True):
 
     @field_validator("modality", mode="before")
     @classmethod
-    def _legacy_image_modality(cls, modality: object) -> object:
+    def _legacy_image_modality(
+        cls, modality: str | MultimodalModalityType
+    ) -> str | MultimodalModalityType:
         if modality == "IMAGE":
             return MultimodalModalityType.VISION
         return modality

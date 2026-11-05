@@ -1,4 +1,4 @@
-from typing import Any
+from typing import TypedDict
 
 import pytest
 from hirundo import (
@@ -12,26 +12,35 @@ from hirundo import (
 )
 from hirundo._run_status import RunStatus
 from hirundo.llm_behavior_eval import LlmEvalMetricRow, LlmEvalMetrics
+from pydantic import JsonValue
+from tests.api_response_payloads import launch_response_payload
 
 
 class _Response:
     status_code = 200
 
-    def json(self) -> dict[str, str]:
-        return {"run_id": "eval-run-id"}
+    def json(self) -> dict[str, JsonValue]:
+        return launch_response_payload("eval-run-id")
 
     def raise_for_status(self) -> None:
         return None
 
 
+class CapturedRequest(TypedDict, total=False):
+    url: str
+    json: dict[str, JsonValue]
+
+
 def test_launch_eval_run_omits_removed_custom_dataset_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    captured_request: dict[str, Any] = {}
+    captured_request: CapturedRequest = {}
 
-    def fake_post(*args: Any, **kwargs: Any) -> _Response:
-        captured_request["url"] = args[0]
-        captured_request["json"] = kwargs["json"]
+    def fake_post(
+        url: str, *, json: dict[str, JsonValue], headers: dict[str, str], timeout: float
+    ) -> _Response:
+        captured_request["url"] = url
+        captured_request["json"] = json
         return _Response()
 
     monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
@@ -49,6 +58,8 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
     )
 
     assert run_id == "eval-run-id"
+    assert "url" in captured_request
+    assert "json" in captured_request
     assert captured_request["url"].endswith("/llm-behavior-eval/run/model")
     assert captured_request["json"] == {
         "organization_id": None,
