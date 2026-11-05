@@ -24,6 +24,7 @@ from hirundo._run_checking import (
     update_progress_from_result,
 )
 from hirundo._run_status import RunStatus
+from hirundo._telemetry import Product, report_run_launched, reports_errors
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo._urls import HirundoUrl
 from hirundo.dataset_enum import DatasetMetadataType, LabelingType, StorageTypes
@@ -597,6 +598,7 @@ class QADataset(BaseModel):
         return self.id
 
     @staticmethod
+    @reports_errors(Product.DATASET_QA)
     def launch_qa_run(
         dataset_id: int,
         organization_id: int | None = None,
@@ -637,7 +639,9 @@ class QADataset(BaseModel):
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(run_response)
-        return run_response.json()["run_id"]
+        run_id = run_response.json()["run_id"]
+        report_run_launched(Product.DATASET_QA, run_id)
+        return run_id
 
     def _validate_run_args(self, run_args: RunArgs) -> None:
         if self.labeling_type == LabelingType.SPEECH_TO_TEXT:
@@ -750,6 +754,7 @@ class QADataset(BaseModel):
     ) -> DatasetQAResults | None: ...
 
     @staticmethod
+    @reports_errors(Product.DATASET_QA)
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: bool = False
     ) -> DatasetQAResults | None:

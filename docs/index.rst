@@ -122,6 +122,17 @@ Multimodal example:
 .. literalinclude:: dataset_qa_multimodal_example.py
    :language: python
 
+Telemetry
+---------
+
+The SDK sends your Hirundo user ID, run IDs, CLI command names and error types
+to Hirundo. It never sends names, emails, API keys, paths, URLs, dataset or
+model names, or error messages. To turn it off, set
+``HIRUNDO_TELEMETRY_DISABLED=true`` or ``DO_NOT_TRACK=1`` in your environment,
+``.env`` or ``~/.hirundo.conf``. The
+`README <https://github.com/Hirundo-io/hirundo-python-sdk#telemetry>`_ lists
+everything that is sent.
+
 API reference
 -------------
 

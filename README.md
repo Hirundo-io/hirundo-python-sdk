@@ -43,6 +43,60 @@ hirundo setup
 
 This writes `HIRUNDO_API_KEY` (and optionally `HIRUNDO_API_HOST`) to `.env` in the current directory or `~/.hirundo.conf`.
 
+## Telemetry
+
+The SDK sends a small amount of usage and error data to Hirundo, so we can see
+which features are used and fix errors faster. It is on by default and easy to
+turn off.
+
+### What is sent
+
+- Your Hirundo user ID. It is the same ID the Hirundo web app uses, so it does
+  not include your name or email.
+- `SDK run launched`: the product (dataset QA, LLM unlearning, LLM behavior
+  eval or external eval) and the run ID.
+- `SDK error`: the product, the SDK function that failed (for example
+  `LlmUnlearningRun.launch`), the error type (for example `HTTPError`) and the
+  HTTP status code, if there is one.
+- `SDK CLI command`: the `hirundo` command name only (for example `check-run`).
+- With every event: the SDK version, Python version, operating system and its
+  version, CPU architecture, whether the SDK runs in a notebook, and whether it
+  talks to Hirundo's cloud API (`https://api.hirundo.io`).
+
+### What is never sent
+
+Names, emails, API keys, machine names, file paths, URLs, dataset or model
+names, run names, error messages or tracebacks. IP-based location lookup is
+turned off for every event.
+
+### How it works
+
+The first time a process uses the SDK, it checks once whether Hirundo's
+PostHog analytics server can be reached. If it cannot, for example on an
+air-gapped network, the SDK sends nothing for the rest of that process. All
+telemetry runs on a background thread with a 2-second timeout and no retries,
+so it never slows down or changes SDK calls. When the process exits, the SDK
+waits at most 2 seconds to send the remaining events.
+
+### Turn it off
+
+Set either of these in your environment, `.env` or `~/.hirundo.conf`:
+
+```bash
+HIRUNDO_TELEMETRY_DISABLED=true
+DO_NOT_TRACK=1
+```
+
+When telemetry is off, the SDK collects nothing and makes no telemetry network
+calls.
+
+### Settings
+
+- `HIRUNDO_TELEMETRY_POSTHOG_KEY`: the PostHog project key. Telemetry is off
+  when it is not set.
+- `HIRUNDO_TELEMETRY_POSTHOG_HOST`: the PostHog server. Defaults to
+  `https://us.i.posthog.com`.
+
 ## Quickstart examples
 
 The full quickstart examples now live in the Sphinx docs so they can be linted,

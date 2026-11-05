@@ -31,6 +31,7 @@ from hirundo._run_checking import (
 )
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData, _parse_sse_payload
+from hirundo._telemetry import Product, report_run_launched, reports_errors
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT, SSE_TIMEOUT
 from hirundo.llm_behavior_eval_results import LlmBehaviorEvalResults
 from hirundo.llm_bias_type import BBQBiasType, UnqoverBiasType
@@ -259,6 +260,7 @@ class LlmBehaviorEval:
         )
 
     @staticmethod
+    @reports_errors(Product.LLM_BEHAVIOR_EVAL)
     def launch_eval_run(
         model_or_run: ModelOrRun | str,
         run_info: EvalRunInfo,
@@ -304,6 +306,7 @@ class LlmBehaviorEval:
             raise HirundoLlmBehaviorEvalError(
                 "Unable to determine the run ID from the response payload."
             )
+        report_run_launched(Product.LLM_BEHAVIOR_EVAL, run_identifier)
         return run_identifier
 
     @staticmethod
@@ -497,6 +500,7 @@ class LlmBehaviorEval:
     ) -> LlmBehaviorEvalResults | None: ...
 
     @staticmethod
+    @reports_errors(Product.LLM_BEHAVIOR_EVAL)
     def check_run_by_id(
         run_id: str, stop_on_manual_approval: bool = False
     ) -> LlmBehaviorEvalResults | None:
