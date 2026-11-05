@@ -6,6 +6,7 @@ fail the test, so no test here needs network access or credentials.
 """
 
 import json
+import logging
 import socket
 import threading
 import time
@@ -423,6 +424,32 @@ def test_failing_launch_reraises_the_sdk_error_unchanged(
     assert isinstance(properties, dict)
     assert properties["function"] == "LlmUnlearningRun.launch"
     assert properties["http_status"] == 404
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 500, 503])
+def test_rejected_capture_is_logged_and_dropped(
+    telemetry_on: FakeTransport,
+    caplog: pytest.LogCaptureFixture,
+    status_code: int,
+) -> None:
+    telemetry_on.answer_json(
+        "POST", POSTHOG_CAPTURE_URL, {"detail": "rejected"}, status_code
+    )
+    caplog.set_level(logging.DEBUG, logger=telemetry.__name__)
+
+    use_sdk_while_telemetry_runs()
+    flush_telemetry()
+
+    assert len(telemetry_on.captured_events()) == 3
+    rejection_logs = [
+        record
+        for record in caplog.records
+        if record.name == telemetry.__name__
+        and record.levelno == logging.DEBUG
+        and f"HTTP {status_code}" in record.getMessage()
+    ]
+    assert len(rejection_logs) == 3
+    assert all(record.levelno < logging.WARNING for record in caplog.records)
 
 
 def test_hanging_posthog_does_not_slow_sdk_calls(

@@ -263,13 +263,19 @@ class _Reporter:
             },
         }
         try:
-            self._session.post(
+            response = self._session.post(
                 f"{self._settings.posthog_root}{POSTHOG_CAPTURE_PATH}",
                 json=payload,
                 timeout=TELEMETRY_TIMEOUT_SECONDS,
             )
         except requests.RequestException as error:
             logger.debug("Telemetry event not sent: %s", type(error).__name__)
+            return
+        if not response.ok:
+            logger.debug(
+                "PostHog rejected a telemetry event with HTTP %s, so it was dropped",
+                response.status_code,
+            )
 
 
 def _start_reporter() -> _Reporter | None:
