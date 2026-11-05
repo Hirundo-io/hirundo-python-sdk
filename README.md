@@ -92,8 +92,8 @@ calls.
 
 ### Settings
 
-- `HIRUNDO_TELEMETRY_POSTHOG_KEY`: the PostHog project key. Telemetry is off
-  when it is not set.
+- `HIRUNDO_TELEMETRY_POSTHOG_KEY`: the PostHog project key. Defaults to the
+  key of Hirundo's web app project (PostHog US Cloud, project 73091).
 - `HIRUNDO_TELEMETRY_POSTHOG_HOST`: the PostHog server. Defaults to
   `https://us.i.posthog.com`.
 

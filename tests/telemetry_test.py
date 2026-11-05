@@ -225,6 +225,8 @@ def test_disabled_telemetry_makes_no_network_call_and_collects_nothing(
     telemetry_on: FakeTransport,
     opt_out_env: dict[str, str],
 ) -> None:
+    # Opt-out must win over the built-in PostHog project key.
+    monkeypatch.delenv("HIRUNDO_TELEMETRY_POSTHOG_KEY")
     for name, value in opt_out_env.items():
         monkeypatch.setenv(name, value)
     collected: list[str] = []
@@ -242,7 +244,7 @@ def test_disabled_telemetry_makes_no_network_call_and_collects_nothing(
     assert threading.active_count() == threads_before
 
 
-def test_missing_posthog_key_makes_no_network_call(
+def test_default_posthog_key_is_used_when_not_set(
     monkeypatch: pytest.MonkeyPatch, telemetry_on: FakeTransport
 ) -> None:
     monkeypatch.delenv("HIRUNDO_TELEMETRY_POSTHOG_KEY")
@@ -250,7 +252,23 @@ def test_missing_posthog_key_makes_no_network_call(
     use_sdk_while_telemetry_runs()
     flush_telemetry()
 
-    assert telemetry_on.recorded == []
+    events = telemetry_on.captured_events()
+    assert events
+    assert [event["api_key"] for event in events] == [
+        telemetry.POSTHOG_PROJECT_KEY
+    ] * len(events)
+
+
+def test_posthog_key_setting_replaces_the_default(
+    telemetry_on: FakeTransport,
+) -> None:
+    use_sdk_while_telemetry_runs()
+    flush_telemetry()
+
+    events = telemetry_on.captured_events()
+    assert events
+    assert [event["api_key"] for event in events] == [TEST_POSTHOG_KEY] * len(events)
+    assert TEST_POSTHOG_KEY != telemetry.POSTHOG_PROJECT_KEY
 
 
 def test_unreachable_posthog_means_no_events(telemetry_on: FakeTransport) -> None:

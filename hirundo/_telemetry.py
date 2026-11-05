@@ -28,6 +28,9 @@ from hirundo._headers import get_headers
 logger = hirundo.logger.get_logger(__name__)
 
 POSTHOG_US_HOST = "https://us.i.posthog.com"
+# The web app's PostHog project (US Cloud, project ID 73091). This public key
+# can only send events, so it is safe to ship in the SDK.
+POSTHOG_PROJECT_KEY = "phc_f4rgG88lj1wT72Xtt8HENJMNSeYArTPAcvj767EBL7i"
 POSTHOG_CAPTURE_PATH = "/i/v0/e/"
 TELEMETRY_TIMEOUT_SECONDS = 2.0
 MAX_PENDING_EVENTS = 100
@@ -61,8 +64,10 @@ class TelemetrySettings(BaseModel):
 
     disabled: bool = Field(default=False, validation_alias="HIRUNDO_TELEMETRY_DISABLED")
     do_not_track: bool = Field(default=False, validation_alias="DO_NOT_TRACK")
-    posthog_project_key: str | None = Field(
-        default=None, min_length=1, validation_alias="HIRUNDO_TELEMETRY_POSTHOG_KEY"
+    posthog_project_key: str = Field(
+        default=POSTHOG_PROJECT_KEY,
+        min_length=1,
+        validation_alias="HIRUNDO_TELEMETRY_POSTHOG_KEY",
     )
     posthog_host: HttpUrl = Field(
         default=HttpUrl(POSTHOG_US_HOST),
@@ -280,7 +285,7 @@ class _Reporter:
 
 def _start_reporter() -> _Reporter | None:
     settings = TelemetrySettings.from_environment()
-    if settings is None or settings.opted_out or settings.posthog_project_key is None:
+    if settings is None or settings.opted_out:
         return None
     return _Reporter(settings, settings.posthog_project_key)
 
