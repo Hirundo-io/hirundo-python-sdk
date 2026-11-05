@@ -358,6 +358,8 @@ OutputBehaviorOptions = (
     | CustomBehavior
 )
 
+Aggressiveness = Annotated[float, Field(gt=0, le=1, multiple_of=0.001)]
+
 
 class LlmRunInfo(BaseModel):
     model_config = ConfigDict(protected_namespaces=("model_validate", "model_dump"))
@@ -367,10 +369,11 @@ class LlmRunInfo(BaseModel):
     target_behaviors: list[TargetBehavior]
     target_utilities: list[CustomUtility] = Field(default_factory=list)
     advanced_options: UnlearningLlmAdvancedOptions | None = None
+    aggressiveness: Aggressiveness | None = None
 
     @model_validator(mode="after")
     def validate_refusal_utilities(self) -> "LlmRunInfo":
-        """Validate utility targets are compatible with the selected behaviors.
+        """Validate run options are compatible with the selected behaviors.
 
         Args:
             self: The `LlmRunInfo` instance to validate.
@@ -379,8 +382,8 @@ class LlmRunInfo(BaseModel):
             The validated `LlmRunInfo` instance.
 
         Raises:
-            ValueError: If refusal behavior is combined with non-empty target
-                utilities.
+            ValueError: If refusal behavior is combined with an unsupported
+                option.
         """
         has_refusal = any(
             isinstance(target_behavior, RefusalBehavior)
@@ -388,6 +391,8 @@ class LlmRunInfo(BaseModel):
         )
         if has_refusal and self.target_utilities:
             raise ValueError("Refusal behavior does not support target utilities")
+        if has_refusal and self.aggressiveness is not None:
+            raise ValueError("Refusal behavior does not support aggressiveness")
         return self
 
 
@@ -420,6 +425,7 @@ class OutputUnlearningLlmRun(BaseModel):
     target_behaviors: list[OutputBehaviorOptions]
     target_utilities: list[CustomUtility]
     advanced_options: UnlearningLlmAdvancedOptions | None
+    aggressiveness: float | None = None
     run_id: str
     mlflow_run_id: str | None
     status: CeleryTaskState
@@ -446,13 +452,18 @@ class LlmUnlearningRun:
             run_info: The `LlmRunInfo` request model to serialize.
 
         Returns:
-            A JSON-serializable payload derived from
-            `run_info.model_dump(mode="json")`. Bias targets include the
-            backend-only `bias_type` field set to `BBQBiasType.ALL.value`.
-            Refusal targets retain their validated empty `target_utilities`
-            field for the API request schema.
+            A JSON-serializable payload derived from a freshly validated copy
+            of `run_info`. Bias targets include the backend-only `bias_type`
+            field set to `BBQBiasType.ALL.value`. Refusal targets retain their
+            validated empty `target_utilities` field for the API request
+            schema.
         """
-        payload = cast("dict[str, JsonValue]", run_info.model_dump(mode="json"))
+        validated_run_info = LlmRunInfo.model_validate(run_info.model_dump())
+        payload = cast(
+            "dict[str, JsonValue]", validated_run_info.model_dump(mode="json")
+        )
+        if validated_run_info.aggressiveness is None:
+            payload.pop("aggressiveness")
         target_behaviors = payload["target_behaviors"]
         if not isinstance(target_behaviors, list):
             raise TypeError("target_behaviors must serialize as a list")

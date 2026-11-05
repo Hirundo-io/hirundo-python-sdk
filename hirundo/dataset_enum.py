@@ -26,10 +26,6 @@ class DatasetMetadataType(str, Enum):
     COCO = "COCO"
     YOLO = "YOLO"
     HuggingFaceAudio = "HuggingFaceAudio"
-    KeylabsObjDetImages = "KeylabsObjDetImages"
-    KeylabsObjDetVideo = "KeylabsObjDetVideo"
-    KeylabsObjSegImages = "KeylabsObjSegImages"
-    KeylabsObjSegVideo = "KeylabsObjSegVideo"
 
 
 class StorageTypes(str, Enum):

@@ -78,7 +78,17 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
     assert "file_path" not in captured_request["json"]
 
 
-def test_parse_inspect_evaluation_run() -> None:
+@pytest.mark.parametrize(
+    "generation_settings",
+    [
+        {"attempt_timeout": 3600, "max_retries": 0, "max_model_len": 32768},
+        {"attempt_timeout": None, "max_retries": None, "max_model_len": None},
+        {},
+    ],
+)
+def test_parse_inspect_evaluation_run(
+    generation_settings: dict[str, int | None],
+) -> None:
     run_record = LlmBehaviorEval._parse_eval_run_record(
         {
             "id": 1,
@@ -92,6 +102,7 @@ def test_parse_inspect_evaluation_run() -> None:
             "bias_type": None,
             "task_ids": ["inspect_evals/aime25"],
             "sample_limit": None,
+            **generation_settings,
             "judge_model": None,
             "run_id": "eval-run-id",
             "mlflow_run_id": None,
@@ -116,6 +127,9 @@ def test_parse_inspect_evaluation_run() -> None:
     assert run_record.framework is EvalFramework.INSPECT_EVALS
     assert run_record.task_ids == ["inspect_evals/aime25"]
     assert run_record.sample_limit is None
+    assert run_record.attempt_timeout == generation_settings.get("attempt_timeout")
+    assert run_record.max_retries == generation_settings.get("max_retries")
+    assert run_record.max_model_len == generation_settings.get("max_model_len")
     assert run_record.metrics == LlmEvalMetrics(
         rows=[
             LlmEvalMetricRow(
@@ -151,6 +165,9 @@ def test_parse_legacy_evaluation_run_defaults_framework() -> None:
     )
 
     assert run_record.framework is EvalFramework.LLM_BEHAVIOR_EVAL
+    assert run_record.attempt_timeout is None
+    assert run_record.max_retries is None
+    assert run_record.max_model_len is None
 
 
 def test_parse_legacy_evaluation_run_defaults_null_framework() -> None:
