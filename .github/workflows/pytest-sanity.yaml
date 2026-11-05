@@ -120,3 +120,5 @@ jobs:
           uv sync --group dev
       - name: Run mocked LLM unlearning HTTP tests
         run: .venv/bin/pytest tests/unlearning-llm/llm_unlearning_http_test.py
+      - name: Run mocked telemetry tests
+        run: .venv/bin/pytest tests/telemetry_test.py

@@ -13,6 +13,7 @@ from hirundo._http import raise_for_status_with_reason, requests
 from hirundo._run_checking import DEFAULT_MAX_RETRIES, get_state, handle_run_failure
 from hirundo._run_status import RunStatus
 from hirundo._sse_event_data import SseRunEventData
+from hirundo._telemetry import Product, report_run_launched, reports_errors
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.llm_behavior_eval import (
     HirundoLlmBehaviorEvalError,
@@ -133,6 +134,7 @@ class ExternalEval:
         return ExternalEvalCatalog.model_validate(response.json())
 
     @staticmethod
+    @reports_errors(Product.EXTERNAL_EVAL)
     def launch_eval_run(
         model_or_run: ModelOrRun | Literal["model", "run"] | str,
         run_info: ExternalEvalRunInfo,
@@ -148,11 +150,13 @@ class ExternalEval:
         )
         raise_for_status_with_reason(response)
         try:
-            return ExternalEvalLaunchResponse.model_validate(response.json())
+            launch_response = ExternalEvalLaunchResponse.model_validate(response.json())
         except ValueError as error:
             raise HirundoExternalEvalError(
                 "Unable to determine the run ID from the response payload."
             ) from error
+        report_run_launched(Product.EXTERNAL_EVAL, launch_response.run_id)
+        return launch_response
 
     @staticmethod
     def _validate_run_id(run_id: str) -> None:
@@ -197,6 +201,7 @@ class ExternalEval:
     ) -> ExternalEvalResults: ...
 
     @staticmethod
+    @reports_errors(Product.EXTERNAL_EVAL)
     def check_run_by_id(
         run_id: str,
         *,

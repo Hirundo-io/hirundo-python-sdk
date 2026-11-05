@@ -24,6 +24,7 @@ from hirundo._run_checking import (
     update_progress_from_result,
 )
 from hirundo._run_status import RunStatus
+from hirundo._telemetry import Product, report_run_launched, reports_errors
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from hirundo.dataset_qa import HirundoError
 from hirundo.llm_bias_type import BBQBiasType
@@ -448,6 +449,7 @@ class LlmUnlearningRun:
         return LlmUnlearningCapabilities.model_validate(config_response.json())
 
     @staticmethod
+    @reports_errors(Product.LLM_UNLEARNING)
     def launch(model_id: int, run_info: LlmRunInfo) -> str:
         run_response = requests.post(
             f"{API_HOST}/unlearning-llm/run/{model_id}",
@@ -458,10 +460,12 @@ class LlmUnlearningRun:
         raise_for_status_with_reason(run_response)
         run_response_json = run_response.json() if run_response.content else {}
         if isinstance(run_response_json, str):
-            return run_response_json
-        run_id = run_response_json.get("run_id")
-        if not run_id:
-            raise ValueError("No run ID returned from launch request")
+            run_id = run_response_json
+        else:
+            run_id = run_response_json.get("run_id")
+            if not run_id:
+                raise ValueError("No run ID returned from launch request")
+        report_run_launched(Product.LLM_UNLEARNING, run_id)
         return run_id
 
     @staticmethod
@@ -554,6 +558,7 @@ class LlmUnlearningRun:
     ) -> typing.Any | None: ...
 
     @staticmethod
+    @reports_errors(Product.LLM_UNLEARNING)
     def check_run_by_id(run_id: str, stop_on_manual_approval: bool = False):
         """
         Check the status of a run given its ID

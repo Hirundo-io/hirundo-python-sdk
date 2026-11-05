@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 
 from hirundo._env import API_HOST, EnvLocation
+from hirundo._telemetry import report_cli_command
 
 docs = "sphinx" in sys.modules
 hirundo_epilog = (
@@ -26,6 +27,12 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog=hirundo_epilog,
 )
+
+
+@app.callback()
+def _report_cli_command(context: typer.Context) -> None:
+    if context.invoked_subcommand is not None:
+        report_cli_command(context.invoked_subcommand)
 
 
 class RunType(str, Enum):

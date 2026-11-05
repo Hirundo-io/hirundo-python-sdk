@@ -37,8 +37,9 @@ def _get_env_with_deprecation(new_name: str, old_name: str, default: str | None 
     return default
 
 
+HIRUNDO_CLOUD_API_HOST = "https://api.hirundo.io"
 API_HOST = _get_env_with_deprecation(
-    "HIRUNDO_API_HOST", "API_HOST", default="https://api.hirundo.io"
+    "HIRUNDO_API_HOST", "API_HOST", default=HIRUNDO_CLOUD_API_HOST
 )
 API_KEY = _get_env_with_deprecation("HIRUNDO_API_KEY", "API_KEY")
 EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS = tuple(
