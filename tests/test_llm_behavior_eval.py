@@ -13,13 +13,14 @@ from hirundo import (
 from hirundo._run_status import RunStatus
 from hirundo.llm_behavior_eval import LlmEvalMetricRow, LlmEvalMetrics
 from pydantic import JsonValue
+from tests.api_response_payloads import launch_response_payload
 
 
 class _Response:
     status_code = 200
 
-    def json(self) -> dict[str, str]:
-        return {"run_id": "eval-run-id"}
+    def json(self) -> dict[str, JsonValue]:
+        return launch_response_payload("eval-run-id")
 
     def raise_for_status(self) -> None:
         return None

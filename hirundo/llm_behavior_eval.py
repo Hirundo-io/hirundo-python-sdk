@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from hirundo._api_responses import parse_launched_run_id
 from hirundo._env import API_HOST
 from hirundo._generated.wire_models import (
     PresetType,
@@ -318,17 +319,7 @@ class LlmBehaviorEval:
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(response)
-        response_payload = response.json()
-        run_identifier = (
-            response_payload.get("run_id")
-            or response_payload.get("hir_run_id")
-            or response_payload.get("id")
-        )
-        if not run_identifier:
-            raise HirundoLlmBehaviorEvalError(
-                "Unable to determine the run ID from the response payload."
-            )
-        return run_identifier
+        return parse_launched_run_id(response, HirundoLlmBehaviorEvalError)
 
     @staticmethod
     def cancel_by_id(run_id: str) -> None:

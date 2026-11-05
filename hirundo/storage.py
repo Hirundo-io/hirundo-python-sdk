@@ -5,6 +5,7 @@ import pydantic
 from pydantic import BaseModel, model_validator
 from pydantic_core import Url
 
+from hirundo._api_responses import parse_created_id
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
@@ -432,7 +433,7 @@ class StorageConfig(BaseModel):
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(storage_config)
-        storage_config_id = storage_config.json()["id"]
+        storage_config_id = parse_created_id(storage_config)
         self.id = storage_config_id
         logger.info("Created storage config with ID: %s", storage_config_id)
         return storage_config_id

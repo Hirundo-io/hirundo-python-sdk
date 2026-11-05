@@ -21,6 +21,7 @@ from hirundo import (
 from hirundo._timeouts import MODIFY_TIMEOUT, READ_TIMEOUT
 from pydantic import JsonValue, ValidationError
 from pydantic_core import Url
+from tests.api_response_payloads import create_response_payload
 
 JsonObject: TypeAlias = dict[str, JsonValue]
 DatasetInputValue: TypeAlias = (
@@ -299,7 +300,7 @@ def _capture_storage_and_dataset_create_payloads(
     ) -> _Response:
         request_payloads.append(json)
         if url.endswith("/storage-config/"):
-            return _Response({"id": 456})
+            return _Response(create_response_payload(456))
         return _create_dataset_response()
 
     monkeypatch.setattr("hirundo.storage.requests.post", fake_post)
@@ -317,8 +318,8 @@ def _capture_git_and_storage_create_payloads(
     ) -> _Response:
         request_payloads.append(json)
         if url.endswith("/git-repo/"):
-            return _Response({"id": 321})
-        return _Response({"id": 456})
+            return _Response(create_response_payload(321))
+        return _Response(create_response_payload(456))
 
     monkeypatch.setattr("hirundo.git.requests.post", fake_post)
     monkeypatch.setattr("hirundo.storage.requests.post", fake_post)

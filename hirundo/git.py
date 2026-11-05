@@ -5,6 +5,7 @@ import pydantic
 from pydantic import BaseModel, field_validator
 from pydantic_core import Url
 
+from hirundo._api_responses import parse_created_id
 from hirundo._env import API_HOST
 from hirundo._headers import get_headers
 from hirundo._http import raise_for_status_with_reason, requests
@@ -137,7 +138,7 @@ class GitRepo(BaseModel):
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(git_repo)
-        git_repo_id = git_repo.json()["id"]
+        git_repo_id = parse_created_id(git_repo)
         self.id = git_repo_id
         return git_repo_id
 

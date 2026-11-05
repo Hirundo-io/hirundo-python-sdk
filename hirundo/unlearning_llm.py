@@ -15,6 +15,7 @@ from pydantic import (
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
+from hirundo._api_responses import parse_created_id, parse_launched_run_id
 from hirundo._env import API_HOST
 from hirundo._generated.wire_models import (
     CreateLlm,
@@ -80,7 +81,7 @@ class LlmModel(BaseModel):
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(llm_model_response)
-        llm_model_id = llm_model_response.json()["id"]
+        llm_model_id = parse_created_id(llm_model_response)
         self.id = llm_model_id
         return llm_model_id
 
@@ -506,13 +507,7 @@ class LlmUnlearningRun:
             timeout=MODIFY_TIMEOUT,
         )
         raise_for_status_with_reason(run_response)
-        run_response_json = run_response.json() if run_response.content else {}
-        if isinstance(run_response_json, str):
-            return run_response_json
-        run_id = run_response_json.get("run_id")
-        if not run_id:
-            raise ValueError("No run ID returned from launch request")
-        return run_id
+        return parse_launched_run_id(run_response)
 
     @staticmethod
     def cancel(run_id: str) -> None:

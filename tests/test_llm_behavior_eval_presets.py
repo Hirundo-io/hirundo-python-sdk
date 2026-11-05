@@ -3,6 +3,7 @@ import datetime
 import pytest
 from hirundo import BBQBiasType, EvalRunInfo, LlmBehaviorEval, ModelOrRun, PresetType
 from pydantic import JsonValue, ValidationError
+from tests.api_response_payloads import launch_response_payload
 
 
 class _Response:
@@ -42,7 +43,7 @@ def test_refusal_preset_launch_serializes_platform_contract(
         timeout: float,
     ) -> _Response:
         requests_made.append((url, json))
-        return _Response({"run_id": "eval-run-id"})
+        return _Response(launch_response_payload("eval-run-id"))
 
     monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
     run_info = EvalRunInfo(

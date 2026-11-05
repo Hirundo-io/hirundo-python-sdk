@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from hirundo._api_responses import NonEmptyRunId
 from hirundo._env import API_HOST, EXTERNAL_EVAL_ALLOWED_DOWNLOAD_ORIGINS
 from hirundo._headers import get_headers
 from hirundo._hirundo_error import HirundoError
@@ -31,8 +32,6 @@ CanonicalTaskReference = Annotated[
     str,
     StringConstraints(pattern=r"^inspect_evals/[A-Za-z0-9_]+$"),
 ]
-
-NonEmptyRunId = Annotated[str, StringConstraints(min_length=1)]
 
 
 class ExternalEvalRunInfo(BaseModel):

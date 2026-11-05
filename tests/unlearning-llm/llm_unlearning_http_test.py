@@ -38,6 +38,10 @@ from hirundo.unlearning_llm import (
     SecurityBehavior,
 )
 from requests.adapters import BaseAdapter
+from tests.api_response_payloads import (
+    create_response_payload,
+    launch_response_payload,
+)
 
 TEST_API_HOST = "https://api.hirundo.test"
 TEST_API_KEY = "unit-test-api-key"
@@ -306,7 +310,7 @@ def _created_llm_model() -> LlmModel:
 
 
 def test_llm_model_create_posts_model_and_stores_id(fake_api: FakeHirundoApi) -> None:
-    fake_api.add("POST", "/unlearning-llm/llm/", payload={"id": 42})
+    fake_api.add("POST", "/unlearning-llm/llm/", payload=create_response_payload(42))
     llm_model = LlmModel(
         model_name="unit-test-llm",
         model_source=HuggingFaceTransformersModel(
@@ -532,7 +536,9 @@ def test_llm_model_mutations_require_created_model(
 
 
 def test_launch_posts_run_info_and_returns_run_id(fake_api: FakeHirundoApi) -> None:
-    fake_api.add("POST", "/unlearning-llm/run/7", payload={"run_id": RUN_ID})
+    fake_api.add(
+        "POST", "/unlearning-llm/run/7", payload=launch_response_payload(RUN_ID)
+    )
     run_info = LlmRunInfo(
         name="unit-test-run",
         target_behaviors=[BiasBehavior(), SecurityBehavior()],
@@ -560,8 +566,10 @@ def test_launch_posts_run_info_and_returns_run_id(fake_api: FakeHirundoApi) -> N
     }
 
 
-def test_launch_accepts_bare_run_id_response(fake_api: FakeHirundoApi) -> None:
-    fake_api.add("POST", "/unlearning-llm/run/7", payload=RUN_ID)
+def test_launch_omits_unset_aggressiveness(fake_api: FakeHirundoApi) -> None:
+    fake_api.add(
+        "POST", "/unlearning-llm/run/7", payload=launch_response_payload(RUN_ID)
+    )
 
     run_id = LlmUnlearningRun.launch(
         model_id=7, run_info=LlmRunInfo(target_behaviors=[SecurityBehavior()])
@@ -573,8 +581,13 @@ def test_launch_accepts_bare_run_id_response(fake_api: FakeHirundoApi) -> None:
 
 @pytest.mark.parametrize(
     "response_kwargs",
-    [{"payload": {"status": "queued"}}, {"raw_body": b""}],
-    ids=["json-without-run-id", "empty-body"],
+    [
+        {"payload": {"status": "queued"}},
+        {"payload": launch_response_payload("")},
+        {"payload": RUN_ID},
+        {"raw_body": b""},
+    ],
+    ids=["json-without-run-id", "empty-run-id", "bare-run-id", "empty-body"],
 )
 def test_launch_rejects_response_without_run_id(
     fake_api: FakeHirundoApi,
@@ -582,7 +595,7 @@ def test_launch_rejects_response_without_run_id(
 ) -> None:
     fake_api.add("POST", "/unlearning-llm/run/7", **response_kwargs)
 
-    with pytest.raises(ValueError, match="No run ID returned from launch request"):
+    with pytest.raises(HirundoError, match="invalid LaunchedRunResponse response"):
         LlmUnlearningRun.launch(
             model_id=7, run_info=LlmRunInfo(target_behaviors=[SecurityBehavior()])
         )
