@@ -195,74 +195,8 @@ class HuggingFaceAudio(Metadata, frozen=True):
     split: str | None = None
 
 
-class KeylabsAuth(BaseModel):
-    username: str
-    password: str
-    instance: str
-
-
-class Keylabs(Metadata, frozen=True):
-    project_id: str
-    """
-    Keylabs project ID.
-    """
-
-    labels_dir_url: HirundoUrl
-    """
-    URL to the directory containing the Keylabs labels.
-    """
-
-    with_attributes: bool = True
-    """
-    Whether to include attributes in the class name.
-    """
-
-    project_name: str | None = None
-    """
-    Keylabs project name (optional; added to output CSV if provided).
-    """
-    keylabs_auth: KeylabsAuth | None = None
-    """
-    Keylabs authentication credentials (optional; if provided, used to provide links to each sample).
-    """
-
-
-class KeylabsObjDetImages(Keylabs, frozen=True):
-    type: typing.Literal[DatasetMetadataType.KeylabsObjDetImages] = (
-        DatasetMetadataType.KeylabsObjDetImages
-    )
-
-
-class KeylabsObjDetVideo(Keylabs, frozen=True):
-    type: typing.Literal[DatasetMetadataType.KeylabsObjDetVideo] = (
-        DatasetMetadataType.KeylabsObjDetVideo
-    )
-
-
-class KeylabsObjSegImages(Keylabs, frozen=True):
-    type: typing.Literal[DatasetMetadataType.KeylabsObjSegImages] = (
-        DatasetMetadataType.KeylabsObjSegImages
-    )
-
-
-class KeylabsObjSegVideo(Keylabs, frozen=True):
-    type: typing.Literal[DatasetMetadataType.KeylabsObjSegVideo] = (
-        DatasetMetadataType.KeylabsObjSegVideo
-    )
-
-
-KeylabsInfo = (
-    KeylabsObjDetImages | KeylabsObjDetVideo | KeylabsObjSegImages | KeylabsObjSegVideo
-)
-"""
-The dataset labeling info for Keylabs. The dataset labeling info can be one of the following:
-- `DatasetMetadataType.KeylabsObjDetImages`: Indicates that the dataset metadata file is in the Keylabs object detection image format
-- `DatasetMetadataType.KeylabsObjDetVideo`: Indicates that the dataset metadata file is in the Keylabs object detection video format
-- `DatasetMetadataType.KeylabsObjSegImages`: Indicates that the dataset metadata file is in the Keylabs object segmentation image format
-- `DatasetMetadataType.KeylabsObjSegVideo`: Indicates that the dataset metadata file is in the Keylabs object segmentation video format
-"""
 LabelingInfo = typing.Annotated[
-    HirundoCSV | MultimodalHirundoCSV | COCO | YOLO | KeylabsInfo | HuggingFaceAudio,
+    HirundoCSV | MultimodalHirundoCSV | COCO | YOLO | HuggingFaceAudio,
     Field(discriminator="type"),
 ]
 """
@@ -270,10 +204,6 @@ The dataset labeling info. The dataset labeling info can be one of the following
 - `DatasetMetadataType.HirundoCSV`: Indicates that the dataset metadata file is a CSV file with the Hirundo format
 - `DatasetMetadataType.COCO`: Indicates that the dataset metadata file is a JSON file with the COCO format
 - `DatasetMetadataType.YOLO`: Indicates that the dataset metadata file is in the YOLO format
-- `DatasetMetadataType.KeylabsObjDetImages`: Indicates that the dataset metadata file is in the Keylabs object detection image format
-- `DatasetMetadataType.KeylabsObjDetVideo`: Indicates that the dataset metadata file is in the Keylabs object detection video format
-- `DatasetMetadataType.KeylabsObjSegImages`: Indicates that the dataset metadata file is in the Keylabs object segmentation image format
-- `DatasetMetadataType.KeylabsObjSegVideo`: Indicates that the dataset metadata file is in the Keylabs object segmentation video format
 
 Currently no other formats are supported. Future versions of `hirundo` may support additional formats.
 """

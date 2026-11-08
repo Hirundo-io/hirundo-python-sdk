@@ -96,3 +96,27 @@ jobs:
       - name: Skip tests (only workflow files changed)
         if: github.event_name != 'pull_request' && steps.changes.outputs.non_workflow != 'true'
         run: echo "Only .github/workflows files changed; skipping installation and tests."
+
+  # Mocked HTTP tests need no secrets or network access, so they run on PRs too.
+  pytest_offline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          uv venv
+          source .venv/bin/activate
+          uv sync --group dev
+      - name: Run mocked LLM unlearning HTTP tests
+        run: .venv/bin/pytest tests/unlearning-llm/llm_unlearning_http_test.py
