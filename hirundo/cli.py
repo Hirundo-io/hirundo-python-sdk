@@ -29,11 +29,13 @@ from hirundo._credentials import (
 from hirundo._env import API_HOST, EnvLocation
 from hirundo.cli_dataset_qa import dataset_qa_app
 from hirundo.cli_eval import eval_app
+from hirundo.cli_llm import llm_app
 from hirundo.cli_unlearning import unlearning_app
 
 _CONFIG_PANEL = "Configuration"
 _RUNS_PANEL = "Runs"
 _PIPELINES_PANEL = "Pipelines"
+_MODELS_PANEL = "Models"
 
 app = typer.Typer(
     name="hirundo",
@@ -43,13 +45,14 @@ app = typer.Typer(
     help=(
         "Launch and monitor Hirundo data-quality, unlearning, and evaluation "
         "runs. Run `hirundo setup` once to store your API key, then use the "
-        "eval, dataset-qa, and unlearning command groups."
+        "eval, dataset-qa, unlearning, and llm command groups."
     ),
 )
 
 app.add_typer(eval_app, name="eval", rich_help_panel=_PIPELINES_PANEL)
 app.add_typer(dataset_qa_app, name="dataset-qa", rich_help_panel=_PIPELINES_PANEL)
 app.add_typer(unlearning_app, name="unlearning", rich_help_panel=_PIPELINES_PANEL)
+app.add_typer(llm_app, name="llm", rich_help_panel=_MODELS_PANEL)
 
 
 class RunType(str, Enum):
