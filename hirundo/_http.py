@@ -35,6 +35,8 @@ class _RequestsShim:
     """Shim exposing a subset of the requests API but backed by a retrying Session."""
 
     HTTPError = _requests.HTTPError
+    ConnectionError = _requests.ConnectionError
+    Timeout = _requests.Timeout
     Response = _requests.Response
 
     def request(self, method: str, url: str, **kwargs) -> Response:
