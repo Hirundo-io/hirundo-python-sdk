@@ -39,6 +39,7 @@ def test_refusal_preset_launch_serializes_platform_contract(
         requests_made.append((url, kwargs["json"]))
         return _Response({"run_id": "eval-run-id"})
 
+    monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
     monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
     run_info = EvalRunInfo(
         name="Refusal evaluation",
@@ -53,9 +54,9 @@ def test_refusal_preset_launch_serializes_platform_contract(
     request_url, request_payload = requests_made[0]
     assert request_url.endswith(f"/llm-behavior-eval/run/{model_or_run.value}")
     assert request_payload["preset_type"] == preset_type.value
-    assert request_payload["model_id"] == model_id
-    assert request_payload["source_run_id"] == source_run_id
-    assert request_payload["bias_type"] is None
+    assert request_payload.get("model_id") == model_id
+    assert request_payload.get("source_run_id") == source_run_id
+    assert "bias_type" not in request_payload
 
 
 @pytest.mark.parametrize(

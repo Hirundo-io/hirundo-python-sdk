@@ -75,11 +75,35 @@ class EvalFramework(str, Enum):
 
 
 class JudgeModel(BaseModel):
-    path_or_repo_id: str
+    path_or_repo_id: str | None = Field(
+        default=None,
+        description=(
+            "Local path or Hugging Face repository ID of the judge model. "
+            "None uses the deployment's default judge, which lets callers set "
+            "judge limits without choosing a judge."
+        ),
+    )
     token: str | None = None
     batch_size: int | None = None
-    output_tokens: int | None = None
+    output_tokens: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Maximum number of tokens the judge model may generate per response. "
+            "None uses the deployment default. A deployment may lock this limit, "
+            "in which case the server rejects a value."
+        ),
+    )
     use_4bit: bool | None = None
+    max_model_len: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Maximum context length for the judge model. None uses the "
+            "deployment default. A deployment may lock this limit, in which "
+            "case the server rejects a value."
+        ),
+    )
 
 
 class EvalRunInfo(BaseModel):
@@ -90,6 +114,24 @@ class EvalRunInfo(BaseModel):
     preset_type: PresetType | None = None
     bias_type: BBQBiasType | UnqoverBiasType | None = None
     judge_model: JudgeModel | None = None
+    max_model_len: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Maximum context length for the evaluated model. None uses the "
+            "deployment default. A deployment may lock this limit, in which "
+            "case the server rejects a value."
+        ),
+    )
+    max_output_tokens: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Maximum number of tokens the evaluated model may generate per "
+            "response. None uses the deployment default. A deployment may lock "
+            "this limit, in which case the server rejects a value."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_bias_type(self) -> "EvalRunInfo":
@@ -178,6 +220,29 @@ class EvalRunRecord(BaseModel):
             "runs, or for runs created before this setting was recorded."
         ),
     )
+    max_output_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Effective maximum output tokens for the evaluated model, recorded "
+            "at launch. None for runs created before this setting was recorded."
+        ),
+    )
+    judge_max_model_len: int | None = Field(
+        default=None,
+        description=(
+            "Effective maximum context length for the judge model, recorded at "
+            "launch. None for runs without a judge or created before this "
+            "setting was recorded."
+        ),
+    )
+    judge_max_output_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Effective maximum output tokens for the judge model, recorded at "
+            "launch. None for runs without a judge or created before this "
+            "setting was recorded."
+        ),
+    )
     judge_model: JudgeModel | None = None
     run_id: str
     mlflow_run_id: str | None
@@ -246,6 +311,9 @@ class LlmBehaviorEval:
             attempt_timeout=response_payload.get("attempt_timeout"),
             max_retries=response_payload.get("max_retries"),
             max_model_len=response_payload.get("max_model_len"),
+            max_output_tokens=response_payload.get("max_output_tokens"),
+            judge_max_model_len=response_payload.get("judge_max_model_len"),
+            judge_max_output_tokens=response_payload.get("judge_max_output_tokens"),
             judge_model=judge_model,
             run_id=response_payload["run_id"],
             mlflow_run_id=response_payload.get("mlflow_run_id"),
@@ -289,7 +357,7 @@ class LlmBehaviorEval:
 
         response = requests.post(
             f"{API_HOST}/llm-behavior-eval/run/{model_or_run_value.value}",
-            json=run_info.model_dump(mode="json"),
+            json=run_info.model_dump(mode="json", exclude_none=True),
             headers=get_headers(),
             timeout=MODIFY_TIMEOUT,
         )

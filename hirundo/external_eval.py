@@ -55,6 +55,17 @@ class ExternalEvalRunInfo(BaseModel):
             "Omit or set None to use the model's context length."
         ),
     )
+    max_output_tokens: int | None = Field(
+        default=None,
+        gt=0,
+        strict=True,
+        description=(
+            "Maximum number of tokens the evaluated model may generate per "
+            "response. Omit or set None to use the deployment default. A "
+            "deployment may lock this limit, in which case the server rejects "
+            "a value."
+        ),
+    )
 
     @model_validator(mode="after")
     def _validate_unique_task_ids(self) -> "ExternalEvalRunInfo":

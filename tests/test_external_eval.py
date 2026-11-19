@@ -96,6 +96,54 @@ def test_launch_model_external_eval_run_serializes_context_cap(
     }
 
 
+@pytest.mark.parametrize("max_output_tokens", [None, 1024])
+def test_launch_external_eval_run_serializes_output_token_cap(
+    monkeypatch: pytest.MonkeyPatch,
+    max_output_tokens: int | None,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["json"] = kwargs["json"]
+        return _Response({"message": "Run launched", "run_id": "inspect-run-id"})
+
+    monkeypatch.setattr("hirundo.external_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.external_eval.requests.post", fake_post)
+
+    ExternalEval.launch_eval_run(
+        ModelOrRun.MODEL,
+        ExternalEvalRunInfo(
+            model_id=123,
+            task_ids=["inspect_evals/aime25"],
+            max_output_tokens=max_output_tokens,
+        ),
+    )
+
+    assert captured_request["json"] == {
+        "model_id": 123,
+        "task_ids": ["inspect_evals/aime25"],
+        **(
+            {"max_output_tokens": max_output_tokens}
+            if max_output_tokens is not None
+            else {}
+        ),
+    }
+
+
+@pytest.mark.parametrize("max_output_tokens", [0, -1, 1.5, 1.0, True, "4096"])
+def test_external_eval_run_info_rejects_invalid_output_token_cap(
+    max_output_tokens: int | float | bool | str,
+) -> None:
+    with pytest.raises(ValidationError):
+        ExternalEvalRunInfo.model_validate(
+            {
+                "model_id": 123,
+                "task_ids": ["inspect_evals/aime25"],
+                "max_output_tokens": max_output_tokens,
+            }
+        )
+
+
 @pytest.mark.parametrize("max_model_len", [0, -1, 1.5, 1.0, True, "4096"])
 def test_external_eval_run_info_rejects_invalid_context_cap(
     max_model_len: int | float | bool | str,
