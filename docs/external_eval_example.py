@@ -13,6 +13,7 @@ launch = ExternalEval.launch_eval_run(
         task_ids=[task_id],
         sample_limit=10,
         max_model_len=32768,
+        max_output_tokens=4096,
     ),
 )
 

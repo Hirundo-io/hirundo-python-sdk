@@ -12,6 +12,7 @@ from hirundo import (
 )
 from hirundo._run_status import RunStatus
 from hirundo.llm_behavior_eval import LlmEvalMetricRow, LlmEvalMetrics
+from pydantic import ValidationError
 
 
 class _Response:
@@ -51,28 +52,124 @@ def test_launch_eval_run_omits_removed_custom_dataset_path(
     assert run_id == "eval-run-id"
     assert captured_request["url"].endswith("/llm-behavior-eval/run/model")
     assert captured_request["json"] == {
-        "organization_id": None,
         "name": "preset-evaluation",
         "model_id": 123,
-        "source_run_id": None,
         "preset_type": "BBQ_BIAS",
         "bias_type": "ALL",
-        "judge_model": {
-            "path_or_repo_id": "Qwen/Qwen3-0.6B",
-            "token": None,
-            "batch_size": None,
-            "output_tokens": None,
-            "use_4bit": None,
-        },
+        "judge_model": {"path_or_repo_id": "Qwen/Qwen3-0.6B"},
     }
     assert "file_path" not in captured_request["json"]
+
+
+def test_launch_eval_run_serializes_token_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["url"] = args[0]
+        captured_request["json"] = kwargs["json"]
+        return _Response()
+
+    monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
+
+    LlmBehaviorEval.launch_eval_run(
+        ModelOrRun.RUN,
+        EvalRunInfo(
+            source_run_id="unlearning-run-id",
+            preset_type=PresetType.HALU_EVAL,
+            max_model_len=8192,
+            max_output_tokens=512,
+            judge_model=JudgeModel(max_model_len=4096, output_tokens=256),
+        ),
+    )
+
+    assert captured_request["url"].endswith("/llm-behavior-eval/run/run")
+    assert captured_request["json"] == {
+        "source_run_id": "unlearning-run-id",
+        "preset_type": "HALU_EVAL",
+        "max_model_len": 8192,
+        "max_output_tokens": 512,
+        "judge_model": {"max_model_len": 4096, "output_tokens": 256},
+    }
+
+
+def test_launch_eval_run_omits_unset_token_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_request: dict[str, Any] = {}
+
+    def fake_post(*args: Any, **kwargs: Any) -> _Response:
+        captured_request["json"] = kwargs["json"]
+        return _Response()
+
+    monkeypatch.setattr("hirundo.llm_behavior_eval.get_headers", lambda: {})
+    monkeypatch.setattr("hirundo.llm_behavior_eval.requests.post", fake_post)
+
+    LlmBehaviorEval.launch_eval_run(
+        ModelOrRun.MODEL,
+        EvalRunInfo(
+            model_id=123,
+            preset_type=PresetType.HALU_EVAL,
+            judge_model=JudgeModel(),
+        ),
+    )
+
+    assert captured_request["json"] == {
+        "model_id": 123,
+        "preset_type": "HALU_EVAL",
+        "judge_model": {},
+    }
+
+
+@pytest.mark.parametrize("field_name", ["max_model_len", "max_output_tokens"])
+@pytest.mark.parametrize("invalid_value", [0, -1])
+def test_eval_run_info_rejects_non_positive_token_limits(
+    field_name: str,
+    invalid_value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        EvalRunInfo.model_validate({"model_id": 123, field_name: invalid_value})
+
+
+@pytest.mark.parametrize("field_name", ["max_model_len", "output_tokens"])
+@pytest.mark.parametrize("invalid_value", [0, -1])
+def test_judge_model_rejects_non_positive_token_limits(
+    field_name: str,
+    invalid_value: int,
+) -> None:
+    with pytest.raises(ValidationError):
+        JudgeModel.model_validate({field_name: invalid_value})
+
+
+def test_judge_model_defaults_to_deployment_judge() -> None:
+    judge_model = JudgeModel(output_tokens=128)
+
+    assert judge_model.path_or_repo_id is None
+    assert judge_model.max_model_len is None
+    assert judge_model.output_tokens == 128
 
 
 @pytest.mark.parametrize(
     "generation_settings",
     [
-        {"attempt_timeout": 3600, "max_retries": 0, "max_model_len": 32768},
-        {"attempt_timeout": None, "max_retries": None, "max_model_len": None},
+        {
+            "attempt_timeout": 3600,
+            "max_retries": 0,
+            "max_model_len": 32768,
+            "max_output_tokens": 2048,
+            "judge_max_model_len": 8192,
+            "judge_max_output_tokens": 512,
+        },
+        {
+            "attempt_timeout": None,
+            "max_retries": None,
+            "max_model_len": None,
+            "max_output_tokens": None,
+            "judge_max_model_len": None,
+            "judge_max_output_tokens": None,
+        },
         {},
     ],
 )
@@ -120,6 +217,13 @@ def test_parse_inspect_evaluation_run(
     assert run_record.attempt_timeout == generation_settings.get("attempt_timeout")
     assert run_record.max_retries == generation_settings.get("max_retries")
     assert run_record.max_model_len == generation_settings.get("max_model_len")
+    assert run_record.max_output_tokens == generation_settings.get("max_output_tokens")
+    assert run_record.judge_max_model_len == generation_settings.get(
+        "judge_max_model_len"
+    )
+    assert run_record.judge_max_output_tokens == generation_settings.get(
+        "judge_max_output_tokens"
+    )
     assert run_record.metrics == LlmEvalMetrics(
         rows=[
             LlmEvalMetricRow(
@@ -158,6 +262,9 @@ def test_parse_legacy_evaluation_run_defaults_framework() -> None:
     assert run_record.attempt_timeout is None
     assert run_record.max_retries is None
     assert run_record.max_model_len is None
+    assert run_record.max_output_tokens is None
+    assert run_record.judge_max_model_len is None
+    assert run_record.judge_max_output_tokens is None
 
 
 def test_parse_legacy_evaluation_run_defaults_null_framework() -> None:
